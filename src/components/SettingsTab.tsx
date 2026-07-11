@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { User, Cpu, HardDrive, RefreshCw } from 'lucide-react';
 
-export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { userProfile: {name: string, id: string, accessToken: string} | null, onLoginClick: () => void, onLogout: () => void }) {
-  const [ram, setRam] = useState(4096);
-  const [javaPath, setJavaPath] = useState('');
+export default function SettingsTab({ 
+  userProfile, 
+  onLoginClick, 
+  onLogout,
+  ram,
+  setRam,
+  javaPath,
+  setJavaPath
+}: { 
+  userProfile: {name: string, id: string, accessToken: string} | null, 
+  onLoginClick: () => void, 
+  onLogout: () => void,
+  ram: number,
+  setRam: (ram: number) => void,
+  javaPath: string,
+  setJavaPath: (path: string) => void
+}) {
   const [autoUpdate, setAutoUpdate] = useState(false);
+  const [showConfirmLogout, setShowConfirmLogout] = useState(false);
 
   useEffect(() => {
     const savedAutoUpdate = localStorage.getItem('auto_update_mods');
@@ -92,9 +107,33 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
             </div>
             
             {userProfile ? (
-              <button onClick={onLogout} className="bg-zinc-800 text-white hover:bg-zinc-700 hover:text-red-400 px-6 py-2.5 rounded-lg text-xs font-bold transition-all border border-zinc-700">
-                Выйти
-              </button>
+              showConfirmLogout ? (
+                <div className="flex items-center gap-2 animate-fade-in relative z-20">
+                  <span className="text-[11px] text-red-400 font-bold mr-1">Выйти из аккаунта?</span>
+                  <button 
+                    onClick={() => {
+                      onLogout();
+                      setShowConfirmLogout(false);
+                    }} 
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-md shadow-red-900/20 active:scale-95"
+                  >
+                    Да, выйти
+                  </button>
+                  <button 
+                    onClick={() => setShowConfirmLogout(false)} 
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-2 rounded-lg text-xs font-bold transition-all border border-zinc-700 active:scale-95"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowConfirmLogout(true)} 
+                  className="bg-zinc-800 text-white hover:bg-zinc-700 hover:text-red-400 px-6 py-2.5 rounded-lg text-xs font-bold transition-all border border-zinc-700"
+                >
+                  Выйти
+                </button>
+              )
             ) : (
               <button onClick={onLoginClick} className="bg-white text-black hover:bg-zinc-200 px-6 py-2.5 rounded-lg text-xs font-bold transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-105 active:scale-95">
                 Войти через Ely.by

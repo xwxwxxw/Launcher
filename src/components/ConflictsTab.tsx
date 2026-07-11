@@ -1,32 +1,20 @@
 import React from 'react';
 import { ShieldAlert, AlertTriangle, AlertCircle, XCircle } from 'lucide-react';
 
-export default function ConflictsTab() {
-  // Mock conflicts data
-  const conflicts = [
-    {
-      id: '1',
-      type: 'missing_dependency',
-      title: 'Отсутствует зависимость: Fabric API',
-      description: 'Для работы мода "Sodium" требуется Fabric API версии 0.90.0 или выше.',
-      severity: 'high'
-    },
-    {
-      id: '2',
-      type: 'conflict',
-      title: 'Конфликт модов',
-      description: 'Мод "OptiFine" конфликтует с "Sodium". Пожалуйста, удалите один из них для стабильной работы сборки.',
-      severity: 'critical'
-    },
-    {
-      id: '3',
-      type: 'warning',
-      title: 'Устаревшая версия мода',
-      description: 'Доступна новая версия для "Iris Shaders" (1.6.17 -> 1.7.0).',
-      severity: 'low'
-    }
-  ];
+interface Conflict {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  severity: string;
+}
 
+interface ConflictsTabProps {
+  conflicts: Conflict[];
+  onResolveConflict: (actionType: string, payload?: any) => void;
+}
+
+export default function ConflictsTab({ conflicts, onResolveConflict }: ConflictsTabProps) {
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical': return <XCircle className="text-red-500" size={24} />;
@@ -71,13 +59,19 @@ export default function ConflictsTab() {
                   Подробнее
                 </button>
                 {conflict.type === 'missing_dependency' && (
-                  <button className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm">
-                    Установить зависимость
+                  <button 
+                    onClick={() => onResolveConflict('install_dep', 'P7dR8mSH')} // Fabric API Modrinth project ID
+                    className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
+                  >
+                    Установить Fabric API
                   </button>
                 )}
                 {conflict.type === 'conflict' && (
-                  <button className="bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm">
-                    Удалить Sodium
+                  <button 
+                    onClick={() => onResolveConflict('remove_optifine', 'optifine')}
+                    className="bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
+                  >
+                    Удалить OptiFine
                   </button>
                 )}
               </div>

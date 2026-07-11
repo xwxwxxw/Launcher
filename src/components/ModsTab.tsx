@@ -4,9 +4,17 @@ import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCl
 import DependencyTreeModal from './DependencyTreeModal';
 import ModrinthSearchModal from './ModrinthSearchModal';
 
-export default function ModsTab() {
-  const [mods, setMods] = useState<ModInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+interface ModsTabProps {
+  mods: ModInfo[];
+  loading: boolean;
+  onScan: (path?: string) => Promise<void>;
+  onDelete: (modId: string) => Promise<void>;
+  onRefresh: () => void;
+  onToggleMod: (modId: string, enabled: boolean) => Promise<void>;
+  activeProfileId: string;
+}
+
+export default function ModsTab({ mods, loading, onScan, onDelete, onRefresh, onToggleMod, activeProfileId }: ModsTabProps) {
   const [updating, setUpdating] = useState(false);
   const [viewMode, setViewMode] = useState<'client' | 'server' | 'both'>('client');
   const [search, setSearch] = useState('');
@@ -22,22 +30,6 @@ export default function ModsTab() {
 
   const [selectedMod, setSelectedMod] = useState<ModInfo | null>(null);
 
-  const handleScan = async (path: string = '') => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/mods/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath: path })
-      });
-      const data = await res.json();
-      setMods(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-    }
-    setLoading(false);
-  };
-
   const handleUpdateMods = async () => {
     setUpdating(true);
     try {
@@ -50,7 +42,7 @@ export default function ModsTab() {
       const data = await res.json();
       if (data.success) {
         alert(`Успешно: ${data.message} Обновлено ${data.updatedCount} модов.`);
-        await handleScan(''); // Rescan after update
+        onRefresh(); // Refresh after update
       }
     } catch (e) {
       console.error(e);
@@ -106,11 +98,11 @@ export default function ModsTab() {
               <DownloadCloud size={16} className={updating ? 'animate-bounce' : ''} />
               <span>{updating ? 'Обновление...' : 'Обновить (Modrinth)'}</span>
             </button>
-            <button onClick={() => handleScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
+            <button onClick={() => onScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
               <FolderOpen size={16} className="text-zinc-400" />
               <span>Папка Клиента</span>
             </button>
-            <button onClick={() => handleScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
+            <button onClick={() => onScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
               <FolderOpen size={16} className="text-zinc-400" />
               <span>Папка Сервера</span>
             </button>
@@ -163,7 +155,13 @@ export default function ModsTab() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-12">
             {filteredMods.map(mod => (
-              <ModCard key={mod.path} mod={mod} onShowDeps={() => setSelectedMod(mod)} />
+              <ModCard 
+                key={mod.path} 
+                mod={mod} 
+                onShowDeps={() => setSelectedMod(mod)} 
+                onDelete={() => onDelete(mod.mod_id)} 
+                onToggle={(enabled) => onToggleMod(mod.mod_id, enabled)}
+              />
             ))}
           </div>
         )}
@@ -174,7 +172,7 @@ export default function ModsTab() {
       )}
 
       {showModrinthModal && (
-        <ModrinthSearchModal onClose={() => setShowModrinthModal(false)} />
+        <ModrinthSearchModal onClose={() => setShowModrinthModal(false)} onInstalled={onRefresh} activeProfileId={activeProfileId} />
       )}
     </div>
   );
@@ -209,31 +207,79 @@ function FilterTag({ active, onClick, label, color, dotColor }: { active: boolea
   );
 }
 
-const ModCard: React.FC<{ mod: ModInfo, onShowDeps: () => void }> = ({ mod, onShowDeps }) => {
+const ModCard: React.FC<{ 
+  mod: ModInfo; 
+  onShowDeps: () => void; 
+  onDelete: () => void;
+  onToggle: (enabled: boolean) => void;
+}> = ({ mod, onShowDeps, onDelete, onToggle }) => {
+  const isEnabled = mod.enabled !== false;
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle(!isEnabled);
+  };
+
   return (
-    <div className="group rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-6 flex gap-5 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-800/60 relative overflow-hidden backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className={`group rounded-3xl border p-6 flex gap-5 transition-all duration-300 relative overflow-hidden backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] ${
+      isEnabled 
+        ? 'border-zinc-800/40 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/60' 
+        : 'border-zinc-850 bg-zinc-950/20 opacity-50 hover:opacity-80 hover:border-zinc-800'
+    }`}>
       <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"></div>
       
       <div className="pt-2">
-        <div className="relative flex items-center justify-center w-5 h-5 rounded border border-zinc-700 bg-zinc-900 overflow-hidden cursor-pointer">
-          <input type="checkbox" className="absolute opacity-0 w-full h-full cursor-pointer peer" />
-          <div className="w-full h-full peer-checked:bg-blue-500 transition-colors"></div>
+        <div 
+          onClick={handleToggle}
+          className={`relative flex items-center justify-center w-5 h-5 rounded border transition-colors cursor-pointer ${
+            isEnabled ? 'border-emerald-500 bg-emerald-500/20' : 'border-zinc-700 bg-zinc-900'
+          }`}
+        >
+          {isEnabled && (
+            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-400"></div>
+          )}
         </div>
       </div>
       
       <div className="w-16 h-16 bg-zinc-950 rounded-xl border border-zinc-800/80 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-inner p-1">
-        {mod.icon_url ? <img src={mod.icon_url} alt="icon" className="w-full h-full object-contain rounded-lg" /> : <Package className="text-zinc-600" size={24} strokeWidth={1.5} />}
+        {mod.icon_url ? (
+          <img 
+            src={mod.icon_url} 
+            alt="icon" 
+            className="w-full h-full object-contain rounded-lg" 
+            referrerPolicy="no-referrer" 
+            onError={(e) => {
+              e.currentTarget.src = 'https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png';
+            }}
+          />
+        ) : (
+          <img 
+            src="https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png" 
+            alt="sodium fallback" 
+            className="w-full h-full object-contain rounded-lg" 
+          />
+        )}
       </div>
 
       <div className="flex-1 min-w-0 relative z-10">
         <div className="flex items-start justify-between">
           <h3 className="text-base font-bold text-zinc-100 truncate pr-4 tracking-tight">{mod.display_name}</h3>
-          <span className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80">
-            {mod.api_source ? mod.api_source : 'Локальный'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80">
+              {mod.api_source ? mod.api_source : 'Локальный'}
+            </span>
+            <button 
+              onClick={(e) => { e.stopPropagation(); if(confirm(`Удалить мод "${mod.display_name}"?`)) onDelete(); }}
+              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all border border-transparent hover:border-red-500/20"
+              title="Удалить мод"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 my-3">
+          {!isEnabled && <Badge label="Выключен (.disabled)" color="border-zinc-700 bg-zinc-800 text-zinc-400" />}
           {mod.is_worldgen && <Badge label="Генерация" color="border-red-500/30 bg-red-500/10 text-red-400" />}
           {mod.is_client && <Badge label="Клиент" color="border-blue-500/30 bg-blue-500/10 text-blue-400" />}
           {mod.is_server && <Badge label="Сервер" color="border-purple-500/30 bg-purple-500/10 text-purple-400" />}

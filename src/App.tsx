@@ -7,12 +7,262 @@ import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
 import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert } from 'lucide-react';
+import { ModInfo, Profile } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>('home');
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
+
+  // Lifted state
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [activeProfileId, setActiveProfileId] = useState<string>('');
+  
+  const [mods, setMods] = useState<ModInfo[]>([]);
+  const [loadingMods, setLoadingMods] = useState(true);
+
+  const [ram, setRamState] = useState<number>(() => {
+    const saved = localStorage.getItem('launcher_ram');
+    return saved ? parseInt(saved, 10) : 4096;
+  });
+  const [javaPath, setJavaPathState] = useState<string>(() => {
+    return localStorage.getItem('launcher_java_path') || '';
+  });
+
+  const setRam = (val: number) => {
+    setRamState(val);
+    localStorage.setItem('launcher_ram', val.toString());
+  };
+  const setJavaPath = (val: string) => {
+    setJavaPathState(val);
+    localStorage.setItem('launcher_java_path', val);
+  };
+
+  const fetchProfiles = async () => {
+    setLoadingProfiles(true);
+    try {
+      const res = await fetch('/api/profiles');
+      const data = await res.json();
+      const profs = Array.isArray(data) ? data : [];
+      setProfiles(profs);
+      
+      const savedActiveId = localStorage.getItem('launcher_active_profile_id');
+      if (savedActiveId && profs.some((p: any) => p.id === savedActiveId)) {
+        setActiveProfileId(savedActiveId);
+      } else if (profs.length > 0) {
+        setActiveProfileId(profs[0].id);
+        localStorage.setItem('launcher_active_profile_id', profs[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingProfiles(false);
+  };
+
+  const fetchMods = async () => {
+    setLoadingMods(true);
+    try {
+      const res = await fetch('/api/mods/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderPath: '' })
+      });
+      const data = await res.json();
+      setMods(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingMods(false);
+  };
+
+  const handleCreateProfile = async (newProf: any) => {
+    try {
+      const res = await fetch('/api/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProf)
+      });
+      const p = await res.json();
+      setProfiles(prev => [...prev, p]);
+      if (!activeProfileId) {
+        handleSelectProfile(p.id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    try {
+      await fetch(`/api/profiles/${id}`, { method: 'DELETE' });
+      setProfiles(prev => prev.filter(p => p.id !== id));
+      if (activeProfileId === id) {
+        const remaining = profiles.filter(p => p.id !== id);
+        if (remaining.length > 0) {
+          handleSelectProfile(remaining[0].id);
+        } else {
+          setActiveProfileId('');
+          localStorage.removeItem('launcher_active_profile_id');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSelectProfile = (id: string) => {
+    setActiveProfileId(id);
+    localStorage.setItem('launcher_active_profile_id', id);
+    const found = profiles.find(p => p.id === id);
+    if (found && found.ram_mb) {
+      setRam(found.ram_mb);
+    }
+  };
+
+  const handleDeleteMod = async (modId: string) => {
+    try {
+      const res = await fetch('/api/mods/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modId, profileId: activeProfileId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMods();
+      } else {
+        alert('Ошибка при удалении мода: ' + (data.message || 'неизвестная ошибка'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка соединения при удалении мода.');
+    }
+  };
+
+  const handleUpdateProfile = async (id: string, updatedFields: any) => {
+    try {
+      const res = await fetch(`/api/profiles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFields)
+      });
+      const updated = await res.json();
+      setProfiles(prev => prev.map(p => p.id === id ? updated : p));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleMod = async (modId: string, enabled: boolean) => {
+    try {
+      const res = await fetch('/api/mods/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modId, profileId: activeProfileId, enabled })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchMods();
+      } else {
+        alert('Ошибка при переключении мода: ' + (data.message || 'неизвестная ошибка'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка соединения при переключении мода.');
+    }
+  };
+
+  const getConflicts = () => {
+    const list: any[] = [];
+    
+    const hasSodium = mods.some(m => 
+      m.mod_id?.toLowerCase() === 'sodium' || 
+      m.display_name?.toLowerCase().includes('sodium')
+    );
+    const hasOptifine = mods.some(m => 
+      m.mod_id?.toLowerCase() === 'optifine' || 
+      m.display_name?.toLowerCase().includes('optifine')
+    );
+    const hasFabricApi = mods.some(m => 
+      m.mod_id?.toLowerCase() === 'fabric-api' || 
+      m.display_name?.toLowerCase().includes('fabric api') ||
+      m.display_name?.toLowerCase().includes('fabric-api')
+    );
+
+    if (hasSodium && hasOptifine) {
+      list.push({
+        id: 'conflict-optifine-sodium',
+        type: 'conflict',
+        title: 'Конфликт модов: OptiFine и Sodium',
+        description: 'Мод OptiFine конфликтует с Sodium. Рекомендуется использовать только один оптимизатор для стабильной работы сборки.',
+        severity: 'critical'
+      });
+    }
+
+    if (hasSodium && !hasFabricApi) {
+      list.push({
+        id: 'missing-fabric-api',
+        type: 'missing_dependency',
+        title: 'Отсутствует зависимость: Fabric API',
+        description: 'Для корректной работы Sodium в среде Fabric требуется установить официальный Fabric API.',
+        severity: 'high'
+      });
+    }
+
+    if (mods.length > 0 && mods.length < 3) {
+      list.push({
+        id: 'warning-few-mods',
+        type: 'warning',
+        title: 'Рекомендация: Добавьте моды оптимизации',
+        description: 'Ваша сборка содержит очень мало модов. Рекомендуем установить Iris Shaders для поддержки шейдеров.',
+        severity: 'low'
+      });
+    }
+
+    return list;
+  };
+
+  const conflicts = getConflicts();
+
+  const handleResolveConflict = async (actionType: string, payload?: any) => {
+    if (actionType === 'install_dep') {
+      try {
+        alert('Установка Fabric API с Modrinth... Пожалуйста, подождите.');
+        const res = await fetch('/api/mods/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: 'P7dR8mSH' }) // Fabric API
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Fabric API успешно установлен!');
+          await fetchMods();
+        } else {
+          alert('Ошибка установки Fabric API: ' + (data.message || 'неизвестная ошибка'));
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Ошибка при соединении с сервером для установки Fabric API.');
+      }
+    } else if (actionType === 'remove_optifine') {
+      try {
+        const optifineMod = mods.find(m => 
+          m.mod_id?.toLowerCase() === 'optifine' || 
+          m.display_name?.toLowerCase().includes('optifine')
+        );
+        const modIdToDelete = optifineMod?.mod_id || 'optifine';
+        await handleDeleteMod(modIdToDelete);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchProfiles();
+    fetchMods();
+  }, []);
 
   useEffect(() => {
     // 1. Initial load of active session
@@ -78,6 +328,16 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     localStorage.removeItem('ely_session');
+  };
+
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
+    id: '1',
+    name: 'Vanilla 1.20.1',
+    game_version: '1.20.1',
+    mod_loader: 'Vanilla',
+    mod_loader_version: '0.15.7',
+    description: 'Чистая сборка без модов.',
+    ram_mb: ram
   };
 
   return (
@@ -153,11 +413,6 @@ export default function App() {
         <header className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80">
           <div className="flex items-center space-x-3">
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
-            <div className="h-1 w-1 rounded-full bg-zinc-700 mx-2"></div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400"></div>
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Online</span>
-            </div>
           </div>
           <div className="flex items-center space-x-3 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
             <div className="h-3 w-3 rounded-full bg-zinc-700 hover:bg-red-500 transition-colors"></div>
@@ -168,11 +423,58 @@ export default function App() {
 
         {/* Content Area */}
         <main className="flex flex-1 flex-row overflow-hidden relative z-10">
-          {activeTab === 'home' && <HomeTab onNavigate={setActiveTab} userProfile={userProfile} onLoginClick={() => setShowAuthModal(true)} />}
-          {activeTab === 'mods' && <ModsTab />}
-          {activeTab === 'profiles' && <ProfilesTab />}
-          {activeTab === 'conflicts' && <ConflictsTab />}
-          {activeTab === 'settings' && <SettingsTab userProfile={userProfile} onLoginClick={() => setShowAuthModal(true)} onLogout={handleLogout} />}
+          {activeTab === 'home' && (
+            <HomeTab 
+              onNavigate={setActiveTab} 
+              userProfile={userProfile} 
+              onLoginClick={() => setShowAuthModal(true)} 
+              modsCount={mods.length}
+              profilesCount={profiles.length}
+              conflictsCount={conflicts.length}
+              ram={ram}
+              activeProfileName={activeProfile.name}
+            />
+          )}
+          {activeTab === 'mods' && (
+            <ModsTab 
+              mods={mods.filter(m => m.profile_id === activeProfileId)}
+              loading={loadingMods}
+              onScan={fetchMods}
+              onDelete={handleDeleteMod}
+              onRefresh={fetchMods}
+              onToggleMod={handleToggleMod}
+              activeProfileId={activeProfileId}
+            />
+          )}
+          {activeTab === 'profiles' && (
+            <ProfilesTab 
+              profiles={profiles}
+              loading={loadingProfiles}
+              activeProfileId={activeProfileId}
+              onSelectProfile={handleSelectProfile}
+              onCreateProfile={handleCreateProfile}
+              onDeleteProfile={handleDeleteProfile}
+              onUpdateProfile={handleUpdateProfile}
+              mods={mods}
+            />
+          )}
+          {activeTab === 'conflicts' && (
+            <ConflictsTab 
+              conflicts={conflicts}
+              onResolveConflict={handleResolveConflict}
+            />
+          )}
+          {activeTab === 'settings' && (
+            <SettingsTab 
+              userProfile={userProfile} 
+              onLoginClick={() => setShowAuthModal(true)} 
+              onLogout={handleLogout} 
+              ram={ram}
+              setRam={setRam}
+              javaPath={javaPath}
+              setJavaPath={setJavaPath}
+            />
+          )}
         </main>
 
         {/* Footer / Launcher Controls */}
@@ -187,9 +489,11 @@ export default function App() {
               )}
             </div>
             <div className="flex items-center space-x-4 text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
-              <span>Сборка <span className="text-zinc-300">Vanilla 1.20.1</span></span>
+              <span>Сборка <span className="text-zinc-300">{activeProfile.name}</span></span>
               <span className="text-zinc-700">•</span>
-              <span>Ядро <span className="text-zinc-300">Fabric 0.15.7</span></span>
+              <span>Версия <span className="text-zinc-300">{activeProfile.game_version}</span></span>
+              <span className="text-zinc-700">•</span>
+              <span>Ядро <span className="text-zinc-300">{activeProfile.mod_loader}</span></span>
             </div>
           </div>
 
@@ -210,7 +514,7 @@ export default function App() {
       
       {showLaunchModal && (
         <LaunchModal 
-          profileName="Vanilla 1.20.1"
+          profileName={activeProfile.name}
           onClose={() => setShowLaunchModal(false)}
         />
       )}

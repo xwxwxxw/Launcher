@@ -2,17 +2,35 @@ import React from 'react';
 import { Package, ShieldAlert, Cpu, Layers, FolderTree, PlaySquare, Settings, ArrowRight, User } from 'lucide-react';
 import PlayerSkin2D from './PlayerSkin2D';
 
-export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => void, userProfile?: {name: string, id: string, accessToken: string} | null, onLoginClick: () => void }) {
+export default function HomeTab({ 
+  onNavigate, 
+  userProfile, 
+  onLoginClick,
+  modsCount,
+  profilesCount,
+  conflictsCount,
+  ram,
+  activeProfileName
+}: { 
+  onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => void, 
+  userProfile?: {name: string, id: string, accessToken: string} | null, 
+  onLoginClick: () => void,
+  modsCount: number,
+  profilesCount: number,
+  conflictsCount: number,
+  ram: number,
+  activeProfileName: string
+}) {
   return (
     <div className="flex-1 w-full h-full overflow-hidden flex flex-row relative">
       {/* Main Content Area */}
       <div className="flex-1 px-10 py-12 overflow-y-auto scrollbar-none h-full relative z-10">
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-14">
-          <StatCard icon={<Package className="text-blue-400" size={20} strokeWidth={2} />} title="Установлено модов" value="142" trend="+3 за неделю" onClick={() => onNavigate('mods')} />
-          <StatCard icon={<Layers className="text-emerald-400" size={20} strokeWidth={2} />} title="Активные сборки" value="4" trend="Vanilla 1.20.1" onClick={() => onNavigate('profiles')} />
-          <StatCard icon={<ShieldAlert className="text-amber-400" size={20} strokeWidth={2} />} title="Проблемы и конфликты" value="3" trend="Обнаружены проблемы" onClick={() => onNavigate('conflicts')} />
-          <StatCard icon={<Cpu className="text-indigo-400" size={20} strokeWidth={2} />} title="Выделено памяти" value="8 GB" trend="Оптимально" onClick={() => onNavigate('settings')} />
+          <StatCard icon={<Package className="text-blue-400" size={20} strokeWidth={2} />} title="Установлено модов" value={modsCount} trend="В выбранной сборке" onClick={() => onNavigate('mods')} />
+          <StatCard icon={<Layers className="text-emerald-400" size={20} strokeWidth={2} />} title="Активные сборки" value={profilesCount} trend={activeProfileName} onClick={() => onNavigate('profiles')} />
+          <StatCard icon={<ShieldAlert className={conflictsCount > 0 ? "text-amber-400" : "text-emerald-400"} size={20} strokeWidth={2} />} title="Проблемы и конфликты" value={conflictsCount} trend={conflictsCount > 0 ? "Обнаружены проблемы" : "Проблем не найдено"} onClick={() => onNavigate('conflicts')} />
+          <StatCard icon={<Cpu className="text-indigo-400" size={20} strokeWidth={2} />} title="Выделено памяти" value={(ram >= 1024) ? (ram / 1024).toFixed(ram % 1024 === 0 ? 0 : 1) + " GB" : ram + " MB"} trend={ram < 3072 ? "Рекомендуется больше" : ram > 8192 ? "Слишком много" : "Оптимально"} onClick={() => onNavigate('settings')} />
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -48,7 +66,7 @@ export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onN
         {userProfile ? (
           <div className="flex flex-col items-center group relative z-10">
             <div className="relative w-40 h-80 flex justify-center items-center">
-               <PlayerSkin2D username={userProfile.name} isElyBy={true} className="w-auto h-[90%] filter drop-shadow-[0_15px_25px_rgba(59,130,246,0.35)] group-hover:scale-[1.03] transition-all duration-500" />
+               <PlayerSkin2D username={userProfile.name} uuid={userProfile.id} isElyBy={true} className="w-auto h-[90%] filter drop-shadow-[0_15px_25px_rgba(59,130,246,0.35)] group-hover:scale-[1.03] transition-all duration-500" />
                <div className="absolute -bottom-2 w-32 h-4 bg-blue-900/30 blur-[15px] rounded-[100%] scale-x-150"></div>
                <div className="absolute -bottom-2 w-16 h-2 bg-blue-500/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>

@@ -12,7 +12,7 @@ interface ModrinthProject {
   versions: string[];
 }
 
-export default function ModrinthSearchModal({ onClose }: { onClose: () => void }) {
+export default function ModrinthSearchModal({ onClose, onInstalled, activeProfileId }: { onClose: () => void, onInstalled?: () => void, activeProfileId: string }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ModrinthProject[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,8 +54,11 @@ export default function ModrinthSearchModal({ onClose }: { onClose: () => void }
       await fetch('/api/mods/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, versionId: 'latest', folderPath: '' })
+        body: JSON.stringify({ projectId, versionId: 'latest', folderPath: '', profileId: activeProfileId })
       });
+      if (onInstalled) {
+        onInstalled();
+      }
       // Show success briefly
       setTimeout(() => {
         setInstallingId(null);
@@ -127,11 +130,20 @@ export default function ModrinthSearchModal({ onClose }: { onClose: () => void }
               {results.map(mod => (
                 <div key={mod.project_id} className="bg-zinc-900/40 border border-zinc-800/40 rounded-3xl p-5 flex gap-5 hover:border-emerald-500/30 hover:bg-zinc-800/40 transition-all backdrop-blur-sm group hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
                   {mod.icon_url ? (
-                    <img src={mod.icon_url} alt={mod.title} className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 object-cover shrink-0 shadow-md group-hover:scale-105 transition-transform" />
+                    <img 
+                      src={mod.icon_url} 
+                      alt={mod.title} 
+                      className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 object-cover shrink-0 shadow-md group-hover:scale-105 transition-transform" 
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png';
+                      }}
+                    />
                   ) : (
-                    <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0 shadow-md">
-                      <Box size={24} className="text-zinc-600" />
-                    </div>
+                    <img 
+                      src="https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png" 
+                      alt="fallback icon" 
+                      className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 object-cover shrink-0 shadow-md" 
+                    />
                   )}
                   
                   <div className="flex-1 min-w-0 flex flex-col">

@@ -1,36 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Profile } from '../types';
-import { Play, Plus, Edit, Trash2, Box } from 'lucide-react';
+import { Plus, Edit, Trash2, Box } from 'lucide-react';
 import CreateProfileModal from './CreateProfileModal';
 
-export default function ProfilesTab() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+interface ProfilesTabProps {
+  profiles: Profile[];
+  loading: boolean;
+  activeProfileId: string;
+  onSelectProfile: (id: string) => void;
+  onCreateProfile: (newProf: any) => Promise<void>;
+  onDeleteProfile: (id: string) => Promise<void>;
+  onUpdateProfile: (id: string, updatedFields: any) => Promise<void>;
+  mods: any[];
+}
+
+export default function ProfilesTab({
+  profiles,
+  loading,
+  activeProfileId,
+  onSelectProfile,
+  onCreateProfile,
+  onDeleteProfile,
+  onUpdateProfile,
+  mods
+}: ProfilesTabProps) {
   const [showCreate, setShowCreate] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
 
-  useEffect(() => {
-    fetch('/api/profiles')
-      .then(res => res.json())
-      .then(data => {
-        setProfiles(data);
-        setLoading(false);
-      });
-  }, []);
-
-  const handleCreate = (newProf: any) => {
-    fetch('/api/profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newProf)
-    }).then(res => res.json()).then(p => {
-      setProfiles([...profiles, p]);
-      setShowCreate(false);
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    fetch(`/api/profiles/${id}`, { method: 'DELETE' })
-      .then(() => setProfiles(profiles.filter(p => p.id !== id)));
+  const handleCreate = async (newProf: any) => {
+    await onCreateProfile(newProf);
+    setShowCreate(false);
   };
 
   return (
@@ -64,21 +63,64 @@ export default function ProfilesTab() {
             </button>
           </div>
         ) : (
-          profiles.map(p => (
-            <ProfileCard key={p.id} profile={p} onDelete={() => handleDelete(p.id)} />
-          ))
+          profiles.map(p => {
+            const profileMods = mods.filter(m => m.profile_id === p.id);
+            const enabledCount = profileMods.filter(m => m.enabled !== false).length;
+            const disabledCount = profileMods.filter(m => m.enabled === false).length;
+
+            return (
+              <ProfileCard 
+                key={p.id} 
+                profile={p} 
+                isActive={p.id === activeProfileId}
+                onSelect={() => onSelectProfile(p.id)}
+                onDelete={() => onDeleteProfile(p.id)} 
+                onEdit={() => setEditingProfile(p)}
+                enabledCount={enabledCount}
+                disabledCount={disabledCount}
+              />
+            );
+          })
         )}
       </div>
 
       {showCreate && <CreateProfileModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
+      
+      {editingProfile && (
+        <CreateProfileModal 
+          onClose={() => setEditingProfile(null)} 
+          onCreate={async (updatedFields) => {
+            await onUpdateProfile(editingProfile.id, updatedFields);
+            setEditingProfile(null);
+          }} 
+          initialData={editingProfile}
+        />
+      )}
     </div>
   );
 }
 
-const ProfileCard: React.FC<{ profile: Profile, onDelete: () => void }> = ({ profile, onDelete }) => {
+const ProfileCard: React.FC<{ 
+  profile: Profile, 
+  isActive: boolean, 
+  onSelect: () => void, 
+  onDelete: () => void,
+  onEdit: () => void,
+  enabledCount: number,
+  disabledCount: number
+}> = ({ profile, isActive, onSelect, onDelete, onEdit, enabledCount, disabledCount }) => {
   return (
-    <div className="flex flex-col rounded-3xl border border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md p-6 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-800/60 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative group overflow-hidden">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-blue-500/10 transition-colors"></div>
+    <div 
+      onClick={onSelect}
+      className={`flex flex-col rounded-3xl border p-6 transition-all duration-300 backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative group overflow-hidden cursor-pointer ${
+        isActive 
+          ? 'border-emerald-500/40 bg-zinc-900/70 hover:border-emerald-500/60 shadow-[0_4px_20px_rgba(16,185,129,0.05)]' 
+          : 'border-zinc-800/40 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/60'
+      }`}
+    >
+      <div className={`absolute top-0 right-0 w-32 h-32 blur-[40px] rounded-full pointer-events-none transition-colors ${
+        isActive ? 'bg-emerald-500/5 group-hover:bg-emerald-500/10' : 'bg-blue-500/5 group-hover:bg-blue-500/10'
+      }`}></div>
       
       <div className="flex justify-between items-start mb-4 relative z-10">
         <div className="flex items-center gap-3.5">
@@ -86,13 +128,32 @@ const ProfileCard: React.FC<{ profile: Profile, onDelete: () => void }> = ({ pro
              <img src="https://minecraft.wiki/images/Grass_Block_Revision_6.png" className="w-6 h-6 object-contain opacity-80 mix-blend-luminosity group-hover:mix-blend-normal transition-all" alt="Grass" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-zinc-100">{profile.name}</h3>
-            <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-0.5">{profile.mod_loader} {profile.game_version}</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-zinc-100">{profile.name}</h3>
+              {isActive && (
+                <span className="text-[8px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                  Активен
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mt-0.5">
+              {profile.mod_loader} {profile.game_version} • {enabledCount} акт. / {disabledCount} выкл.
+            </p>
           </div>
         </div>
         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
-          <button className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit size={14} /></button>
-          <button onClick={onDelete} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 size={14} /></button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onEdit(); }} 
+            className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"
+          >
+            <Edit size={14} />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить сборку "${profile.name}"?`)) onDelete(); }} 
+            className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
       
@@ -108,8 +169,15 @@ const ProfileCard: React.FC<{ profile: Profile, onDelete: () => void }> = ({ pro
         </div>
       </div>
 
-      <button className="w-full flex h-11 items-center justify-center rounded-xl bg-zinc-800 text-xs font-bold uppercase tracking-widest text-zinc-200 hover:bg-white hover:text-black transition-all relative z-10">
-        Выбрать профиль
+      <button 
+        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        className={`w-full flex h-11 items-center justify-center rounded-xl text-xs font-bold uppercase tracking-widest transition-all relative z-10 ${
+          isActive 
+            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 cursor-default' 
+            : 'bg-zinc-800 text-zinc-200 hover:bg-white hover:text-black'
+        }`}
+      >
+        {isActive ? 'Сборка выбрана' : 'Выбрать сборку'}
       </button>
     </div>
   );

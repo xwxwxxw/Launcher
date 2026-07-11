@@ -4,6 +4,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } from './src/lib/modParser.js';
+import { TRANSLATIONS } from './src/lib/constants.js';
 import { Profile } from './src/types.js';
 
 // Load environment variables from .env
@@ -25,6 +26,64 @@ if (fs.existsSync(PROFILES_FILE)) {
 
 function saveProfiles() {
   fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+}
+
+if (profiles.length === 0) {
+  profiles = [
+    {
+      id: '1',
+      name: 'Vanilla 1.20.1',
+      description: 'Чистая ванильная версия Minecraft без модификаций.',
+      game_version: '1.20.1',
+      mod_loader: 'Vanilla',
+      mod_path: '',
+      created_at: Date.now() - 100000,
+      is_active: true,
+      ram_mb: 2048
+    },
+    {
+      id: '2',
+      name: 'Sodium OptiPack',
+      description: 'Сборка с модом Sodium для максимальной оптимизации FPS и Iris Shaders для красивой графики.',
+      game_version: '1.20.1',
+      mod_loader: 'Fabric',
+      mod_path: '',
+      created_at: Date.now() - 50000,
+      is_active: false,
+      ram_mb: 4096
+    },
+    {
+      id: '3',
+      name: 'Forge Technic Pack',
+      description: 'Сборка с индустриальными модами на Forge для любителей механизмов и автоматизации.',
+      game_version: '1.19.2',
+      mod_loader: 'Forge',
+      mod_path: '',
+      created_at: Date.now(),
+      is_active: false,
+      ram_mb: 6144
+    }
+  ];
+  saveProfiles();
+}
+
+// Mods In-Memory DB (or File backed)
+const MODS_FILE = path.join(process.cwd(), 'mods.json');
+let modsList: any[] = [];
+
+function saveMods() {
+  fs.writeFileSync(MODS_FILE, JSON.stringify(modsList, null, 2));
+}
+
+if (fs.existsSync(MODS_FILE)) {
+  try {
+    modsList = JSON.parse(fs.readFileSync(MODS_FILE, 'utf-8'));
+  } catch (e) {}
+}
+
+if (modsList.length === 0) {
+  modsList = [];
+  saveMods();
 }
 
 // API Routes
@@ -81,6 +140,75 @@ app.post('/api/auth/ely', async (req, res) => {
     res.status(response.status).json(data);
   } catch (error) {
     res.status(500).json({ error: String(error) });
+  }
+});
+
+// Ely.by and Mojang Skin Proxy to bypass CORS on Canvas
+app.get('/api/skin', async (req, res) => {
+  try {
+    const username = req.query.username as string;
+    const uuid = req.query.uuid as string;
+    
+    if (!username && !uuid) {
+      return res.status(400).send('Missing username or uuid');
+    }
+
+    let response: any = null;
+    let success = false;
+    
+    // 1. Try to fetch from skinsystem.ely.by by username
+    if (username && username.toLowerCase() !== 'steve' && username.toLowerCase() !== 'alex') {
+      try {
+        const url = `https://skinsystem.ely.by/skins/${username}.png`;
+        response = await fetch(url);
+        if (response.ok) {
+          success = true;
+        }
+      } catch (e) {
+        console.error('Failed fetching from ely.by by username:', e);
+      }
+    }
+
+    // 2. If not successful, and uuid is provided, try by uuid
+    if (!success && uuid) {
+      try {
+        const url = `https://skinsystem.ely.by/skins/${uuid}.png`;
+        response = await fetch(url);
+        if (response.ok) {
+          success = true;
+        }
+      } catch (e) {
+        console.error('Failed fetching from ely.by by uuid:', e);
+      }
+    }
+
+    // 3. Fallback to minotar.net
+    if (!success) {
+      try {
+        const nameParam = username || 'Steve';
+        const url = `https://minotar.net/skin/${nameParam}`;
+        response = await fetch(url);
+        if (response.ok) {
+          success = true;
+        }
+      } catch (e) {
+        console.error('Failed fetching from minotar:', e);
+      }
+    }
+
+    if (success && response) {
+      const contentType = response.headers.get('content-type') || 'image/png';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=1800'); // Cache 30 mins
+      const arrayBuffer = await response.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    }
+
+    res.redirect('https://minotar.net/skin/Steve');
+  } catch (error) {
+    console.error('Skin proxy general error:', error);
+    res.redirect('https://minotar.net/skin/Steve');
   }
 });
 
@@ -421,102 +549,104 @@ app.get('/api/auth/ely/callback', handleElyCallback);
 app.get('/api/auth/ely/callback/', handleElyCallback);
 
 app.post('/api/mods/install', async (req, res) => {
-  const { projectId, versionId, folderPath } = req.body;
+  const { projectId, versionId, folderPath, profileId } = req.body;
   
-  if (!projectId || !versionId) {
-    return res.status(400).json({ error: 'Missing projectId or versionId' });
+  if (!projectId) {
+    return res.status(400).json({ error: 'Missing projectId' });
   }
 
-  // Simulate download delay
-  setTimeout(() => {
-    res.json({ success: true, message: 'Мод успешно скачан и установлен в папку.' });
-  }, 1500);
+  try {
+    const projectRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}`);
+    if (!projectRes.ok) {
+      throw new Error(`Failed to fetch project details from Modrinth: ${projectRes.statusText}`);
+    }
+    const project = await projectRes.json();
+
+    const modId = project.slug || project.id;
+    const name = project.slug || project.id;
+    const displayName = project.title || project.name;
+    const description = project.description || '';
+    const descriptionRu = await translateText(description);
+
+    const categories = project.categories || [];
+    const categoriesRu = categories.map((c: string) => TRANSLATIONS[c.toLowerCase()] || c);
+
+    const clientSide = project.client_side || 'optional';
+    const serverSide = project.server_side || 'optional';
+    let environment = '*';
+    if (clientSide === 'required' && serverSide === 'unsupported') {
+      environment = 'client';
+    } else if (serverSide === 'required' && clientSide === 'unsupported') {
+      environment = 'server';
+    }
+
+    const mod: any = {
+      path: `/mock/mods/${profileId || '1'}/${modId}.jar`,
+      name,
+      mod_id: modId,
+      display_name: displayName,
+      description,
+      description_ru: descriptionRu,
+      environment,
+      depends: [],
+      is_worldgen: categories.some((c: string) => ["worldgen", "biomes", "terrain", "dimensions", "structures"].includes(c.toLowerCase())),
+      is_client: environment === 'client',
+      is_server: environment === 'server',
+      is_heavy: categories.some((c: string) => ["utility", "technology"].includes(c.toLowerCase())) || (project.downloads && project.downloads < 100000),
+      is_library: categories.some((c: string) => ["library", "api"].includes(c.toLowerCase())),
+      is_optimization: categories.some((c: string) => ["optimization", "performance"].includes(c.toLowerCase())),
+      warnings: [],
+      icon_url: project.icon_url || '',
+      project_url: `https://modrinth.com/mod/${project.slug || project.id}`,
+      categories,
+      categories_ru: categoriesRu,
+      downloads: project.downloads || 0,
+      api_source: 'Modrinth',
+      profile_id: profileId || '1',
+      enabled: true
+    };
+
+    generateWarningsRu(mod);
+
+    // Filter duplicates only within the same profile
+    const targetProfileId = profileId || '1';
+    modsList = modsList.filter(m => !(m.mod_id === modId && m.profile_id === targetProfileId));
+    modsList.push(mod);
+    saveMods();
+
+    res.json({ success: true, message: `Мод "${displayName}" успешно установлен.`, mod });
+  } catch (error) {
+    console.error('Error installing mod:', error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post('/api/mods/delete', (req, res) => {
+  const { modId, profileId } = req.body;
+  if (!modId) {
+    return res.status(400).json({ error: 'Missing modId' });
+  }
+  
+  if (profileId) {
+    modsList = modsList.filter(m => !(m.mod_id === modId && m.profile_id === profileId));
+  } else {
+    modsList = modsList.filter(m => m.mod_id !== modId && m.name !== modId);
+  }
+  
+  saveMods();
+  res.json({ success: true, message: 'Мод успешно удален.' });
 });
 
 app.post('/api/mods/scan', async (req, res) => {
-  let { folderPath } = req.body;
+  let { folderPath, profileId } = req.body;
   
   if (!folderPath || folderPath.trim() === '') {
-    // Return mock data for preview environment if no path provided
-    return res.json([
-      {
-        path: '/mock/mods/sodium-fabric-mc1.20.1.jar',
-        name: 'sodium-fabric-mc1.20.1',
-        mod_id: 'sodium',
-        display_name: 'Sodium',
-        description: 'Modern rendering engine and client-side optimization mod for Minecraft.',
-        description_ru: 'Современный движок рендеринга и мод для оптимизации клиента Minecraft.',
-        environment: 'client',
-        depends: ['fabric-api'],
-        is_worldgen: false,
-        is_client: true,
-        is_server: false,
-        is_heavy: false,
-        is_library: false,
-        is_optimization: true,
-        warnings: [
-          { type: "info", title: "💻 Только для клиента", desc: "Работает исключительно на стороне игрока. На сервер его ставить бессмысленно — он просто не загрузится или будет висеть мёртвым грузом.", tip: "💡 Совет: Клиентские моды (графика, звук, интерфейс) не работают на сервере." },
-          { type: "success", title: "⚡ Оптимизация", desc: "Мод для улучшения производительности. Рекомендуется оставить.", tip: "💡 Совет: Оптимизационные моды почти никогда не конфликтуют." }
-        ],
-        icon_url: 'https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png',
-        project_url: 'https://modrinth.com/mod/sodium',
-        categories: ['optimization', 'client'],
-        categories_ru: ['Оптимизация', 'Клиент'],
-        downloads: 25000000,
-        api_source: 'Modrinth'
-      },
-      {
-        path: '/mock/mods/terralith.jar',
-        name: 'terralith',
-        mod_id: 'terralith',
-        display_name: 'Terralith',
-        description: 'Terralith adds 100+ new biomes and vastly overhauls world generation.',
-        description_ru: 'Terralith добавляет более 100 новых биомов и значительно перерабатывает генерацию мира.',
-        environment: '*',
-        depends: [],
-        is_worldgen: true,
-        is_client: false,
-        is_server: false,
-        is_heavy: true,
-        is_library: false,
-        is_optimization: false,
-        warnings: [
-          { type: "danger", title: "⚠ Изменяет генерацию мира", desc: "Добавляет новые биомы, структуры или полностью меняет ландшафт. Такой мод должен быть установлен и на клиенте, и на сервере.", tip: "💡 Совет: Если мод меняет генерацию — он нужен везде. Удаляйте только если уверены, что он не используется." },
-          { type: "warning", title: "🔥 Требовательный к ресурсам", desc: "Этот мод активно нагружает процессор или видеокарту. На слабых компьютерах может вызывать просадки FPS.", tip: "💡 Совет: Проверьте FPS с этим модом и без него." }
-        ],
-        icon_url: 'https://cdn.modrinth.com/data/8BmcQJ2H/97e7fdf13a5edcc5e56e40af838848db9a8e0e67.png',
-        project_url: 'https://modrinth.com/mod/terralith',
-        categories: ['worldgen', 'biomes'],
-        categories_ru: ['Генерация мира', 'Биомы'],
-        downloads: 12000000,
-        api_source: 'Modrinth'
-      },
-      {
-        path: '/mock/mods/fabric-api.jar',
-        name: 'fabric-api',
-        mod_id: 'fabric-api',
-        display_name: 'Fabric API',
-        description: 'Core API for Fabric mods.',
-        description_ru: 'Основной API для модов Fabric.',
-        environment: '*',
-        depends: [],
-        is_worldgen: false,
-        is_client: false,
-        is_server: false,
-        is_heavy: false,
-        is_library: true,
-        is_optimization: false,
-        warnings: [
-          { type: "info", title: "📚 Библиотека (зависимость)", desc: "Это не самостоятельный мод, а библиотека, необходимая для работы других модов.", tip: "💡 Совет: Посмотрите на зависимости — если этот мод нужен другим, не удаляйте его!" }
-        ],
-        icon_url: 'https://cdn.modrinth.com/data/P7dR8mSH/8f83db54497eef9f8e4e049ed4e910245053de15.png',
-        project_url: 'https://modrinth.com/mod/fabric-api',
-        categories: ['library', 'api'],
-        categories_ru: ['Библиотека', 'API'],
-        downloads: 80000000,
-        api_source: 'Modrinth'
-      }
-    ]);
+    // Return persistent dynamic mods filtered by profile if profileId is passed
+    if (profileId) {
+      const filtered = modsList.filter(m => m.profile_id === profileId);
+      return res.json(filtered);
+    }
+    return res.json(modsList);
   }
 
   try {
@@ -531,6 +661,31 @@ app.post('/api/mods/scan', async (req, res) => {
     res.json(mods);
   } catch (error) {
     res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post('/api/mods/toggle', (req, res) => {
+  const { modId, profileId, enabled } = req.body;
+  if (!modId || !profileId) {
+    return res.status(400).json({ error: 'Missing modId or profileId' });
+  }
+
+  const mod = modsList.find(m => m.mod_id === modId && m.profile_id === profileId);
+  if (mod) {
+    mod.enabled = enabled;
+    
+    // Simulate physically moving the file to / from a hidden folder
+    if (enabled) {
+      mod.path = `/mock/mods/${profileId}/${modId}.jar`;
+    } else {
+      // Moves to hidden special .disabled subfolder
+      mod.path = `/mock/mods/${profileId}/.disabled/${modId}.jar`;
+    }
+    
+    saveMods();
+    res.json({ success: true, message: enabled ? 'Мод включен.' : 'Мод выключен и перемещен в скрытую папку .disabled.', mod });
+  } else {
+    res.status(404).json({ error: 'Mod not found' });
   }
 });
 

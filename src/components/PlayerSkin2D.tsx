@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 
 interface PlayerSkin2DProps {
   username: string;
+  uuid?: string;
   isElyBy?: boolean;
   className?: string;
 }
 
-export default function PlayerSkin2D({ username, isElyBy = true, className = '' }: PlayerSkin2DProps) {
+export default function PlayerSkin2D({ username, uuid, isElyBy = true, className = '' }: PlayerSkin2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -19,12 +20,12 @@ export default function PlayerSkin2D({ username, isElyBy = true, className = '' 
     const img = new Image();
     img.crossOrigin = 'anonymous';
 
-    // Set source URL based on provider
-    if (isElyBy) {
-      img.src = `https://skinsystem.ely.by/skins/${username}.png`;
-    } else {
-      img.src = `https://minotar.net/skin/${username}`;
-    }
+    // Use our secure server-side CORS-bypass skin proxy
+    const params = new URLSearchParams();
+    if (username) params.append('username', username);
+    if (uuid) params.append('uuid', uuid);
+    
+    img.src = `/api/skin?${params.toString()}`;
 
     img.onload = () => {
       if (!active) return;

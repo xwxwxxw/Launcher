@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { Profile } from '../types';
 
-export default function CreateProfileModal({ onClose, onCreate }: { onClose: () => void, onCreate: (p: any) => void }) {
-  const [name, setName] = useState('Новая сборка');
-  const [version, setVersion] = useState('1.20.1');
+export default function CreateProfileModal({ onClose, onCreate, initialData }: { onClose: () => void, onCreate: (p: any) => void, initialData?: any }) {
+  const [name, setName] = useState(initialData?.name || 'Новая сборка');
+  const [version, setVersion] = useState(initialData?.game_version || '1.20.1');
   const [versions, setVersions] = useState<string[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(true);
 
@@ -12,10 +12,9 @@ export default function CreateProfileModal({ onClose, onCreate }: { onClose: () 
     fetch('/api/minecraft/versions')
       .then(res => res.json())
       .then(data => {
-        // filter out snapshot/old_beta just for clean ui, or just show releases
         const releases = data.versions.filter((v: any) => v.type === 'release').map((v: any) => v.id);
         setVersions(releases);
-        if (releases.length > 0 && !releases.includes('1.20.1')) {
+        if (releases.length > 0 && !releases.includes(version)) {
           setVersion(releases[0]);
         }
         setLoadingVersions(false);
@@ -30,13 +29,14 @@ export default function CreateProfileModal({ onClose, onCreate }: { onClose: () 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onCreate({
+      ...initialData,
       name,
       description: 'Пользовательская сборка ' + version,
       game_version: version,
-      mod_loader: 'Fabric',
-      mod_path: '',
-      is_active: false,
-      ram_mb: 4096
+      mod_loader: initialData?.mod_loader || 'Fabric',
+      mod_path: initialData?.mod_path || '',
+      is_active: initialData?.is_active || false,
+      ram_mb: initialData?.ram_mb || 4096
     });
   };
 

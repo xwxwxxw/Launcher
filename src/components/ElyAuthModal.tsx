@@ -12,6 +12,7 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Custom OAuth settings for local/custom client ID
   const [useCustomOAuth, setUseCustomOAuth] = useState(false);
@@ -19,7 +20,7 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
   const [customClientSecret, setCustomClientSecret] = useState('');
   const [copiedRedirect, setCopiedRedirect] = useState(false);
 
-  // Load custom OAuth settings from localStorage
+  // Load custom OAuth settings and remembered credentials from localStorage
   useEffect(() => {
     const savedUseCustom = localStorage.getItem('ely_use_custom_oauth') === 'true';
     const savedId = localStorage.getItem('ely_custom_client_id') || '';
@@ -27,6 +28,15 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
     setUseCustomOAuth(savedUseCustom);
     setCustomClientId(savedId);
     setCustomClientSecret(savedSecret);
+
+    const savedRemember = localStorage.getItem('ely_remember_me') !== 'false';
+    setRememberMe(savedRemember);
+    if (savedRemember) {
+      const savedUser = localStorage.getItem('ely_saved_username') || '';
+      const savedPass = localStorage.getItem('ely_saved_password') || '';
+      setUsername(savedUser);
+      setPassword(savedPass);
+    }
   }, []);
 
   // Listen to postMessage from the popup
@@ -71,6 +81,15 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
       }
 
       if (data.selectedProfile && data.accessToken) {
+        if (rememberMe) {
+          localStorage.setItem('ely_remember_me', 'true');
+          localStorage.setItem('ely_saved_username', username);
+          localStorage.setItem('ely_saved_password', password);
+        } else {
+          localStorage.setItem('ely_remember_me', 'false');
+          localStorage.removeItem('ely_saved_username');
+          localStorage.removeItem('ely_saved_password');
+        }
         onSuccess({
           name: data.selectedProfile.name,
           id: data.selectedProfile.id,
@@ -175,13 +194,16 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
             </button>
             <button
               onClick={() => { setAuthMethod('oauth'); setError(''); }}
-              className={`py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
+              className={`py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all relative overflow-visible ${
                 authMethod === 'oauth'
                   ? 'bg-zinc-850 text-white border border-zinc-800/60 shadow-md'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Через браузер
+              <span className="absolute -top-1.5 -right-1.5 bg-amber-500/15 text-amber-400 border border-amber-500/20 text-[7px] font-extrabold uppercase px-1.5 rounded-md py-0.5 tracking-wider">
+                в разработке
+              </span>
             </button>
           </div>
         </div>
@@ -224,6 +246,18 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
                 </div>
               </div>
 
+              <div className="flex items-center mt-1">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-zinc-800 bg-zinc-950 text-emerald-500 focus:ring-emerald-500/30 focus:ring-opacity-25 h-4 w-4 transition-all cursor-pointer"
+                  />
+                  <span className="text-[11px] font-semibold text-zinc-400 group-hover:text-zinc-200 transition-colors">Запомнить меня</span>
+                </label>
+              </div>
+
               <button 
                 type="submit" 
                 disabled={loading}
@@ -234,6 +268,11 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
             </form>
           ) : (
             <div className="flex flex-col gap-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] p-3.5 rounded-2xl font-medium flex items-center gap-2.5 leading-relaxed">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                <span>Эта функция в разработке. Пожалуйста, используйте вход по логину и паролю.</span>
+              </div>
+
               <div className="text-zinc-400 text-xs leading-relaxed font-medium">
                 Безопасная авторизация через официальный сайт <span className="text-emerald-400 font-bold">Ely.by</span>. Пароль не передаётся лаунчеру напрямую.
               </div>
