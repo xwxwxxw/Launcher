@@ -6,7 +6,7 @@ import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } fro
 import { Profile } from './src/types.js';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
 // Profiles In-Memory DB (or File backed)
@@ -78,6 +78,19 @@ app.post('/api/auth/ely', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
+});
+
+app.post('/api/mods/install', async (req, res) => {
+  const { projectId, versionId, folderPath } = req.body;
+  
+  if (!projectId || !versionId) {
+    return res.status(400).json({ error: 'Missing projectId or versionId' });
+  }
+
+  // Simulate download delay
+  setTimeout(() => {
+    res.json({ success: true, message: 'Мод успешно скачан и установлен в папку.' });
+  }, 1500);
 });
 
 app.post('/api/mods/scan', async (req, res) => {
@@ -206,6 +219,58 @@ app.post('/api/mods/update', async (req, res) => {
   await new Promise(resolve => setTimeout(resolve, 2000));
   
   res.json({ success: true, updatedCount: 3, message: 'Моды успешно обновлены.' });
+});
+
+app.get('/api/minecraft/versions', async (req, res) => {
+  try {
+    const response = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json');
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch versions' });
+  }
+});
+
+app.get('/api/minecraft/launch', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const sendEvent = (type: string, data: any) => {
+    res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const steps = [
+    { delay: 500, msg: 'Аутентификация...' },
+    { delay: 800, msg: 'Получение манифеста версии (1.20.1)...' },
+    { delay: 1000, msg: 'Проверка ресурсов (assets)...' },
+    { delay: 2000, msg: 'Загрузка отсутствующих ресурсов (234/234)...' },
+    { delay: 1500, msg: 'Проверка библиотек Minecraft...' },
+    { delay: 1200, msg: 'Загрузка библиотек Fabric (0.15.7)...' },
+    { delay: 800, msg: 'Подготовка natives...' },
+    { delay: 500, msg: 'Сборка аргументов JVM...' },
+    { delay: 600, msg: 'Запуск процесса Java...' }
+  ];
+
+  let totalDelay = 0;
+  steps.forEach((step, index) => {
+    totalDelay += step.delay;
+    setTimeout(() => {
+      sendEvent('log', { message: step.msg, progress: Math.round(((index + 1) / steps.length) * 100) });
+      if (index === steps.length - 1) {
+        setTimeout(() => {
+          sendEvent('done', { message: 'Minecraft запущен!' });
+          res.end();
+        }, 1500);
+      }
+    }, totalDelay);
+  });
+  
+  req.on('close', () => {
+    // Connection closed
+  });
 });
 
 async function startServer() {

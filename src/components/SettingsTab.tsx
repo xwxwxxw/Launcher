@@ -16,15 +16,10 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
   return (
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full relative">
 
-      <div className="mb-10 max-w-3xl">
-        <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Настройки</h2>
-        <p className="text-sm text-zinc-400">Параметры запуска, интеграции и аутентификация</p>
-      </div>
-
       <div className="space-y-6 max-w-3xl">
         
         {/* Memory Settings */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-8 backdrop-blur-sm">
+        <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/60 text-blue-400">
               <Cpu size={24} strokeWidth={1.5} />
@@ -53,7 +48,7 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
         </div>
 
         {/* Auth Settings - ELY.BY */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-8 backdrop-blur-sm relative overflow-hidden">
+        <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
           
           <div className="flex items-center gap-4 mb-6 relative z-10">
@@ -116,7 +111,7 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
         </div>
 
         {/* Java Path */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-8 backdrop-blur-sm">
+        <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/60 text-amber-400">
               <HardDrive size={24} strokeWidth={1.5} />
@@ -143,7 +138,7 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
         </div>
 
         {/* Modrinth Auto Update */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-8 backdrop-blur-sm relative overflow-hidden">
+        <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
           <div className="flex items-start justify-between relative z-10">
             <div className="flex gap-4">
               <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/60 text-emerald-400 h-fit">

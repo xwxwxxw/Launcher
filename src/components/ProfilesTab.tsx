@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Profile } from '../types';
 import { Play, Plus, Edit, Trash2, Box } from 'lucide-react';
+import CreateProfileModal from './CreateProfileModal';
 
 export default function ProfilesTab() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     fetch('/api/profiles')
@@ -15,21 +17,15 @@ export default function ProfilesTab() {
       });
   }, []);
 
-  const handleCreate = () => {
-    const newProf = {
-      name: 'Новая сборка',
-      description: 'Описание сборки',
-      game_version: '1.20.1',
-      mod_loader: 'Fabric',
-      mod_path: '',
-      is_active: false,
-      ram_mb: 4096
-    };
+  const handleCreate = (newProf: any) => {
     fetch('/api/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProf)
-    }).then(res => res.json()).then(p => setProfiles([...profiles, p]));
+    }).then(res => res.json()).then(p => {
+      setProfiles([...profiles, p]);
+      setShowCreate(false);
+    });
   };
 
   const handleDelete = (id: string) => {
@@ -39,13 +35,9 @@ export default function ProfilesTab() {
 
   return (
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full">
-      <div className="flex justify-between items-end mb-10 max-w-6xl">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Сборки</h2>
-          <p className="text-sm text-zinc-400">Управление профилями, версиями игры и выделением ресурсов</p>
-        </div>
+      <div className="flex justify-end items-end mb-10 max-w-6xl">
         <button 
-          onClick={handleCreate}
+          onClick={() => setShowCreate(true)}
           className="bg-white text-black hover:bg-zinc-200 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-105 active:scale-95 flex items-center gap-2"
         >
           <Plus size={18} strokeWidth={2.5} /> Создать сборку
@@ -67,7 +59,7 @@ export default function ProfilesTab() {
             <p className="text-xs text-zinc-500 mb-6 max-w-xs text-center">
               Создайте первый профиль для запуска игры, настройки модов и выделения оперативной памяти.
             </p>
-            <button onClick={handleCreate} className="text-xs font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest">
+            <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest">
               + Добавить профиль
             </button>
           </div>
@@ -77,13 +69,15 @@ export default function ProfilesTab() {
           ))
         )}
       </div>
+
+      {showCreate && <CreateProfileModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
     </div>
   );
 }
 
 const ProfileCard: React.FC<{ profile: Profile, onDelete: () => void }> = ({ profile, onDelete }) => {
   return (
-    <div className="flex flex-col rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-6 transition-all duration-300 hover:border-zinc-600 hover:bg-zinc-800/40 relative group overflow-hidden">
+    <div className="flex flex-col rounded-3xl border border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md p-6 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-800/60 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative group overflow-hidden">
       <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-blue-500/10 transition-colors"></div>
       
       <div className="flex justify-between items-start mb-4 relative z-10">

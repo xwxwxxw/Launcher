@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Layle Launcher",
+  "description": "Minecraft launcher and mod manager with Modrinth integration, profiles, conflict resolution, and Electron support.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

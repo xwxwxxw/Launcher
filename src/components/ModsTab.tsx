@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ModInfo } from '../types';
-import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud } from 'lucide-react';
+import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
+import ModrinthSearchModal from './ModrinthSearchModal';
 
 export default function ModsTab() {
   const [mods, setMods] = useState<ModInfo[]>([]);
@@ -9,6 +10,7 @@ export default function ModsTab() {
   const [updating, setUpdating] = useState(false);
   const [viewMode, setViewMode] = useState<'client' | 'server' | 'both'>('client');
   const [search, setSearch] = useState('');
+  const [showModrinthModal, setShowModrinthModal] = useState(false);
   
   // Filters
   const [fWorldgen, setFWorldgen] = useState(false);
@@ -81,15 +83,21 @@ export default function ModsTab() {
         {/* Actions & Title */}
         <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white mb-1.5">Репозиторий модов</h2>
             <div className="flex items-center gap-3">
-              <p className="text-[11px] text-zinc-500 uppercase tracking-widest font-bold">
+              <p className="text-xs text-zinc-400/90 uppercase tracking-widest font-bold">
                 {loading ? 'Идет сканирование...' : `Локальная директория • ${mods.length} jar-файлов`}
               </p>
               {loading && <RefreshCw size={12} className="animate-spin text-blue-400" />}
             </div>
           </div>
           <div className="flex gap-3">
+            <button 
+              onClick={() => setShowModrinthModal(true)} 
+              className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 hover:border-blue-500/30 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-blue-400 transition-all shadow-sm"
+            >
+              <Globe size={16} />
+              <span>Найти моды</span>
+            </button>
             <button 
               onClick={handleUpdateMods} 
               disabled={updating}
@@ -164,6 +172,10 @@ export default function ModsTab() {
       {selectedMod && (
         <DependencyTreeModal mod={selectedMod} allMods={mods} onClose={() => setSelectedMod(null)} />
       )}
+
+      {showModrinthModal && (
+        <ModrinthSearchModal onClose={() => setShowModrinthModal(false)} />
+      )}
     </div>
   );
 }
@@ -199,7 +211,7 @@ function FilterTag({ active, onClick, label, color, dotColor }: { active: boolea
 
 const ModCard: React.FC<{ mod: ModInfo, onShowDeps: () => void }> = ({ mod, onShowDeps }) => {
   return (
-    <div className="group rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-5 flex gap-5 transition-all duration-300 hover:border-zinc-600 hover:bg-zinc-800/40 relative overflow-hidden backdrop-blur-sm">
+    <div className="group rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-6 flex gap-5 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-800/60 relative overflow-hidden backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[40px] rounded-full pointer-events-none group-hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"></div>
       
       <div className="pt-2">
@@ -215,7 +227,7 @@ const ModCard: React.FC<{ mod: ModInfo, onShowDeps: () => void }> = ({ mod, onSh
 
       <div className="flex-1 min-w-0 relative z-10">
         <div className="flex items-start justify-between">
-          <h3 className="text-base font-bold text-zinc-100 truncate pr-4 tracking-wide">{mod.display_name}</h3>
+          <h3 className="text-base font-bold text-zinc-100 truncate pr-4 tracking-tight">{mod.display_name}</h3>
           <span className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80">
             {mod.api_source ? mod.api_source : 'Локальный'}
           </span>

@@ -38,23 +38,18 @@ export default function ConflictsTab() {
 
   const getSeverityClass = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-red-500/10 border-red-500/20';
-      case 'high': return 'bg-amber-500/10 border-amber-500/20';
-      case 'low': return 'bg-blue-500/10 border-blue-500/20';
-      default: return 'bg-zinc-800/40 border-zinc-700/50';
+      case 'critical': return 'bg-red-500/10 border-red-500/20 backdrop-blur-md shadow-lg shadow-red-900/10';
+      case 'high': return 'bg-amber-500/10 border-amber-500/20 backdrop-blur-md shadow-lg shadow-amber-900/10';
+      case 'low': return 'bg-blue-500/10 border-blue-500/20 backdrop-blur-md shadow-lg shadow-blue-900/10';
+      default: return 'bg-zinc-800/40 border-zinc-700/50 backdrop-blur-md shadow-lg';
     }
   };
 
   return (
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full relative">
-      <div className="mb-10 max-w-3xl">
-        <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Проблемы и конфликты</h2>
-        <p className="text-sm text-zinc-400">Панель управления несовместимостями, ошибками и отсутствующими зависимостями.</p>
-      </div>
-
       <div className="space-y-4 max-w-4xl">
         {conflicts.map(conflict => (
-          <div key={conflict.id} className={`p-6 rounded-2xl border flex gap-5 items-start ${getSeverityClass(conflict.severity)}`}>
+          <div key={conflict.id} className={`p-6 rounded-3xl border flex gap-5 items-start transition-all hover:scale-[1.01] ${getSeverityClass(conflict.severity)}`}>
             <div className="pt-1">
               {getSeverityIcon(conflict.severity)}
             </div>

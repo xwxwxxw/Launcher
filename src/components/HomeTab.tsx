@@ -6,13 +6,6 @@ export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onN
     <div className="flex-1 w-full h-full overflow-hidden flex flex-row relative">
       {/* Main Content Area */}
       <div className="flex-1 px-10 py-12 overflow-y-auto scrollbar-none h-full relative z-10">
-        <div className="mb-14 max-w-2xl">
-          <h2 className="text-3xl font-bold tracking-tight text-white mb-3">MC Manager Pro</h2>
-          <p className="text-sm text-zinc-400 leading-relaxed">
-            Профессиональный инструмент для управления сборками Minecraft.
-            Анализируйте зависимости, настраивайте параметры запуска и используйте продвинутые инструменты профилирования.
-          </p>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-14">
           <StatCard icon={<Package className="text-blue-400" size={20} strokeWidth={2} />} title="Установлено модов" value="142" trend="+3 за неделю" onClick={() => onNavigate('mods')} />
@@ -48,7 +41,7 @@ export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onN
       </div>
 
       {/* Right Sidebar for Skin Viewer */}
-      <div className="w-80 h-full border-l border-zinc-800/60 bg-zinc-900/10 flex-shrink-0 flex flex-col items-center justify-center p-8 relative z-10">
+      <div className="w-80 h-full border-l border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md flex-shrink-0 flex flex-col items-center justify-center p-8 relative z-20 shadow-2xl">
         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
         
         {userProfile ? (
@@ -92,7 +85,7 @@ function StatCard({ icon, title, value, trend, onClick }: { icon: React.ReactNod
   return (
     <div 
       onClick={onClick}
-      className={`relative overflow-hidden rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-5 flex flex-col backdrop-blur-sm transition-all hover:bg-zinc-800/40 hover:border-zinc-700/80 group ${onClick ? 'cursor-pointer' : ''}`}
+      className={`relative overflow-hidden rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-6 flex flex-col backdrop-blur-md transition-all hover:bg-zinc-800/60 hover:border-zinc-700/80 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] group ${onClick ? 'cursor-pointer' : ''}`}
     >
       <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform duration-500">
         {icon}
@@ -115,14 +108,14 @@ function QuickAction({ title, desc, onClick, icon }: { title: string, desc: stri
   return (
     <button 
       onClick={onClick}
-      className="group flex flex-col items-start rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-6 transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-800/50 hover:shadow-xl hover:shadow-black/20 text-left relative overflow-hidden"
+      className="group flex flex-col items-start rounded-3xl border border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md p-6 transition-all duration-300 hover:border-zinc-700/80 hover:bg-zinc-800/60 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-left relative overflow-hidden"
     >
       <div className="absolute top-6 right-6 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
         <ArrowRight size={18} className="text-zinc-400" />
       </div>
       {icon}
-      <h4 className="text-base font-semibold mb-2 text-zinc-200">{title}</h4>
-      <p className="text-[11px] text-zinc-400 leading-relaxed max-w-[90%]">{desc}</p>
+      <h4 className="text-base font-bold mb-2 text-zinc-100 tracking-tight">{title}</h4>
+      <p className="text-xs text-zinc-400/90 leading-relaxed font-medium max-w-[90%]">{desc}</p>
     </button>
   );
 }

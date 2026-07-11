@@ -5,12 +5,14 @@ import ProfilesTab from './components/ProfilesTab';
 import SettingsTab from './components/SettingsTab';
 import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
+import LaunchModal from './components/LaunchModal';
 import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>('home');
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showLaunchModal, setShowLaunchModal] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('ely_session');
@@ -33,7 +35,11 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30">
+    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30 relative">
+      {/* Subtle ambient glows for glassmorphism backdrop */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
+      
       {showAuthModal && (
         <ElyAuthModal 
           onClose={() => setShowAuthModal(false)} 
@@ -42,7 +48,7 @@ export default function App() {
       )}
       
       {/* Sidebar Navigation */}
-      <nav className="flex w-[88px] flex-col items-center border-r border-zinc-800/60 bg-[#09090b] py-8 flex-shrink-0 z-10">
+      <nav className="flex w-[88px] flex-col items-center border-r border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md py-8 flex-shrink-0 z-20 shadow-2xl">
         <div className="mb-12">
           <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)]">
             <Package className="h-6 w-6 text-white" strokeWidth={2.5} />
@@ -100,8 +106,8 @@ export default function App() {
         {/* Custom Title Bar */}
         <header className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80">
           <div className="flex items-center space-x-3">
-            <span className="text-[11px] font-semibold tracking-widest text-zinc-400 uppercase">MC Manager Pro</span>
-            <div className="h-1 w-1 rounded-full bg-zinc-700"></div>
+            <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
+            <div className="h-1 w-1 rounded-full bg-zinc-700 mx-2"></div>
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-400"></div>
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Online</span>
@@ -146,7 +152,7 @@ export default function App() {
               <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Статус запуска</p>
               <p className="text-xs font-semibold text-emerald-400">Готов к игре</p>
             </div>
-            <button className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+            <button onClick={() => setShowLaunchModal(true)} className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-50 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
               <span className="relative flex items-center gap-2">
                 <PlaySquare size={16} fill="currentColor" /> Играть
@@ -155,6 +161,13 @@ export default function App() {
           </div>
         </footer>
       </div>
+      
+      {showLaunchModal && (
+        <LaunchModal 
+          profileName="Vanilla 1.20.1"
+          onClose={() => setShowLaunchModal(false)}
+        />
+      )}
     </div>
   );
 }
