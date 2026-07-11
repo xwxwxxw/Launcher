@@ -1,0 +1,143 @@
+export const HEAVY_MODS = new Set([
+  "physics-mod", "physicsmod", "dynamic-surroundings",
+  "distant-horizons", "bobby", "terraforged", "terralith",
+  "biomes-o-plenty", "biomesoplenty", "oh-the-biomes-youll-go",
+  "byg", "better-end", "betterend", "better-nether", "betternether",
+  "amplified-nether", "incendium", "nullscape",
+]);
+
+export const WORLDGEN_MODS = new Set([
+  "terrablender", "lithostitched", "continents", "tectonic",
+  "terralith", "biomes-o-plenty", "biomesoplenty",
+  "oh-the-biomes-youll-go", "byg", "better-end", "betterend",
+  "better-nether", "betternether", "incendium", "nullscape",
+  "choicetheorems-overhauled-village", "ctov",
+  "yungs-better-dungeons", "yungs-better-mineshafts",
+  "yungs-better-strongholds", "yungs-better-desert-temples",
+  "yungs-better-ocean-monuments", "yungs-better-witch-huts",
+  "yungs-api", "repurposed-structures", "towns-and-towers",
+  "naturalist", "ribbits", "hamsters",
+]);
+
+export const CLIENT_MODS = new Set([
+  "sodium", "iris", "modmenu", "betterf3", "embeddium",
+  "entity-texture-features", "entity-model-features",
+  "xaeros-minimap", "xaeros-world-map", "dynamic-fps",
+  "immediatelyfast", "reeses-sodium-options",
+  "inventory-profiles-next", "light-overlay", "mini-hud",
+  "litematica", "tweakeroo", "ok-zoomer", "zoomify",
+  "dark-mode-everywhere", "better-ping-display",
+]);
+
+export const SERVER_MODS = new Set([
+  "spark", "servercore", "chunky", "plan", "luckperms",
+  "tablist", "console", "discordsrv",
+]);
+
+export const OPTIMIZATION_MODS = new Set([
+  "lithium", "phosphor", "starlight", "ferritecore",
+  "memoryleakfix", "fastboot", "krypton", "modernfix",
+  "c2me", "noisium", "ksyxis", "connectivity",
+]);
+
+export const WORLDGEN_KEYWORDS = [
+  /world\s*gen(eration)?/i, /worldgen/i, /terrain/i,
+  /biomes?/i, /structures?/i, /dimensions?/i,
+  /villages?/i, /dungeons?/i, /caves?/i,
+  /nether/i, /end/i, /overworld/i,
+  /strongholds?/i, /temples?/i, /mineshafts?/i,
+];
+
+export const TRANSLATIONS: Record<string, string> = {
+  "worldgen": "Генерация мира",
+  "biomes": "Биомы",
+  "terrain": "Ландшафт",
+  "dimensions": "Измерения",
+  "structures": "Структуры",
+  "adventure and rpg": "Приключения и RPG",
+  "technology": "Техника и автоматизация",
+  "tech": "Технический",
+  "magic": "Магия",
+  "storage": "Хранилища",
+  "food": "Еда и кулинария",
+  "equipment": "Снаряжение и инструменты",
+  "tools": "Инструменты",
+  "armor": "Броня",
+  "weapons": "Оружие",
+  "cosmetic": "Косметика",
+  "decoration": "Декорации и строительство",
+  "building": "Строительство",
+  "library": "Библиотека",
+  "api": "API и библиотека",
+  "optimization": "Оптимизация",
+  "performance": "Производительность",
+  "utility": "Утилиты",
+  "utilities": "Утилиты",
+  "fabric": "Fabric",
+  "forge": "Forge",
+  "quilt": "Quilt",
+  "mobs": "Мобы и существа",
+  "creatures": "Существа",
+  "transportation": "Транспорт",
+  "vehicles": "Транспорт",
+  "farming": "Фермерство",
+  "energy": "Энергетика",
+  "processing": "Обработка ресурсов",
+  "automation": "Автоматизация",
+  "redstone": "Редстоун",
+  "server": "Серверные утилиты",
+  "chat": "Чат и коммуникация",
+  "social": "Социальное",
+  "management": "Управление",
+  "economy": "Экономика",
+  "education": "Обучение",
+  "map and information": "Карты и информация",
+  "minimap": "Миникарта",
+  "world map": "Карта мира",
+  "shaders": "Шейдеры",
+  "resource packs": "Ресурспаки",
+  "data packs": "Датапаки",
+  "modpacks": "Сборки модов",
+  "combat": "Боевая система",
+  "difficulty": "Сложность",
+  "survival": "Выживание",
+  "creative": "Творческий режим",
+  "hardcore": "Хардкор",
+  "skyblock": "Скайблок",
+  "quests": "Квесты",
+  "progression": "Прогрессия",
+  "skill tree": "Дерево навыков",
+  "leveling": "Система уровней",
+  "rpg": "RPG",
+  "horror": "Хоррор",
+  "exploration": "Исследования",
+  "generation": "Генерация",
+  
+  "worldgen_warning": "⚠ Изменяет генерацию мира",
+  "worldgen_desc": "Добавляет новые биомы, структуры или полностью меняет ландшафт. Такой мод должен быть установлен и на клиенте, и на сервере. Если вы создаёте сервер без worldgen-модов, удалите этот мод из обеих сборок.",
+  "worldgen_tip": "💡 Совет: Если мод меняет генерацию — он нужен везде. Удаляйте только если уверены, что он не используется.",
+  
+  "client_warning": "💻 Только для клиента",
+  "client_desc": "Работает исключительно на стороне игрока. На сервер его ставить бессмысленно — он просто не загрузится или будет висеть мёртвым грузом.",
+  "client_tip": "💡 Совет: Клиентские моды (графика, звук, интерфейс) не работают на сервере.",
+  
+  "server_warning": "🖥 Только для сервера",
+  "server_desc": "Работает только на стороне сервера. В клиентской сборке не нужен — может даже вызвать ошибки при запуске одиночной игры.",
+  "server_tip": "💡 Совет: Серверные моды не нужны в клиенте.",
+  
+  "heavy_warning": "🔥 Требовательный к ресурсам",
+  "heavy_desc": "Этот мод активно нагружает процессор или видеокарту. На слабых компьютерах может вызывать просадки FPS.",
+  "heavy_tip": "💡 Совет: Проверьте FPS с этим модом и без него.",
+  
+  "library_warning": "📚 Библиотека (зависимость)",
+  "library_desc": "Это не самостоятельный мод, а библиотека, необходимая для работы других модов.",
+  "library_tip": "💡 Совет: Посмотрите на зависимости — если этот мод нужен другим, не удаляйте его!",
+  
+  "optimization_warning": "⚡ Оптимизация",
+  "optimization_desc": "Мод для улучшения производительности. Рекомендуется оставить.",
+  "optimization_tip": "💡 Совет: Оптимизационные моды почти никогда не конфликтуют.",
+  
+  "not_found_warning": "❓ Не найден в интернете",
+  "not_found_desc": "Не удалось найти описание этого мода ни на Modrinth, ни на CurseForge.",
+  "not_found_tip": "💡 Совет: Проверьте мод вручную перед удалением.",
+};
