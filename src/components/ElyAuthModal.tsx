@@ -13,6 +13,22 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Custom OAuth settings for local/custom client ID
+  const [useCustomOAuth, setUseCustomOAuth] = useState(false);
+  const [customClientId, setCustomClientId] = useState('');
+  const [customClientSecret, setCustomClientSecret] = useState('');
+  const [copiedRedirect, setCopiedRedirect] = useState(false);
+
+  // Load custom OAuth settings from localStorage
+  useEffect(() => {
+    const savedUseCustom = localStorage.getItem('ely_use_custom_oauth') === 'true';
+    const savedId = localStorage.getItem('ely_custom_client_id') || '';
+    const savedSecret = localStorage.getItem('ely_custom_client_secret') || '';
+    setUseCustomOAuth(savedUseCustom);
+    setCustomClientId(savedId);
+    setCustomClientSecret(savedSecret);
+  }, []);
+
   // Listen to postMessage from the popup
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -75,9 +91,22 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
     setError('');
     
     try {
+      // Save custom settings
+      localStorage.setItem('ely_use_custom_oauth', useCustomOAuth.toString());
+      if (useCustomOAuth) {
+        localStorage.setItem('ely_custom_client_id', customClientId);
+        localStorage.setItem('ely_custom_client_secret', customClientSecret);
+      }
+
       // Build parameters
       const params = new URLSearchParams();
       params.append('origin', window.location.origin);
+      if (useCustomOAuth && customClientId) {
+        params.append('client_id', customClientId);
+      }
+      if (useCustomOAuth && customClientSecret) {
+        params.append('client_secret', customClientSecret);
+      }
 
       const res = await fetch(`/api/auth/ely/url?${params.toString()}`);
       const data = await res.json();
@@ -107,8 +136,6 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
       setLoading(false);
     }
   };
-
-  const currentRedirectUri = `${window.location.origin}/api/auth/ely/callback`;
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-md overflow-y-auto">
@@ -206,9 +233,71 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
               </button>
             </form>
           ) : (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
               <div className="text-zinc-400 text-xs leading-relaxed font-medium">
                 Безопасная авторизация через официальный сайт <span className="text-emerald-400 font-bold">Ely.by</span>. Пароль не передаётся лаунчеру напрямую.
+              </div>
+
+              {/* Developer settings toggle */}
+              <div className="mt-2 border border-zinc-800/60 bg-zinc-950/40 rounded-2xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Кастомный OAuth (локальный вход)</span>
+                  <button
+                    type="button"
+                    onClick={() => setUseCustomOAuth(!useCustomOAuth)}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none ${useCustomOAuth ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-black shadow ring-0 transition duration-200 ease-in-out ${useCustomOAuth ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+
+                {useCustomOAuth ? (
+                  <div className="flex flex-col gap-3.5 mt-2 animate-in fade-in duration-200">
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 block">Client ID</label>
+                      <input 
+                        type="text" 
+                        value={customClientId}
+                        onChange={(e) => setCustomClientId(e.target.value)}
+                        placeholder="ID клиента из Ely.by"
+                        className="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5 block">Client Secret</label>
+                      <input 
+                        type="password" 
+                        value={customClientSecret}
+                        onChange={(e) => setCustomClientSecret(e.target.value)}
+                        placeholder="Секретный ключ клиента"
+                        className="w-full bg-zinc-950 border border-zinc-900 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                      />
+                    </div>
+                    <div className="bg-zinc-900/40 p-2.5 rounded-lg border border-zinc-800/40 mt-1">
+                      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Redirect URI для Ely.by:</div>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[10px] font-mono text-emerald-400/90 break-all select-all flex-1">
+                          {window.location.origin}/api/auth/ely/callback
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/api/auth/ely/callback`);
+                            setCopiedRedirect(true);
+                            setTimeout(() => setCopiedRedirect(false), 2000);
+                          }}
+                          className="bg-zinc-800 hover:bg-zinc-700 text-white text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded"
+                        >
+                          {copiedRedirect ? 'Коп.' : 'Скоп.'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-zinc-500 leading-relaxed">
+                    Для локального входа (или на кастомном домене) включите этот переключатель и зарегистрируйте своё OAuth-приложение в личном кабинете разработчика Ely.by.
+                  </div>
+                )}
               </div>
 
               <button 

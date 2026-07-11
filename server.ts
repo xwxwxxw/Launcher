@@ -67,7 +67,7 @@ app.delete('/api/profiles/:id', (req, res) => {
 app.post('/api/auth/ely', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const response = await fetch('https://authserver.ely.by/api/authlib/authenticate', {
+    const response = await fetch('https://authserver.ely.by/auth/authenticate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -83,6 +83,7 @@ app.post('/api/auth/ely', async (req, res) => {
     res.status(500).json({ error: String(error) });
   }
 });
+
 
 // Ely.by OAuth2 Start Endpoint
 app.get('/api/auth/ely/url', (req, res) => {

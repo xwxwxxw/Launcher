@@ -65,7 +65,7 @@ export default function SettingsTab({ userProfile, onLoginClick, onLogout }: { u
             <div className="flex items-center gap-5">
               <div className="w-14 h-14 bg-zinc-900 border border-zinc-700/50 rounded-full flex items-center justify-center shadow-inner overflow-hidden">
                 {userProfile ? (
-                  <img src={`https://minotar.net/helm/${userProfile.name}/100.png`} alt="Skin" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://minotar.net/helm/Steve/100.png' }} />
+                  <img src={`https://skinsystem.ely.by/avatars/${userProfile.name}`} alt="Skin" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `https://minotar.net/helm/${userProfile.name}/100.png` }} />
                 ) : (
                   <svg className="w-8 h-8 text-zinc-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                 )}

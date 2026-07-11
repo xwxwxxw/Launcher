@@ -1,5 +1,6 @@
 import React from 'react';
 import { Package, ShieldAlert, Cpu, Layers, FolderTree, PlaySquare, Settings, ArrowRight, User } from 'lucide-react';
+import PlayerSkin2D from './PlayerSkin2D';
 
 export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => void, userProfile?: {name: string, id: string, accessToken: string} | null, onLoginClick: () => void }) {
   return (
@@ -47,7 +48,7 @@ export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onN
         {userProfile ? (
           <div className="flex flex-col items-center group relative z-10">
             <div className="relative w-40 h-80 flex justify-center items-center">
-               <img src={`https://minotar.net/armor/body/${userProfile.name}/200.png`} className="w-auto h-full object-contain filter drop-shadow-[0_15px_25px_rgba(59,130,246,0.3)] group-hover:scale-[1.02] transition-transform duration-500" alt="Player Skin" onError={(e) => { e.currentTarget.src = 'https://minotar.net/armor/body/Steve/200.png' }} />
+               <PlayerSkin2D username={userProfile.name} isElyBy={true} className="w-auto h-[90%] filter drop-shadow-[0_15px_25px_rgba(59,130,246,0.35)] group-hover:scale-[1.03] transition-all duration-500" />
                <div className="absolute -bottom-2 w-32 h-4 bg-blue-900/30 blur-[15px] rounded-[100%] scale-x-150"></div>
                <div className="absolute -bottom-2 w-16 h-2 bg-blue-500/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>
@@ -59,7 +60,7 @@ export default function HomeTab({ onNavigate, userProfile, onLoginClick }: { onN
         ) : (
           <div className="flex flex-col items-center group relative z-10 w-full">
             <div className="relative w-40 h-80 flex justify-center items-center opacity-40 grayscale group-hover:grayscale-[0.5] group-hover:opacity-70 transition-all duration-700">
-               <img src={`https://minotar.net/armor/body/Steve/200.png`} className="w-auto h-full object-contain filter drop-shadow-[0_15px_15px_rgba(0,0,0,0.8)]" alt="Player Skin Placeholder" />
+               <PlayerSkin2D username="Steve" isElyBy={false} className="w-auto h-[90%] filter drop-shadow-[0_15px_15px_rgba(0,0,0,0.8)]" />
                <div className="absolute -bottom-2 w-32 h-4 bg-black/60 blur-[15px] rounded-[100%] scale-x-150"></div>
                <div className="absolute -bottom-2 w-16 h-2 bg-black/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>
