@@ -1,9 +1,13 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } from './src/lib/modParser.js';
 import { Profile } from './src/types.js';
+
+// Load environment variables from .env
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -79,6 +83,347 @@ app.post('/api/auth/ely', async (req, res) => {
     res.status(500).json({ error: String(error) });
   }
 });
+
+// Ely.by OAuth2 Start Endpoint
+app.get('/api/auth/ely/url', (req, res) => {
+  try {
+    const customClientId = req.query.client_id;
+    const customClientSecret = req.query.client_secret;
+    const origin = req.query.origin || `${req.protocol}://${req.get('host')}`;
+    
+    const clientId = customClientId || process.env.ELY_CLIENT_ID;
+    const clientSecret = customClientSecret || process.env.ELY_CLIENT_SECRET;
+
+    if (!clientId) {
+      return res.status(400).json({ 
+        error: 'OAuth Client ID не настроен. Пожалуйста, введите Client ID и Client Secret в форме настроек или добавьте их в .env на сервере.' 
+      });
+    }
+
+    const redirectUri = `${origin}/api/auth/ely/callback`;
+    
+    // Package credentials into state parameter to keep this server completely stateless and support localhost/multiple hosts dynamically
+    const stateObj = {
+      clientId: clientId,
+      clientSecret: clientSecret || '',
+      origin: origin
+    };
+    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
+
+    const params = new URLSearchParams({
+      client_id: clientId as string,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'account_info minecraft_yggdrasil',
+      state: state
+    });
+
+    const authUrl = `https://oauth.ely.by/oauth/v2/auth?${params.toString()}`;
+    res.json({ url: authUrl });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Ely.by OAuth2 Callback Endpoint
+const handleElyCallback = async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !state) {
+    return res.status(400).send(`
+      <html>
+        <head>
+          <title>Ошибка авторизации</title>
+          <style>
+            body {
+              background-color: #09090b;
+              color: #e4e4e7;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              text-align: center;
+              padding: 20px;
+            }
+            .container {
+              background-color: #18181b;
+              border: 1px solid #ef4444;
+              padding: 40px;
+              border-radius: 24px;
+              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+              max-width: 400px;
+            }
+            .error-icon {
+              color: #ef4444;
+              font-size: 3.5rem;
+              margin-bottom: 20px;
+            }
+            h2 { margin: 0 0 12px 0; font-size: 1.5rem; font-weight: 700; color: #f87171; }
+            p { margin: 0 0 24px 0; font-size: 0.9rem; color: #a1a1aa; line-height: 1.5; }
+            button {
+              background: #3f3f46;
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 12px;
+              cursor: pointer;
+              font-size: 0.85rem;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              transition: all 0.2s;
+            }
+            button:hover {
+              background: #52525b;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="error-icon">⚠️</div>
+            <h2>Неверный запрос</h2>
+            <p>Не передан код авторизации или состояние сессии. Пожалуйста, попробуйте войти заново из лаунчера.</p>
+            <button onclick="window.close()">Закрыть окно</button>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+
+  try {
+    // Decode stateless configurations
+    const stateObj = JSON.parse(Buffer.from(state as string, 'base64').toString('utf-8'));
+    const { clientId, clientSecret, origin } = stateObj;
+    
+    const redirectUri = `${origin}/api/auth/ely/callback`;
+
+    // Exchange Code for Access Token
+    const tokenRes = await fetch('https://oauth.ely.by/oauth/v2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'authorization_code',
+        code: code as string,
+        redirect_uri: redirectUri
+      }).toString()
+    });
+
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) {
+      throw new Error(tokenData.error_description || tokenData.error || 'Не удалось получить токен доступа на Ely.by.');
+    }
+
+    const accessToken = tokenData.access_token;
+
+    // Fetch account profile info
+    const userRes = await fetch('https://account.ely.by/api/account/v1/info', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const userData = await userRes.json();
+    if (!userRes.ok) {
+      throw new Error('Не удалось получить информацию о пользователе с Ely.by.');
+    }
+
+    // Build standard launcher account profile
+    const profile = {
+      name: userData.username,
+      id: userData.uuid.replace(/-/g, ''), // Clean UUID with no dashes
+      accessToken: accessToken
+    };
+
+    res.send(`
+      <html>
+        <head>
+          <title>Авторизация Ely.by</title>
+          <style>
+            body {
+              background-color: #09090b;
+              color: #e4e4e7;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              text-align: center;
+              padding: 24px;
+            }
+            .container {
+              background-color: #18181b;
+              border: 1px solid #27272a;
+              padding: 40px;
+              border-radius: 28px;
+              box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+              max-width: 420px;
+              width: 100%;
+              box-sizing: border-box;
+            }
+            .spinner {
+              border: 3px solid #27272a;
+              border-top: 3px solid #10b981;
+              border-radius: 50%;
+              width: 48px;
+              height: 48px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 24px auto;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            h2 { margin: 0 0 12px 0; font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+            p { margin: 0; font-size: 0.95rem; color: #a1a1aa; line-height: 1.6; font-weight: 500; }
+            button {
+              display: none;
+              margin-top: 28px;
+              background: #10b981;
+              color: #000;
+              border: none;
+              padding: 14px 28px;
+              border-radius: 14px;
+              cursor: pointer;
+              font-size: 0.8rem;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              transition: all 0.2s;
+              box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+            }
+            button:hover {
+              background: #34d399;
+              transform: translateY(-1px);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="spinner" id="spinner-icon"></div>
+            <h2>Вход выполнен!</h2>
+            <p id="status-text">Передаём данные авторизации в Layle Launcher...</p>
+            <button id="close-btn" onclick="window.close()">Закрыть окно</button>
+          </div>
+          <script>
+            const profile = ${JSON.stringify(profile)};
+            let success = false;
+            
+            // 1. Force write to localStorage as a super stable fallback for iframe / popups / Electron
+            try {
+              localStorage.setItem('ely_session_pending', JSON.stringify(profile));
+              localStorage.setItem('ely_session_pending_time', Date.now().toString());
+            } catch (e) {
+              console.error('Failed to write to localStorage:', e);
+            }
+
+            // 2. Try posting a message back to the launcher window
+            if (window.opener) {
+              try {
+                window.opener.postMessage({ 
+                  type: 'OAUTH_AUTH_SUCCESS', 
+                  profile: profile 
+                }, '*');
+                success = true;
+              } catch (err) {
+                console.error('Failed to send message:', err);
+              }
+            }
+
+            const statusEl = document.getElementById('status-text');
+            const spinnerEl = document.getElementById('spinner-icon');
+            const btnEl = document.getElementById('close-btn');
+
+            if (success) {
+              statusEl.textContent = 'Данные успешно отправлены. Окно закроется автоматически через мгновение...';
+              setTimeout(() => {
+                window.close();
+              }, 1500);
+            } else {
+              // Show friendly instruction in case window.opener is broken or blocked
+              if (spinnerEl) spinnerEl.style.display = 'none';
+              statusEl.innerHTML = 'Вход прошёл отлично! Авторизация сохранена во внутренней памяти браузера.<br/><br/>Пожалуйста, <strong>закройте эту вкладку</strong> и вернитесь к лаунчеру — он автоматически обнаружит ваш вход!';
+              if (btnEl) btnEl.style.display = 'inline-block';
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (err: any) {
+    res.status(500).send(`
+      <html>
+        <head>
+          <title>Ошибка авторизации</title>
+          <style>
+            body {
+              background-color: #09090b;
+              color: #e4e4e7;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              text-align: center;
+              padding: 20px;
+            }
+            .container {
+              background-color: #18181b;
+              border: 1px solid rgba(239, 68, 68, 0.2);
+              padding: 40px;
+              border-radius: 24px;
+              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+              max-width: 400px;
+            }
+            .error-icon {
+              color: #ef4444;
+              font-size: 3.5rem;
+              margin-bottom: 20px;
+            }
+            h2 { margin: 0 0 12px 0; font-size: 1.5rem; font-weight: 700; color: #f87171; }
+            p { margin: 0 0 24px 0; font-size: 0.9rem; color: #a1a1aa; line-height: 1.5; }
+            button {
+              background: #ef4444;
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 12px;
+              cursor: pointer;
+              font-size: 0.85rem;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              transition: all 0.2s;
+            }
+            button:hover {
+              background: #dc2626;
+              transform: scale(1.02);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="error-icon">⚠️</div>
+            <h2>Не удалось авторизоваться</h2>
+            <p>${err.message || 'Ошибка во время обмена кодами или получения профиля Ely.by.'}</p>
+            <button onclick="window.close()">Закрыть окно</button>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+};
+
+app.get('/api/auth/ely/callback', handleElyCallback);
+app.get('/api/auth/ely/callback/', handleElyCallback);
 
 app.post('/api/mods/install', async (req, res) => {
   const { projectId, versionId, folderPath } = req.body;

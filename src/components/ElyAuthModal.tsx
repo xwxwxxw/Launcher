@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Lock, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Lock, User as UserIcon, Globe, ShieldCheck } from 'lucide-react';
 
 interface ElyAuthModalProps {
   onClose: () => void;
@@ -7,10 +7,29 @@ interface ElyAuthModalProps {
 }
 
 export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) {
+  const [authMethod, setAuthMethod] = useState<'password' | 'oauth'>('password');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Listen to postMessage from the popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Validate origin
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+        return;
+      }
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.profile) {
+        onSuccess(event.data.profile);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onSuccess]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,66 +70,158 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
     }
   };
 
+  const handleOAuthLogin = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Build parameters
+      const params = new URLSearchParams();
+      params.append('origin', window.location.origin);
+
+      const res = await fetch(`/api/auth/ely/url?${params.toString()}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Не удалось получить ссылку авторизации.');
+      }
+
+      // Open standard secure popup
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+
+      const authWindow = window.open(
+        data.url,
+        'ely_oauth_popup',
+        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`
+      );
+
+      if (!authWindow) {
+        throw new Error('Окно авторизации заблокировано браузером. Пожалуйста, разрешите всплывающие окна для этого сайта.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ошибка запуска браузерной авторизации.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentRedirectUri = `${window.location.origin}/api/auth/ely/callback`;
+
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-md">
-      <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-sm flex flex-col shadow-2xl relative overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-md overflow-y-auto">
+      <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-md flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
         
         {/* Glow effect */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] h-[150px] bg-emerald-500/10 blur-[80px] pointer-events-none rounded-full"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[350px] h-[150px] bg-emerald-500/10 blur-[80px] pointer-events-none rounded-full"></div>
 
+        {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-zinc-800/60 bg-zinc-900/30 relative z-10">
-          <div>
-            <h2 className="text-lg font-bold text-white">Авторизация Ely.by</h2>
-            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1 font-bold">Безопасный вход</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight">Авторизация Ely.by</h2>
+              <p className="text-[10px] uppercase tracking-widest text-emerald-400 mt-0.5 font-bold">Официальный аккаунт</p>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-all">
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleLogin} className="p-8 relative z-10 flex flex-col gap-5">
+        {/* Auth Method Tabs */}
+        <div className="px-6 pt-6 relative z-10">
+          <div className="grid grid-cols-2 p-1 bg-zinc-950 border border-zinc-900 rounded-2xl">
+            <button
+              onClick={() => { setAuthMethod('password'); setError(''); }}
+              className={`py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
+                authMethod === 'password'
+                  ? 'bg-zinc-850 text-white border border-zinc-800/60 shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              По паролю
+            </button>
+            <button
+              onClick={() => { setAuthMethod('oauth'); setError(''); }}
+              className={`py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
+                authMethod === 'oauth'
+                  ? 'bg-zinc-850 text-white border border-zinc-800/60 shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Через браузер
+            </button>
+          </div>
+        </div>
+
+        {/* Content Panel */}
+        <div className="p-6 relative z-10">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl font-medium text-center">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3.5 rounded-2xl font-medium text-center mb-5 leading-relaxed">
               {error}
             </div>
           )}
 
-          <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Логин или E-mail</label>
-            <div className="relative">
-              <UserIcon className="absolute left-3.5 top-3 text-zinc-500" size={16} />
-              <input 
-                type="text" 
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ivan@example.com"
-                className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-zinc-600 font-medium"
-              />
-            </div>
-          </div>
+          {authMethod === 'password' ? (
+            <form onSubmit={handleLogin} className="flex flex-col gap-5">
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Логин или E-mail</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3.5 top-3.5 text-zinc-500" size={16} />
+                  <input 
+                    type="text" 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="ivan@example.com"
+                    className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-11 pr-4 py-3.5 text-sm focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-zinc-600 font-medium shadow-inner"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Пароль</label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-3 text-zinc-500" size={16} />
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-zinc-600 font-medium"
-              />
-            </div>
-          </div>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Пароль</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-3.5 text-zinc-500" size={16} />
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-11 pr-4 py-3.5 text-sm focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-zinc-600 font-medium shadow-inner"
+                  />
+                </div>
+              </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="mt-2 w-full flex items-center justify-center bg-white text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] active:scale-95"
-          >
-            {loading ? 'Подключение...' : 'Войти в аккаунт'}
-          </button>
-        </form>
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="mt-2 w-full flex items-center justify-center bg-white text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] active:scale-95"
+              >
+                {loading ? 'Подключение...' : 'Войти по паролю'}
+              </button>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-5">
+              <div className="text-zinc-400 text-xs leading-relaxed font-medium">
+                Безопасная авторизация через официальный сайт <span className="text-emerald-400 font-bold">Ely.by</span>. Пароль не передаётся лаунчеру напрямую.
+              </div>
+
+              <button 
+                onClick={handleOAuthLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2.5 bg-emerald-500 hover:bg-emerald-400 text-black disabled:opacity-50 disabled:cursor-not-allowed py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-95"
+              >
+                <Globe size={16} strokeWidth={2.5} />
+                {loading ? 'Открываем браузер...' : 'Войти через Ely.by'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

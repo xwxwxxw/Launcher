@@ -15,12 +15,58 @@ export default function App() {
   const [showLaunchModal, setShowLaunchModal] = useState(false);
 
   useEffect(() => {
+    // 1. Initial load of active session
     const saved = localStorage.getItem('ely_session');
     if (saved) {
       try {
         setUserProfile(JSON.parse(saved));
       } catch (e) {}
     }
+
+    // 2. LocalStorage fallback check function
+    const checkPendingSession = () => {
+      const pending = localStorage.getItem('ely_session_pending');
+      if (pending) {
+        try {
+          const profile = JSON.parse(pending);
+          setUserProfile(profile);
+          localStorage.setItem('ely_session', JSON.stringify(profile));
+          setShowAuthModal(false);
+          
+          // Clear pending items to prevent infinite triggers
+          localStorage.removeItem('ely_session_pending');
+          localStorage.removeItem('ely_session_pending_time');
+        } catch (e) {
+          console.error('Error parsing pending session:', e);
+        }
+      }
+    };
+
+    // Check immediately on mount
+    checkPendingSession();
+
+    // 3. Listen to storage changes (fired when other windows/tabs modify localStorage)
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'ely_session_pending' && e.newValue) {
+        checkPendingSession();
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    // 4. Listen to window focus (triggers immediately when the user returns to this tab)
+    const handleFocus = () => {
+      checkPendingSession();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 5. Short Interval check as a foolproof final fallback
+    const interval = setInterval(checkPendingSession, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLoginSuccess = (profile: any) => {
