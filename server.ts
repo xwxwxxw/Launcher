@@ -91,14 +91,8 @@ app.get('/api/auth/ely/url', (req, res) => {
     const customClientSecret = req.query.client_secret;
     const origin = req.query.origin || `${req.protocol}://${req.get('host')}`;
     
-    const clientId = customClientId || process.env.ELY_CLIENT_ID;
-    const clientSecret = customClientSecret || process.env.ELY_CLIENT_SECRET;
-
-    if (!clientId) {
-      return res.status(400).json({ 
-        error: 'OAuth Client ID не настроен. Пожалуйста, введите Client ID и Client Secret в форме настроек или добавьте их в .env на сервере.' 
-      });
-    }
+    const clientId = customClientId || process.env.ELY_CLIENT_ID || 'layle-launcher3';
+    const clientSecret = customClientSecret || process.env.ELY_CLIENT_SECRET || '21nUJW32uKxbQrLCx5qTWL3_Fk11ehEBw3S_xnNfuOFRHfygzerpbhp5T7uGLyKc';
 
     const redirectUri = `${origin}/api/auth/ely/callback`;
     
