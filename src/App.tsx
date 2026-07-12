@@ -6,9 +6,10 @@ import SettingsTab from './components/SettingsTab';
 import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
+import UpdateModal from './components/UpdateModal';
 import LauncherSplashScreen from './components/LauncherSplashScreen';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert } from 'lucide-react';
+import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
 export default function App() {
@@ -23,6 +24,9 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [gameStatus, setGameStatus] = useState<'idle' | 'installing' | 'running'>('idle');
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isCheckingInstall, setIsCheckingInstall] = useState(false);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
     JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
@@ -381,6 +385,23 @@ export default function App() {
   }, [activeProfileId]);
 
   useEffect(() => {
+    const prof = profiles.find(p => p.id === activeProfileId) || profiles[0];
+    if (prof) {
+      setIsCheckingInstall(true);
+      fetch(`/api/minecraft/check-installed?minecraftPath=${encodeURIComponent(minecraftPath)}&version=${prof.game_version}&loader=${prof.mod_loader}`)
+        .then(res => res.json())
+        .then(data => {
+          setIsInstalled(data.installed);
+          setIsCheckingInstall(false);
+        })
+        .catch(() => {
+          setIsInstalled(false);
+          setIsCheckingInstall(false);
+        });
+    }
+  }, [activeProfileId, profiles, minecraftPath]);
+
+  useEffect(() => {
     // 1. Initial load of active session
     const saved = localStorage.getItem('ely_session');
     if (saved) {
@@ -622,14 +643,39 @@ export default function App() {
           <div className="flex items-center space-x-6">
             <div className="text-right flex flex-col justify-center">
               <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Статус запуска</p>
-              <p className="text-xs font-semibold text-emerald-400">Готов к игре</p>
+              <p className={`text-xs font-semibold ${gameStatus === 'running' ? 'text-blue-400' : (gameStatus === 'installing' ? 'text-amber-400' : (isInstalled ? 'text-emerald-400' : 'text-amber-400'))}`}>
+                {gameStatus === 'running' ? 'В игре' : (gameStatus === 'installing' ? 'Запуск / Установка...' : (isInstalled ? 'Готов к игре' : 'Требуется установка'))}
+              </p>
             </div>
-            <button onClick={() => setShowLaunchModal(true)} className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-50 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-              <span className="relative flex items-center gap-2">
-                <PlaySquare size={16} fill="currentColor" /> Играть
-              </span>
-            </button>
+            
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                <select 
+                  value={activeProfile.id}
+                  onChange={(e) => handleSelectProfile(e.target.value)}
+                  className="bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50 text-zinc-200 text-sm font-semibold rounded-xl pl-4 pr-10 h-12 outline-none appearance-none cursor-pointer transition-all shadow-inner backdrop-blur-md min-w-[160px] truncate"
+                  title="Выбор сборки"
+                >
+                  {profiles.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                  <ChevronDown size={18} />
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowLaunchModal(true)} 
+                disabled={gameStatus === 'running' || gameStatus === 'installing'}
+                className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-50 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                <span className="relative flex items-center gap-2">
+                  <PlaySquare size={16} fill="currentColor" /> {isCheckingInstall ? '...' : (isInstalled ? 'Играть' : 'Установить')}
+                </span>
+              </button>
+            </div>
           </div>
         </footer>
       </div>
@@ -638,9 +684,12 @@ export default function App() {
         <LaunchModal 
           profileName={activeProfile.name}
           userProfile={userProfile}
+          onGameStatusChange={(s) => setGameStatus(s)}
           onClose={() => setShowLaunchModal(false)}
         />
       )}
+      
+      <UpdateModal />
 
       {showSplashScreen && (
         <LauncherSplashScreen 

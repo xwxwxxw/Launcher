@@ -641,14 +641,24 @@ app.post('/api/mods/install', async (req, res) => {
       environment = 'server';
     }
 
+    
     let depends: string[] = [];
     let dependenciesSuggested: any[] = [];
+    let downloadUrl = '';
+    let fileName = `${modId}.jar`;
+
     try {
       const versionsRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
       if (versionsRes.ok) {
         const versions = await versionsRes.json();
         if (versions.length > 0) {
           const latestVersion = versions[0];
+          
+          if (latestVersion.files && latestVersion.files.length > 0) {
+            downloadUrl = latestVersion.files[0].url;
+            fileName = latestVersion.files[0].filename;
+          }
+
           if (latestVersion.dependencies && Array.isArray(latestVersion.dependencies)) {
             const requiredDeps = latestVersion.dependencies.filter((d: any) => d.dependency_type === 'required' && d.project_id);
             for (const dep of requiredDeps) {
@@ -674,8 +684,27 @@ app.post('/api/mods/install', async (req, res) => {
       console.error('Failed to fetch dependencies from Modrinth:', err);
     }
 
+    let targetPath = `/mock/mods/${profileId || '1'}/${modId}.jar`;
+    const profile = profiles.find(p => p.id === profileId);
+    let destDir = folderPath;
+    if (profile && profile.mod_path) destDir = profile.mod_path;
+    
+    if (destDir && downloadUrl) {
+      const absDir = path.isAbsolute(destDir) ? destDir : path.resolve(process.cwd(), destDir);
+      if (!fs.existsSync(absDir)) {
+        fs.mkdirSync(absDir, { recursive: true });
+      }
+      targetPath = path.join(absDir, fileName);
+      
+      const fileRes = await fetch(downloadUrl);
+      if (fileRes.ok && fileRes.body) {
+        const arrayBuffer = await fileRes.arrayBuffer();
+        fs.writeFileSync(targetPath, Buffer.from(arrayBuffer));
+      }
+    }
+
     const mod: any = {
-      path: `/mock/mods/${profileId || '1'}/${modId}.jar`,
+      path: targetPath,
       name,
       mod_id: modId,
       display_name: displayName,
@@ -931,6 +960,31 @@ app.get('/api/minecraft/versions', async (req, res) => {
   }
 });
 
+app.get('/api/minecraft/check-installed', async (req, res) => {
+  try {
+    const { minecraftPath, version, loader } = req.query;
+    if (!minecraftPath || !version) {
+      return res.json({ installed: false });
+    }
+    const mcPath = path.isAbsolute(String(minecraftPath)) ? String(minecraftPath) : path.resolve(process.cwd(), String(minecraftPath));
+    
+    let versionFolder = String(version);
+    if (loader === 'Fabric') {
+       versionFolder = `fabric-loader-0.15.7-${version}`; // Assuming 0.15.7 based on launch route
+    } else if (loader === 'Forge') {
+       // Forge might have a different folder name, simplistic check for now
+       // Often something like <version>-forge-<forge-version>
+    }
+    
+    const jsonPath = path.join(mcPath, 'versions', versionFolder, `${versionFolder}.json`);
+    const installed = fs.existsSync(jsonPath);
+    
+    res.json({ installed });
+  } catch (err) {
+    res.json({ installed: false });
+  }
+});
+
 app.get('/api/java/find', async (req, res) => {
   try {
     const { findJavaPaths } = await import('./src/lib/findJava.js');
@@ -1082,6 +1136,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
 
     proc.on('close', (code: number) => {
        sendEvent('log', { message: `Процесс завершился с кодом ${code}`, progress: 100 });
+       sendEvent('game_closed', { code });
        res.end();
     });
     
@@ -1096,6 +1151,54 @@ app.get('/api/minecraft/launch', async (req, res) => {
   });
 });
 
+app.get('/api/system/check-update', async (req, res) => {
+  try {
+    const currentVersion = require('./package.json').version || '1.0.0';
+    const repo = process.env.GITHUB_REPO || '';
+    
+    if (!repo) {
+       return res.json({ updateAvailable: false });
+    }
+
+    const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { 'User-Agent': 'Minecraft-Launcher' }
+    });
+    
+    if (!response.ok) {
+      return res.json({ updateAvailable: false });
+    }
+
+    const data = await response.json();
+    const latestVersion = data.tag_name.replace(/^v/, ''); // e.g. v1.0.1 -> 1.0.1
+    
+    // Simple version compare
+    const isNewerVersion = (latest: string, current: string) => {
+      const lParts = latest.split('.').map(Number);
+      const cParts = current.split('.').map(Number);
+      for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
+        const l = lParts[i] || 0;
+        const c = cParts[i] || 0;
+        if (l > c) return true;
+        if (l < c) return false;
+      }
+      return false;
+    };
+
+    if (latestVersion !== currentVersion && isNewerVersion(latestVersion, currentVersion)) {
+      res.json({
+        updateAvailable: true,
+        version: data.tag_name,
+        url: data.html_url,
+        notes: data.body
+      });
+    } else {
+      res.json({ updateAvailable: false });
+    }
+  } catch (error) {
+    res.json({ updateAvailable: false });
+  }
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -1104,7 +1207,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = __dirname;
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

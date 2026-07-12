@@ -5,12 +5,13 @@ interface LaunchModalProps {
   onClose: () => void;
   profileName: string;
   userProfile: {name: string, id: string, accessToken: string} | null;
+  onGameStatusChange?: (status: 'idle' | 'installing' | 'running') => void;
 }
 
-export default function LaunchModal({ onClose, profileName, userProfile }: LaunchModalProps) {
+export default function LaunchModal({ onClose, profileName, userProfile, onGameStatusChange }: LaunchModalProps) {
   const [logs, setLogs] = useState<{msg: string, time: string}[]>([]);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'initializing' | 'launching' | 'running' | 'error'>('initializing');
+  const [status, setStatus] = useState<'initializing' | 'launching' | 'running' | 'error' | 'closed'>('initializing');
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,6 +20,7 @@ export default function LaunchModal({ onClose, profileName, userProfile }: Launc
 
   useEffect(() => {
     setStatus('launching');
+    if (onGameStatusChange) onGameStatusChange('installing');
 
     const profileId = localStorage.getItem('launcher_active_profile_id') || '1';
     const ram = localStorage.getItem('launcher_ram') || '4096';
@@ -57,6 +59,12 @@ export default function LaunchModal({ onClose, profileName, userProfile }: Launc
 
     eventSource.addEventListener('done', (e: any) => {
       setStatus('running');
+      if (onGameStatusChange) onGameStatusChange('running');
+    });
+
+    eventSource.addEventListener('game_closed', (e: any) => {
+      setStatus('closed');
+      if (onGameStatusChange) onGameStatusChange('idle');
       eventSource.close();
     });
 

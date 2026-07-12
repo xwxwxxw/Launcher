@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const fs = require('fs');
+
+const content = `const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const net = require('net');
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
@@ -41,7 +43,7 @@ ipcMain.handle('open-path', async (event, dirPath) => {
 function getFreePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer(function(sock) {
-      sock.end('Hello world\n');
+      sock.end('Hello world\\n');
     });
     srv.listen(0, function() {
       const port = srv.address().port;
@@ -86,7 +88,7 @@ async function createWindow() {
       
       // Wait for the server to start, then load
       setTimeout(() => {
-        win.loadURL(`http://localhost:${freePort}`);
+        win.loadURL(\`http://localhost:\${freePort}\`);
       }, 1000);
     } catch (err) {
       console.error('Server start failed:', err);
@@ -108,3 +110,6 @@ app.on('activate', () => {
     createWindow();
   }
 });
+`;
+
+fs.writeFileSync('electron/main.cjs', content);
