@@ -61,6 +61,25 @@ export default function SettingsTab({
     javaInputRef.current?.click();
   };
 
+  const [isFindingJava, setIsFindingJava] = useState(false);
+  const handleFindJava = async () => {
+    setIsFindingJava(true);
+    try {
+      const res = await fetch('/api/java/find');
+      const data = await res.json();
+      if (data.success && data.paths && data.paths.length > 0) {
+        setJavaPath(data.paths[0]);
+      } else {
+        alert('Не удалось автоматически найти Java. Пожалуйста, укажите путь вручную (выберите java.exe).');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка при автоматическом поиске Java.');
+    } finally {
+      setIsFindingJava(false);
+    }
+  };
+
   const handleMinecraftFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -355,6 +374,15 @@ export default function SettingsTab({
                   {...{ webkitdirectory: "", directory: "" }}
                   onChange={handleJavaFolderSelect}
                 />
+                <button 
+                  type="button"
+                  onClick={handleFindJava}
+                  disabled={isFindingJava}
+                  className="bg-amber-600/10 hover:bg-amber-600/20 text-amber-500 hover:text-amber-400 px-4 py-3 border border-amber-600/20 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                  title="Автоматический поиск Java на ПК"
+                >
+                  {isFindingJava ? 'Поиск...' : 'Найти Java'}
+                </button>
                 <button 
                   type="button"
                   onClick={handleJavaBrowse}

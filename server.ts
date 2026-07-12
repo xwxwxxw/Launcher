@@ -931,6 +931,16 @@ app.get('/api/minecraft/versions', async (req, res) => {
   }
 });
 
+app.get('/api/java/find', async (req, res) => {
+  try {
+    const { findJavaPaths } = await import('./src/lib/findJava.js');
+    const paths = findJavaPaths();
+    res.json({ success: true, paths });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/minecraft/launch', async (req, res) => {
   const { 
     profileId, 
@@ -1030,6 +1040,15 @@ app.get('/api/minecraft/launch', async (req, res) => {
 
   if (javaPath && javaPath !== '') {
     opts.javaPath = String(javaPath);
+  } else {
+    try {
+      const { findJavaPaths } = await import('./src/lib/findJava.js');
+      const found = findJavaPaths();
+      if (found.length > 0) {
+        opts.javaPath = found[0];
+        sendEvent('log', { message: `Автоматически найдена Java: ${found[0]}`, progress: 10 });
+      }
+    } catch (e) {}
   }
 
   if (jvmArguments.length > 0) {
