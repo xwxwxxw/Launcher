@@ -1,15 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2, Loader2, Gamepad2 } from 'lucide-react';
 
 interface LaunchModalProps {
   onClose: () => void;
   profileName: string;
+  userProfile: {name: string, id: string, accessToken: string} | null;
 }
 
-export default function LaunchModal({ onClose, profileName }: LaunchModalProps) {
+export default function LaunchModal({ onClose, profileName, userProfile }: LaunchModalProps) {
   const [logs, setLogs] = useState<{msg: string, time: string}[]>([]);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'initializing' | 'launching' | 'running' | 'error'>('initializing');
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   useEffect(() => {
     setStatus('launching');
@@ -33,7 +39,13 @@ export default function LaunchModal({ onClose, profileName }: LaunchModalProps) 
       fullscreen,
       jvmArgs
     });
-    
+
+    if (userProfile) {
+      query.set('authName', userProfile.name);
+      query.set('authUuid', userProfile.id);
+      query.set('authAccess', userProfile.accessToken);
+    }
+
     const eventSource = new EventSource(`/api/minecraft/launch?${query.toString()}`);
     
     eventSource.addEventListener('log', (e: any) => {
@@ -45,6 +57,14 @@ export default function LaunchModal({ onClose, profileName }: LaunchModalProps) 
 
     eventSource.addEventListener('done', (e: any) => {
       setStatus('running');
+      eventSource.close();
+    });
+
+    eventSource.addEventListener('error', (e: any) => {
+      const data = JSON.parse(e.data);
+      const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLogs(prev => [...prev, { msg: `Ошибка: ${data}`, time }]);
+      setStatus('error');
       eventSource.close();
     });
 
@@ -121,6 +141,7 @@ export default function LaunchModal({ onClose, profileName }: LaunchModalProps) 
                   <span>Ожидание процесса...</span>
                 </div>
               )}
+              <div ref={logsEndRef} />
             </div>
           </div>
         </div>

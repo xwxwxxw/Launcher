@@ -6,15 +6,24 @@ import SettingsTab from './components/SettingsTab';
 import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
+import LauncherSplashScreen from './components/LauncherSplashScreen';
 import PlayerHead2D from './components/PlayerHead2D';
 import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>('home');
+  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>(() => {
+    return (localStorage.getItem('launcher_active_tab') as any) || 'home';
+  });
+
+  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => {
+    setActiveTabState(tab);
+    localStorage.setItem('launcher_active_tab', tab);
+  };
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [showSplashScreen, setShowSplashScreen] = useState(true);
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
     JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
   );
@@ -552,6 +561,7 @@ export default function App() {
               onRefresh={fetchMods}
               onToggleMod={handleToggleMod}
               activeProfileId={activeProfileId}
+              activeProfile={activeProfile}
             />
           )}
           {activeTab === 'profiles' && (
@@ -627,7 +637,16 @@ export default function App() {
       {showLaunchModal && (
         <LaunchModal 
           profileName={activeProfile.name}
+          userProfile={userProfile}
           onClose={() => setShowLaunchModal(false)}
+        />
+      )}
+
+      {showSplashScreen && (
+        <LauncherSplashScreen 
+          loadingProfiles={loadingProfiles}
+          loadingMods={loadingMods}
+          onComplete={() => setShowSplashScreen(false)}
         />
       )}
     </div>

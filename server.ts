@@ -1,6 +1,10 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { exec } from 'child_process';
+import mclc from 'minecraft-launcher-core';
+const { Client, Authenticator } = mclc;
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } from './src/lib/modParser.js';
@@ -14,18 +18,72 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
+// Define standard directory for storing profiles and mods data
+const getStorageDir = () => {
+  let baseDir = process.cwd();
+  if (process.env.APPDATA) {
+    baseDir = path.join(process.env.APPDATA, 'MinecraftLauncher');
+  } else if (process.platform === 'darwin') {
+    baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'MinecraftLauncher');
+  } else {
+    baseDir = path.join(os.homedir(), '.MinecraftLauncher');
+  }
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true });
+  }
+  return baseDir;
+};
+
+const DATA_DIR = getStorageDir();
+const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
+const MODS_FILE = path.join(DATA_DIR, 'mods.json');
+
+// Migration of local files to APPDATA folder to prevent development watcher reload
+const localProfilesFile = path.join(process.cwd(), 'profiles.json');
+const localModsFile = path.join(process.cwd(), 'mods.json');
+
+if (fs.existsSync(localProfilesFile)) {
+  try {
+    fs.copyFileSync(localProfilesFile, PROFILES_FILE);
+    fs.unlinkSync(localProfilesFile);
+    console.log('Migrated profiles.json to APPDATA folder');
+  } catch (e) {
+    console.error('Failed to migrate profiles.json:', e);
+  }
+}
+
+if (fs.existsSync(localModsFile)) {
+  try {
+    fs.copyFileSync(localModsFile, MODS_FILE);
+    fs.unlinkSync(localModsFile);
+    console.log('Migrated mods.json to APPDATA folder');
+  } catch (e) {
+    console.error('Failed to migrate mods.json:', e);
+  }
+}
+
 // Profiles In-Memory DB (or File backed)
-const PROFILES_FILE = path.join(process.cwd(), 'profiles.json');
 let profiles: Profile[] = [];
+
+function saveProfiles() {
+  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+}
 
 if (fs.existsSync(PROFILES_FILE)) {
   try {
     profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf-8'));
+    // Ensure all existing profiles have separate isolated folders by default
+    let migrated = false;
+    profiles.forEach(p => {
+      if (!p.mod_path || p.mod_path.trim() === '') {
+        p.mod_path = `./profiles/${p.id}/mods`;
+        migrated = true;
+      }
+    });
+    if (migrated) {
+      saveProfiles();
+    }
   } catch (e) {}
-}
-
-function saveProfiles() {
-  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
 }
 
 if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Vanilla 1.20.1')) {
@@ -36,7 +94,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       description: 'Сборка на загрузчике Fabric с оптимизацией FPS (Sodium) и поддержкой современных модов.',
       game_version: '1.20.1',
       mod_loader: 'Fabric',
-      mod_path: '',
+      mod_path: './profiles/1/mods',
       created_at: Date.now() - 100000,
       is_active: true,
       ram_mb: 4096
@@ -47,7 +105,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       description: 'Классическая сборка на загрузчике Forge для работы с масштабными индустриальными и магическими модификациями.',
       game_version: '1.20.1',
       mod_loader: 'Forge',
-      mod_path: '',
+      mod_path: './profiles/2/mods',
       created_at: Date.now() - 50000,
       is_active: false,
       ram_mb: 4096
@@ -57,7 +115,6 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
 }
 
 // Mods In-Memory DB (or File backed)
-const MODS_FILE = path.join(process.cwd(), 'mods.json');
 let modsList: any[] = [];
 
 function saveMods() {
@@ -85,9 +142,14 @@ app.get('/api/profiles', (req, res) => {
 });
 
 app.post('/api/profiles', (req, res) => {
+  const id = Date.now().toString();
+  const mod_path = req.body.mod_path && req.body.mod_path.trim() !== '' 
+    ? req.body.mod_path 
+    : `./profiles/${id}/mods`;
   const newProfile: Profile = {
     ...req.body,
-    id: Date.now().toString(),
+    id,
+    mod_path,
     created_at: Date.now(),
   };
   profiles.push(newProfile);
@@ -98,7 +160,11 @@ app.post('/api/profiles', (req, res) => {
 app.put('/api/profiles/:id', (req, res) => {
   const index = profiles.findIndex(p => p.id === req.params.id);
   if (index !== -1) {
-    profiles[index] = { ...profiles[index], ...req.body };
+    const updated = { ...profiles[index], ...req.body };
+    if (!updated.mod_path || updated.mod_path.trim() === '') {
+      updated.mod_path = `./profiles/${req.params.id}/mods`;
+    }
+    profiles[index] = updated;
     saveProfiles();
     res.json(profiles[index]);
   } else {
@@ -701,12 +767,36 @@ app.post('/api/mods/scan', async (req, res) => {
       const jarFiles = files.filter(f => f.endsWith('.jar')).map(f => path.join(folderPath, f));
       
       if (jarFiles.length === 0) {
+        // Clear cached mods from list if folder is empty
+        if (profileId) {
+          modsList = modsList.filter(m => m.profile_id !== profileId);
+          saveMods();
+        }
         const filtered = modsList.filter(m => m.profile_id === profileId);
         return res.json(filtered);
       }
 
-      const mods = await Promise.all(jarFiles.map(f => parseModJar(f)));
-      res.json(mods);
+      const parsedMods = await Promise.all(jarFiles.map(async (f) => {
+        const parsed = await parseModJar(f);
+        // Find if we already have this mod in modsList for this profile
+        const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
+        
+        const mod: any = {
+          ...parsed,
+          profile_id: profileId,
+          enabled: existing ? existing.enabled : true,
+        };
+        return mod;
+      }));
+
+      // Update modsList for this profile
+      if (profileId) {
+        modsList = modsList.filter(m => m.profile_id !== profileId);
+        modsList.push(...parsedMods);
+        saveMods();
+      }
+
+      res.json(parsedMods);
     } catch (error) {
       const filtered = modsList.filter(m => m.profile_id === profileId);
       return res.json(filtered);
@@ -720,6 +810,44 @@ app.post('/api/mods/scan', async (req, res) => {
   }
 });
 
+app.post('/api/utils/open-folder', (req, res) => {
+  const { folderPath } = req.body;
+  if (!folderPath) {
+    return res.status(400).json({ error: 'Folder path is required' });
+  }
+
+  const absolutePath = path.isAbsolute(folderPath) ? folderPath : path.resolve(process.cwd(), folderPath);
+
+  if (!fs.existsSync(absolutePath)) {
+    try {
+      fs.mkdirSync(absolutePath, { recursive: true });
+    } catch (e) {
+      console.error('Failed to create directory to open:', e);
+    }
+  }
+
+  let command = '';
+  switch (process.platform) {
+    case 'win32':
+      command = `explorer.exe "${absolutePath}"`;
+      break;
+    case 'darwin':
+      command = `open "${absolutePath}"`;
+      break;
+    default:
+      command = `xdg-open "${absolutePath}"`;
+      break;
+  }
+
+  exec(command, (err) => {
+    if (err) {
+      // In cloud container, xdg-open might fail, we just ignore it for the backend
+      return res.status(200).json({ success: false, message: 'Opening folders is not supported in the web container environment.' });
+    }
+    return res.json({ success: true });
+  });
+});
+
 app.post('/api/mods/toggle', (req, res) => {
   const { modId, profileId, enabled } = req.body;
   if (!modId || !profileId) {
@@ -730,16 +858,37 @@ app.post('/api/mods/toggle', (req, res) => {
   if (mod) {
     mod.enabled = enabled;
     
-    // Simulate physically moving the file to / from a hidden folder
-    if (enabled) {
-      mod.path = `/mock/mods/${profileId}/${modId}.jar`;
+    // Physically rename the file on disk if it exists
+    if (fs.existsSync(mod.path)) {
+      let newPath = mod.path;
+      if (!enabled && mod.path.endsWith('.jar')) {
+        newPath = mod.path + '.disabled';
+        try {
+          fs.renameSync(mod.path, newPath);
+          mod.path = newPath;
+        } catch (e) {
+          console.error('Failed to rename file to disabled:', e);
+        }
+      } else if (enabled && mod.path.endsWith('.jar.disabled')) {
+        newPath = mod.path.slice(0, -9); // remove '.disabled'
+        try {
+          fs.renameSync(mod.path, newPath);
+          mod.path = newPath;
+        } catch (e) {
+          console.error('Failed to rename file to enabled:', e);
+        }
+      }
     } else {
-      // Moves to hidden special .disabled subfolder
-      mod.path = `/mock/mods/${profileId}/.disabled/${modId}.jar`;
+      // Fallback for mock path
+      if (enabled) {
+        mod.path = `/mock/mods/${profileId}/${modId}.jar`;
+      } else {
+        mod.path = `/mock/mods/${profileId}/.disabled/${modId}.jar`;
+      }
     }
     
     saveMods();
-    res.json({ success: true, message: enabled ? 'Мод включен.' : 'Мод выключен и перемещен в скрытую папку .disabled.', mod });
+    res.json({ success: true, message: enabled ? 'Мод включен.' : 'Мод выключен.', mod });
   } else {
     res.status(404).json({ error: 'Mod not found' });
   }
@@ -782,7 +931,7 @@ app.get('/api/minecraft/versions', async (req, res) => {
   }
 });
 
-app.get('/api/minecraft/launch', (req, res) => {
+app.get('/api/minecraft/launch', async (req, res) => {
   const { 
     profileId, 
     ram, 
@@ -791,7 +940,10 @@ app.get('/api/minecraft/launch', (req, res) => {
     resWidth, 
     resHeight, 
     fullscreen, 
-    jvmArgs 
+    jvmArgs,
+    authName,
+    authUuid,
+    authAccess
   } = req.query;
 
   res.writeHead(200, {
@@ -811,57 +963,117 @@ app.get('/api/minecraft/launch', (req, res) => {
   };
 
   const selectedRam = ram || '4096';
-  const selectedJava = javaPath ? String(javaPath) : 'По умолчанию (автопоиск)';
   const selectedMinecraft = minecraftPath ? String(minecraftPath) : './.minecraft';
-  const jvmArguments = jvmArgs ? String(jvmArgs) : '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200';
-  const windowMode = fullscreen === '1' ? 'Полноэкранный режим' : `Оконный режим (${resWidth || '1280'}x${resHeight || '720'})`;
+  const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(process.cwd(), selectedMinecraft);
+  const jvmArguments = jvmArgs ? String(jvmArgs).split(' ') : [];
 
-  // Filter mods that are enabled in this profile
-  const profileMods = modsList.filter(m => m.profile_id === profileId && m.enabled !== false);
-
-  const steps = [
-    { delay: 400, msg: `Инициализация профиля "${activeProfile.name}"...` },
-    { delay: 400, msg: `Рабочая директория игры: ${selectedMinecraft}` },
-    { delay: 450, msg: `Путь к среде выполнения Java: ${selectedJava}` },
-    { delay: 500, msg: `Выделение памяти: ${selectedRam} MB (-Xmx${selectedRam}M)` },
-    { delay: 450, msg: `Режим экрана: ${windowMode}` },
-    { delay: 600, msg: `Аргументы JVM: ${jvmArguments}` },
-    { delay: 600, msg: 'Проверка системных библиотек и natives...' },
-    { delay: 700, msg: `Обнаружено ${profileMods.length} активных модификаций.` }
-  ];
-
-  // Dynamically list loading of each mod
-  profileMods.forEach(mod => {
-    steps.push({
-      delay: 300,
-      msg: `Загрузка модификации [${mod.api_source || 'Local'}] ${mod.display_name || mod.name} (${mod.mod_id})...`
-    });
-  });
-
-  steps.push(
-    { delay: 800, msg: 'Запуск виртуальной машины Java...' },
-    { delay: 600, msg: `Лог запуска: Setting user: ${req.headers['user-agent'] ? 'MinecraftPlayer' : 'LayleUser'}` },
-    { delay: 400, msg: 'Лог запуска: [LWJGL] GLFW window context created.' },
-    { delay: 500, msg: 'Лог запуска: [Minecraft] Loading assets, textures, sounds...' },
-    { delay: 400, msg: 'Процесс игры успешно создан и запущен в фоне.' }
-  );
-
-  let totalDelay = 0;
-  steps.forEach((step, index) => {
-    totalDelay += step.delay;
-    setTimeout(() => {
-      sendEvent('log', { message: step.msg, progress: Math.min(100, Math.round(((index + 1) / steps.length) * 100)) });
-      if (index === steps.length - 1) {
-        setTimeout(() => {
-          sendEvent('done', { message: 'Minecraft запущен!' });
-          res.end();
-        }, 1200);
-      }
-    }, totalDelay);
-  });
+  const launcher = new Client();
   
+  let authData;
+  if (authName && authUuid && authAccess) {
+      authData = {
+          access_token: String(authAccess),
+          client_token: String(authUuid), // or any consistent string
+          uuid: String(authUuid),
+          name: String(authName),
+          user_properties: "{}"
+      };
+  } else {
+      authData = await Authenticator.getAuth("LaylePlayer");
+  }
+  
+  let opts: any = {
+    clientPackage: null,
+    authorization: authData,
+    root: minecraftPathAbsolute,
+    version: {
+        number: activeProfile.game_version,
+        type: "release"
+    },
+    memory: {
+        max: `${selectedRam}M`,
+        min: "1024M"
+    },
+    window: {
+        width: parseInt(String(resWidth) || '1280', 10),
+        height: parseInt(String(resHeight) || '720', 10),
+        fullscreen: fullscreen === '1'
+    }
+  };
+
+  if (activeProfile.mod_loader === 'Fabric') {
+      const loaderVer = '0.15.7'; // Or fetch latest
+      const customVersionName = `fabric-loader-${loaderVer}-${activeProfile.game_version}`;
+      opts.version.custom = customVersionName;
+      
+      const versionsDir = path.join(minecraftPathAbsolute, 'versions', customVersionName);
+      if (!fs.existsSync(versionsDir)) {
+          fs.mkdirSync(versionsDir, { recursive: true });
+      }
+      const jsonPath = path.join(versionsDir, `${customVersionName}.json`);
+      if (!fs.existsSync(jsonPath)) {
+          sendEvent('log', { message: 'Скачивание профиля Fabric...', progress: 5 });
+          try {
+              const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+              if (res.ok) {
+                  const data = await res.text();
+                  fs.writeFileSync(jsonPath, data);
+                  sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
+              }
+          } catch (e) {
+              console.error('Failed to download Fabric profile', e);
+          }
+      }
+  } else if (activeProfile.mod_loader === 'Forge') {
+      opts.forge = minecraftPathAbsolute; // Depending on how MCLC handles it, normally it downloads if needed.
+  }
+
+  if (javaPath && javaPath !== '') {
+    opts.javaPath = String(javaPath);
+  }
+
+  if (jvmArguments.length > 0) {
+    opts.customArgs = jvmArguments;
+  }
+
+  launcher.on('debug', (e: string) => sendEvent('log', { message: e, progress: 50 }));
+  launcher.on('data', (e: string) => sendEvent('log', { message: e, progress: 80 }));
+  launcher.on('download-status', (e: any) => {
+    const progress = Math.min(100, Math.round((e.current / e.total) * 100));
+    sendEvent('log', { message: `Загрузка ${e.name}...`, progress });
+  });
+  launcher.on('progress', (e: any) => {
+    sendEvent('log', { message: `Прогресс: ${e.task} (${e.total} всего)`, progress: 60 });
+  });
+
+  try {
+    sendEvent('log', { message: `Начинается установка и запуск ${activeProfile.game_version}...`, progress: 10 });
+    
+    // Will throw if errors out, or return ChildProcess when fully started
+    const proc = await launcher.launch(opts);
+    
+    if (proc === null) {
+      sendEvent('error', 'Не удалось запустить Minecraft. Убедитесь, что Java установлена и путь указан верно (в настройках лаунчера).');
+      res.end();
+      return;
+    }
+
+    sendEvent('log', { message: 'Игровой процесс успешно запущен!', progress: 100 });
+    sendEvent('done', { message: 'Minecraft запущен!' });
+
+    proc.on('close', (code: number) => {
+       sendEvent('log', { message: `Процесс завершился с кодом ${code}`, progress: 100 });
+       res.end();
+    });
+    
+  } catch (error: any) {
+    console.error('Launch Error:', error);
+    sendEvent('error', error.message || String(error));
+    res.end();
+  }
+
   req.on('close', () => {
-    // Connection closed
+    // If the client disconnects before finishing
   });
 });
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ModInfo } from '../types';
+import { ModInfo, Profile } from '../types';
 import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
 import ModrinthSearchModal from './ModrinthSearchModal';
+import { openFolderInExplorer } from '../utils/explorer';
 
 interface ModsTabProps {
   mods: ModInfo[];
@@ -12,13 +13,17 @@ interface ModsTabProps {
   onRefresh: () => void;
   onToggleMod: (modId: string, enabled: boolean) => Promise<void>;
   activeProfileId: string;
+  activeProfile?: Profile;
 }
 
-export default function ModsTab({ mods, loading, onScan, onDelete, onRefresh, onToggleMod, activeProfileId }: ModsTabProps) {
+export default function ModsTab({ mods, loading, onScan, onDelete, onRefresh, onToggleMod, activeProfileId, activeProfile }: ModsTabProps) {
   const [updating, setUpdating] = useState(false);
   const [viewMode, setViewMode] = useState<'client' | 'server' | 'both'>('client');
   const [search, setSearch] = useState('');
   const [showModrinthModal, setShowModrinthModal] = useState(false);
+  
+  const clientPath = activeProfile?.mod_path || `./profiles/${activeProfileId}/mods`;
+  const serverPath = clientPath.replace('/mods', '/server-mods').replace('\\mods', '\\server-mods');
   
   // Filters
   const [fWorldgen, setFWorldgen] = useState(false);
@@ -98,11 +103,19 @@ export default function ModsTab({ mods, loading, onScan, onDelete, onRefresh, on
               <DownloadCloud size={16} className={updating ? 'animate-bounce' : ''} />
               <span>{updating ? 'Обновление...' : 'Обновить (Modrinth)'}</span>
             </button>
-            <button onClick={() => onScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
+            <button 
+              onClick={() => openFolderInExplorer(clientPath)} 
+              className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm"
+              title={`Открыть в проводнике: ${clientPath}`}
+            >
               <FolderOpen size={16} className="text-zinc-400" />
               <span>Папка Клиента</span>
             </button>
-            <button onClick={() => onScan('')} className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm">
+            <button 
+              onClick={() => openFolderInExplorer(serverPath)} 
+              className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-5 py-2.5 rounded-xl flex items-center gap-2.5 text-[11px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm"
+              title={`Открыть в проводнике: ${serverPath}`}
+            >
               <FolderOpen size={16} className="text-zinc-400" />
               <span>Папка Сервера</span>
             </button>

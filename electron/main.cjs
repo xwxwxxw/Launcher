@@ -1,7 +1,41 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
+
+// IPC Listener to select directories natively
+ipcMain.handle('select-directory', async (event, defaultPath) => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    defaultPath: defaultPath || undefined
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
+// IPC Listener to open folders/paths in Windows Explorer natively
+ipcMain.handle('open-path', async (event, dirPath) => {
+  if (dirPath) {
+    const fs = require('fs');
+    // Resolve relative paths
+    const absolutePath = path.isAbsolute(dirPath) ? dirPath : path.resolve(process.cwd(), dirPath);
+    
+    // Ensure the folder exists
+    if (!fs.existsSync(absolutePath)) {
+      try {
+        fs.mkdirSync(absolutePath, { recursive: true });
+      } catch (err) {
+        console.error('Failed to create directory to open:', err);
+      }
+    }
+    
+    await shell.openPath(absolutePath);
+    return true;
+  }
+  return false;
+});
 
 function createWindow() {
   const win = new BrowserWindow({

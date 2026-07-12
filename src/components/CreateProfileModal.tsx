@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Folder, Cpu, HelpCircle } from 'lucide-react';
+import { X, Loader2, Folder, FolderOpen, Cpu, HelpCircle } from 'lucide-react';
 import { Profile } from '../types';
+import { openFolderInExplorer } from '../utils/explorer';
 
 export default function CreateProfileModal({ 
   onClose, 
@@ -23,6 +24,22 @@ export default function CreateProfileModal({
   const [ramMb, setRamMb] = useState<number>(initialData?.ram_mb || 4096);
   
   const customPathInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCustomPathBrowse = async () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const selected = await ipcRenderer.invoke('select-directory', customPath);
+        if (selected) {
+          setCustomPath(selected);
+        }
+        return;
+      } catch (e) {
+        console.error('Failed to open Electron directory dialog:', e);
+      }
+    }
+    customPathInputRef.current?.click();
+  };
 
   const handleCustomFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -182,10 +199,18 @@ export default function CreateProfileModal({
                   />
                   <button 
                     type="button"
-                    onClick={() => customPathInputRef.current?.click()}
+                    onClick={handleCustomPathBrowse}
                     className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2.5 border border-zinc-700 rounded-xl text-xs font-semibold transition-colors"
                   >
                     Обзор...
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => openFolderInExplorer(customPath)}
+                    className="bg-zinc-900 hover:bg-zinc-850 hover:text-white px-3 py-2.5 border border-zinc-800 rounded-xl text-zinc-400 transition-colors flex items-center justify-center"
+                    title="Открыть в проводнике Windows"
+                  >
+                    <FolderOpen size={14} />
                   </button>
                 </div>
                 <p className="text-[10px] text-zinc-500 leading-relaxed">

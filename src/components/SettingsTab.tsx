@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, Shield, Sparkles } from 'lucide-react';
+import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, FolderOpen, Shield, Sparkles } from 'lucide-react';
 import PlayerHead2D from './PlayerHead2D';
+import { openFolderInExplorer } from '../utils/explorer';
 
 export default function SettingsTab({ 
   userProfile, 
@@ -27,6 +28,38 @@ export default function SettingsTab({
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
   const minecraftInputRef = useRef<HTMLInputElement>(null);
   const javaInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMinecraftBrowse = async () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const selected = await ipcRenderer.invoke('select-directory', minecraftPath);
+        if (selected) {
+          setMinecraftPath(selected);
+        }
+        return;
+      } catch (e) {
+        console.error('Failed to open Electron directory dialog:', e);
+      }
+    }
+    minecraftInputRef.current?.click();
+  };
+
+  const handleJavaBrowse = async () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const selected = await ipcRenderer.invoke('select-directory', javaPath);
+        if (selected) {
+          setJavaPath(selected);
+        }
+        return;
+      } catch (e) {
+        console.error('Failed to open Electron directory dialog:', e);
+      }
+    }
+    javaInputRef.current?.click();
+  };
 
   const handleMinecraftFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -277,7 +310,7 @@ export default function SettingsTab({
                   type="text" 
                   value={minecraftPath}
                   onChange={(e) => handleMinecraftPathChange(e.target.value)}
-                  placeholder="Например, C:\Users\user\AppData\Roaming\.minecraft" 
+                  placeholder="Например, C:\Users\user\AppData\Roaming\.minecraft"
                   className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                 />
                 <input 
@@ -289,10 +322,18 @@ export default function SettingsTab({
                 />
                 <button 
                   type="button"
-                  onClick={() => minecraftInputRef.current?.click()}
+                  onClick={handleMinecraftBrowse}
                   className="bg-zinc-800 hover:bg-zinc-700 hover:text-white px-6 py-3 border border-zinc-700 rounded-xl text-sm font-semibold transition-colors"
                 >
                   Обзор...
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => openFolderInExplorer(minecraftPath)}
+                  className="bg-zinc-900 hover:bg-zinc-850 hover:text-white px-4 py-3 border border-zinc-800/80 rounded-xl text-zinc-400 transition-colors flex items-center justify-center"
+                  title="Открыть в проводнике Windows"
+                >
+                  <FolderOpen size={16} />
                 </button>
               </div>
             </div>
@@ -316,11 +357,21 @@ export default function SettingsTab({
                 />
                 <button 
                   type="button"
-                  onClick={() => javaInputRef.current?.click()}
+                  onClick={handleJavaBrowse}
                   className="bg-zinc-800 hover:bg-zinc-700 hover:text-white px-6 py-3 border border-zinc-700 rounded-xl text-sm font-semibold transition-colors"
                 >
                   Обзор...
                 </button>
+                {javaPath && (
+                  <button 
+                    type="button"
+                    onClick={() => openFolderInExplorer(javaPath)}
+                    className="bg-zinc-900 hover:bg-zinc-850 hover:text-white px-4 py-3 border border-zinc-800/80 rounded-xl text-zinc-400 transition-colors flex items-center justify-center"
+                    title="Открыть в проводнике Windows"
+                  >
+                    <FolderOpen size={16} />
+                  </button>
+                )}
               </div>
               <p className="text-[11px] text-zinc-500 mt-2 ml-2">Оставьте поле пустым, чтобы лаунчер автоматически нашел подходящую версию Java в реестре и системных переменных.</p>
             </div>
