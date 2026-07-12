@@ -6,7 +6,6 @@ import { exec } from 'child_process';
 import mclc from 'minecraft-launcher-core';
 const { Client, Authenticator } = mclc;
 import dotenv from 'dotenv';
-import { createServer as createViteServer } from 'vite';
 import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } from './src/lib/modParser.js';
 import { TRANSLATIONS } from './src/lib/constants.js';
 import { Profile } from './src/types.js';
@@ -1201,6 +1200,7 @@ app.get('/api/system/check-update', async (req, res) => {
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
