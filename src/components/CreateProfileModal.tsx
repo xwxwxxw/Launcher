@@ -1,12 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Folder, Cpu, HelpCircle } from 'lucide-react';
 import { Profile } from '../types';
+import FileBrowserModal from './FileBrowserModal';
 
-export default function CreateProfileModal({ onClose, onCreate, initialData }: { onClose: () => void, onCreate: (p: any) => void, initialData?: any }) {
+export default function CreateProfileModal({ 
+  onClose, 
+  onCreate, 
+  initialData 
+}: { 
+  onClose: () => void, 
+  onCreate: (p: any) => void, 
+  initialData?: any 
+}) {
   const [name, setName] = useState(initialData?.name || 'Новая сборка');
   const [version, setVersion] = useState(initialData?.game_version || '1.20.1');
   const [versions, setVersions] = useState<string[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(true);
+  
+  // Custom mod loader, mod path, and RAM
+  const [modLoader, setModLoader] = useState<'Vanilla' | 'Fabric' | 'Forge'>(initialData?.mod_loader || 'Fabric');
+  const [useSeparateFolder, setUseSeparateFolder] = useState(!!initialData?.mod_path);
+  const [customPath, setCustomPath] = useState(initialData?.mod_path || '');
+  const [ramMb, setRamMb] = useState<number>(initialData?.ram_mb || 4096);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
 
   useEffect(() => {
     fetch('/api/minecraft/versions')
@@ -17,42 +33,58 @@ export default function CreateProfileModal({ onClose, onCreate, initialData }: {
         if (releases.length > 0 && !releases.includes(version)) {
           setVersion(releases[0]);
         }
-        setLoadingVersions(false);
+        setLoadingVersions(false)
       })
       .catch(err => {
         console.error(err);
-        setVersions(['1.20.1', '1.19.4', '1.18.2']);
+        setVersions(['1.20.1', '1.19.4', '1.18.2', '1.16.5']);
         setLoadingVersions(false);
       });
   }, []);
+
+  // Automatically update the default custom directory path if toggled and empty
+  useEffect(() => {
+    if (useSeparateFolder && !customPath && name) {
+      const folderFriendlyName = name.toLowerCase()
+        .replace(/[^a-z0-9а-яё\-]/g, '_')
+        .replace(/_+/g, '_')
+        .trim();
+      setCustomPath(`./profiles/${folderFriendlyName || 'build'}`);
+    } else if (!useSeparateFolder) {
+      setCustomPath('');
+    }
+  }, [useSeparateFolder, name]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onCreate({
       ...initialData,
       name,
-      description: 'Пользовательская сборка ' + version,
+      description: `Пользовательская сборка ${version} на ${modLoader}`,
       game_version: version,
-      mod_loader: initialData?.mod_loader || 'Fabric',
-      mod_path: initialData?.mod_path || '',
+      mod_loader: modLoader,
+      mod_path: useSeparateFolder ? customPath : '',
       is_active: initialData?.is_active || false,
-      ram_mb: initialData?.ram_mb || 4096
+      ram_mb: ramMb
     });
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-md">
-      <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-md flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-lg flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         <div className="flex items-center justify-between p-6 border-b border-zinc-800/60 relative z-10">
-          <h2 className="text-lg font-bold text-white">Создать сборку</h2>
+          <h2 className="text-lg font-bold text-white">
+            {initialData ? 'Редактировать сборку' : 'Создать новую сборку'}
+          </h2>
           <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800/50 rounded-xl transition-all">
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 relative z-10 flex flex-col gap-5">
+        <form onSubmit={handleSubmit} className="p-6 relative z-10 flex flex-col gap-5 overflow-y-auto max-h-[75vh]">
           
+          {/* Build Name */}
           <div>
             <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">Название сборки</label>
             <input 
@@ -61,34 +93,134 @@ export default function CreateProfileModal({ onClose, onCreate, initialData }: {
               onChange={e => setName(e.target.value)}
               className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
               required
+              placeholder="Например: Мой выживач"
             />
           </div>
 
-          <div>
-            <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 flex items-center gap-2">
-              Версия игры (Официальный манифест)
-              {loadingVersions && <Loader2 size={12} className="animate-spin text-blue-400" />}
-            </label>
-            <select 
-              value={version}
-              onChange={e => setVersion(e.target.value)}
-              disabled={loadingVersions}
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer disabled:opacity-50"
-            >
-              {versions.map(v => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
+          {/* Game version and Mod Loader */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 flex items-center gap-2">
+                Версия игры
+                {loadingVersions && <Loader2 size={12} className="animate-spin text-blue-400" />}
+              </label>
+              <select 
+                value={version}
+                onChange={e => setVersion(e.target.value)}
+                disabled={loadingVersions}
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer disabled:opacity-50"
+              >
+                {versions.map(v => (
+                  <option key={v} value={v} className="bg-zinc-950">{v}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">Мод-Лоадер</label>
+              <select 
+                value={modLoader}
+                onChange={e => setModLoader(e.target.value as any)}
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
+              >
+                <option value="Fabric" className="bg-zinc-950">Fabric (Рекомендуется)</option>
+                <option value="Forge" className="bg-zinc-950">Forge</option>
+                <option value="Vanilla" className="bg-zinc-950">Vanilla (Чистый клиент)</option>
+              </select>
+            </div>
           </div>
 
-          <div className="pt-4">
-            <button type="submit" className="w-full bg-white text-black hover:bg-zinc-200 font-bold uppercase tracking-widest text-xs py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98]">
-              Сохранить профиль
+          {/* Separate Folder / Directory Isolation */}
+          <div className="bg-zinc-900/30 p-5 rounded-2xl border border-zinc-800/60 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex gap-3">
+                <Folder size={18} className="text-zinc-400 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Изоляция директории (Legacy-стиль)</h4>
+                  <p className="text-[10px] text-zinc-500 mt-1">Создать сборку в независимой изолированной папке.</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={useSeparateFolder}
+                  onChange={(e) => setUseSeparateFolder(e.target.checked)}
+                />
+                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+              </label>
+            </div>
+
+            {useSeparateFolder && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500">Путь к папке сборки</label>
+                <div className="flex gap-2.5">
+                  <input 
+                    type="text" 
+                    value={customPath}
+                    onChange={e => setCustomPath(e.target.value)}
+                    placeholder="Путь к независимой папке..."
+                    className="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                    required={useSeparateFolder}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowFileBrowser(true)}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2.5 border border-zinc-700 rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    Обзор...
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  По умолчанию будет создана папка <code className="text-blue-400 font-mono">{customPath}</code> в корне лаунчера. Все моды этой сборки будут находиться в ней изолированно.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* RAM Allotment Slider */}
+          <div className="bg-zinc-900/30 p-5 rounded-2xl border border-zinc-800/60 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex gap-3">
+                <Cpu size={18} className="text-zinc-400 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Выделение ОЗУ для сборки</h4>
+                  <p className="text-[10px] text-zinc-500 mt-1">Ограничить ОЗУ персонально для данного профиля.</p>
+                </div>
+              </div>
+              <span className="bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-lg text-xs font-bold font-mono text-zinc-300">
+                {ramMb} MB
+              </span>
+            </div>
+
+            <input 
+              type="range" 
+              min="1024" 
+              max="16384" 
+              step="512" 
+              value={ramMb}
+              onChange={(e) => setRamMb(Number(e.target.value))}
+              className="w-full accent-blue-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+            />
+          </div>
+
+          <div className="pt-2">
+            <button type="submit" className="w-full bg-white text-black hover:bg-zinc-200 font-bold uppercase tracking-widest text-xs py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.01] active:scale-[0.99]">
+              {initialData ? 'Обновить сборку' : 'Создать сборку'}
             </button>
           </div>
 
         </form>
       </div>
+
+      {showFileBrowser && (
+        <FileBrowserModal 
+          onClose={() => setShowFileBrowser(false)}
+          title="Выбор пути к папке сборки"
+          initialPath={customPath}
+          onSelect={(selectedPath) => setCustomPath(selectedPath)}
+        />
+      )}
     </div>
   );
 }

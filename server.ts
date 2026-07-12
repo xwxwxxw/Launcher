@@ -28,40 +28,29 @@ function saveProfiles() {
   fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
 }
 
-if (profiles.length === 0) {
+if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Vanilla 1.20.1')) {
   profiles = [
     {
       id: '1',
-      name: 'Vanilla 1.20.1',
-      description: 'Чистая ванильная версия Minecraft без модификаций.',
+      name: 'Сборка Fabric 1.20.1',
+      description: 'Сборка на загрузчике Fabric с оптимизацией FPS (Sodium) и поддержкой современных модов.',
       game_version: '1.20.1',
-      mod_loader: 'Vanilla',
+      mod_loader: 'Fabric',
       mod_path: '',
       created_at: Date.now() - 100000,
       is_active: true,
-      ram_mb: 2048
+      ram_mb: 4096
     },
     {
       id: '2',
-      name: 'Sodium OptiPack',
-      description: 'Сборка с модом Sodium для максимальной оптимизации FPS и Iris Shaders для красивой графики.',
+      name: 'Сборка Forge 1.20.1',
+      description: 'Классическая сборка на загрузчике Forge для работы с масштабными индустриальными и магическими модификациями.',
       game_version: '1.20.1',
-      mod_loader: 'Fabric',
+      mod_loader: 'Forge',
       mod_path: '',
       created_at: Date.now() - 50000,
       is_active: false,
       ram_mb: 4096
-    },
-    {
-      id: '3',
-      name: 'Forge Technic Pack',
-      description: 'Сборка с индустриальными модами на Forge для любителей механизмов и автоматизации.',
-      game_version: '1.19.2',
-      mod_loader: 'Forge',
-      mod_path: '',
-      created_at: Date.now(),
-      is_active: false,
-      ram_mb: 6144
     }
   ];
   saveProfiles();
@@ -118,8 +107,14 @@ app.put('/api/profiles/:id', (req, res) => {
 });
 
 app.delete('/api/profiles/:id', (req, res) => {
-  profiles = profiles.filter(p => p.id !== req.params.id);
+  const profileId = req.params.id;
+  profiles = profiles.filter(p => p.id !== profileId);
   saveProfiles();
+  
+  // Clean up mods associated with deleted profile
+  modsList = modsList.filter(m => m.profile_id !== profileId);
+  saveMods();
+  
   res.json({ success: true });
 });
 
@@ -622,9 +617,20 @@ app.post('/api/mods/install', async (req, res) => {
 });
 
 app.post('/api/mods/delete', (req, res) => {
-  const { modId, profileId } = req.body;
+  const { modId, profileId, filePath } = req.body;
   if (!modId) {
     return res.status(400).json({ error: 'Missing modId' });
+  }
+  
+  // Physically delete the jar file if filePath is passed and exists
+  if (filePath) {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (e) {
+      console.error('Failed to physically delete mod file:', e);
+    }
   }
   
   if (profileId) {
@@ -640,27 +646,39 @@ app.post('/api/mods/delete', (req, res) => {
 app.post('/api/mods/scan', async (req, res) => {
   let { folderPath, profileId } = req.body;
   
-  if (!folderPath || folderPath.trim() === '') {
-    // Return persistent dynamic mods filtered by profile if profileId is passed
+  if (profileId) {
+    const profile = profiles.find(p => p.id === profileId);
+    if (profile && profile.mod_path) {
+      folderPath = profile.mod_path;
+    }
+  }
+
+  if (folderPath && folderPath.trim() !== '') {
+    try {
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+      
+      const files = fs.readdirSync(folderPath);
+      const jarFiles = files.filter(f => f.endsWith('.jar')).map(f => path.join(folderPath, f));
+      
+      if (jarFiles.length === 0) {
+        const filtered = modsList.filter(m => m.profile_id === profileId);
+        return res.json(filtered);
+      }
+
+      const mods = await Promise.all(jarFiles.map(f => parseModJar(f)));
+      res.json(mods);
+    } catch (error) {
+      const filtered = modsList.filter(m => m.profile_id === profileId);
+      return res.json(filtered);
+    }
+  } else {
     if (profileId) {
       const filtered = modsList.filter(m => m.profile_id === profileId);
       return res.json(filtered);
     }
     return res.json(modsList);
-  }
-
-  try {
-    const files = fs.readdirSync(folderPath);
-    const jarFiles = files.filter(f => f.endsWith('.jar')).map(f => path.join(folderPath, f));
-    
-    if (jarFiles.length === 0) {
-      return res.status(404).json({ error: 'No .jar files found in the directory.' });
-    }
-
-    const mods = await Promise.all(jarFiles.map(f => parseModJar(f)));
-    res.json(mods);
-  } catch (error) {
-    res.status(500).json({ error: String(error) });
   }
 });
 

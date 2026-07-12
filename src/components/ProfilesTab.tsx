@@ -1,7 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Profile } from '../types';
 import { Plus, Edit, Trash2, Box } from 'lucide-react';
 import CreateProfileModal from './CreateProfileModal';
+import PlayerHead2D from './PlayerHead2D';
+
+const ForgeIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) => (
+  <svg className={`${className} text-amber-500`} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M2 4h20v2.5l-3 3v2h2v4.5h-5v3H6v-3H1v-4.5h2v-2l-3-3V4zm5 3.5h10v-1H7v1zm2 5h6v-1H9v1z" />
+  </svg>
+);
+
+const FabricIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) => (
+  <svg className={`${className} text-cyan-400`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 3a9 9 0 0 0-9 9" />
+    <path d="M19 17A9 9 0 0 0 9 7" />
+    <path d="M21 12a9 9 0 0 0-9-9" />
+    <path d="M15 21a9 9 0 0 0-9-9" />
+    <path d="M12 21a9 9 0 0 0 9-9" />
+  </svg>
+);
+
+const VanillaIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) => (
+  <svg className={`${className} text-emerald-500`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+    <line x1="12" y1="22.08" x2="12" y2="12" />
+  </svg>
+);
+
+const getLoaderBadge = (loader: string) => {
+  switch (loader) {
+    case 'Fabric':
+      return (
+        <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-zinc-950 border border-zinc-850 shadow-lg flex items-center justify-center" title="Fabric Loader">
+          <FabricIcon />
+        </div>
+      );
+    case 'Forge':
+      return (
+        <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-zinc-950 border border-zinc-850 shadow-lg flex items-center justify-center" title="Forge Loader">
+          <ForgeIcon />
+        </div>
+      );
+    default:
+      return (
+        <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-zinc-950 border border-zinc-850 shadow-lg flex items-center justify-center" title="Vanilla">
+          <VanillaIcon />
+        </div>
+      );
+  }
+};
 
 interface ProfilesTabProps {
   profiles: Profile[];
@@ -12,6 +61,7 @@ interface ProfilesTabProps {
   onDeleteProfile: (id: string) => Promise<void>;
   onUpdateProfile: (id: string, updatedFields: any) => Promise<void>;
   mods: any[];
+  userProfile: {name: string, id: string, accessToken: string} | null;
 }
 
 export default function ProfilesTab({
@@ -22,7 +72,8 @@ export default function ProfilesTab({
   onCreateProfile,
   onDeleteProfile,
   onUpdateProfile,
-  mods
+  mods,
+  userProfile
 }: ProfilesTabProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
@@ -78,6 +129,7 @@ export default function ProfilesTab({
                 onEdit={() => setEditingProfile(p)}
                 enabledCount={enabledCount}
                 disabledCount={disabledCount}
+                userProfile={userProfile}
               />
             );
           })
@@ -107,8 +159,18 @@ const ProfileCard: React.FC<{
   onDelete: () => void,
   onEdit: () => void,
   enabledCount: number,
-  disabledCount: number
-}> = ({ profile, isActive, onSelect, onDelete, onEdit, enabledCount, disabledCount }) => {
+  disabledCount: number,
+  userProfile: {name: string, id: string, accessToken: string} | null
+}> = ({ profile, isActive, onSelect, onDelete, onEdit, enabledCount, disabledCount, userProfile }) => {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (confirmDelete) {
+      const timer = setTimeout(() => setConfirmDelete(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [confirmDelete]);
+
   return (
     <div 
       onClick={onSelect}
@@ -124,8 +186,15 @@ const ProfileCard: React.FC<{
       
       <div className="flex justify-between items-start mb-4 relative z-10">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-zinc-800/80 shadow-inner flex items-center justify-center">
-             <img src="https://minecraft.wiki/images/Grass_Block_Revision_6.png" className="w-6 h-6 object-contain opacity-80 mix-blend-luminosity group-hover:mix-blend-normal transition-all" alt="Grass" />
+          <div className="relative w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/80 shadow-inner flex items-center justify-center overflow-visible shrink-0">
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-zinc-900">
+              {userProfile ? (
+                <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-9 h-9 scale-110" />
+              ) : (
+                <PlayerHead2D username="Steve" uuid="" className="w-9 h-9 scale-110" />
+              )}
+            </div>
+            {getLoaderBadge(profile.mod_loader)}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -141,19 +210,32 @@ const ProfileCard: React.FC<{
             </p>
           </div>
         </div>
-        <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
+        <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 items-center">
           <button 
             onClick={(e) => { e.stopPropagation(); onEdit(); }} 
             className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"
+            title="Редактировать сборку"
           >
             <Edit size={14} />
           </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить сборку "${profile.name}"?`)) onDelete(); }} 
-            className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-          >
-            <Trash2 size={14} />
-          </button>
+          
+          {confirmDelete ? (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }} 
+              className="px-2.5 py-1 bg-red-500/25 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/40 rounded-lg transition-all animate-pulse"
+              title="Нажмите еще раз для подтверждения"
+            >
+              Удалить?
+            </button>
+          ) : (
+            <button 
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }} 
+              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+              title="Удалить сборку"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
       

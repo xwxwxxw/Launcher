@@ -6,6 +6,7 @@ import SettingsTab from './components/SettingsTab';
 import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
+import PlayerHead2D from './components/PlayerHead2D';
 import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
@@ -62,12 +63,13 @@ export default function App() {
   };
 
   const fetchMods = async () => {
+    if (!activeProfileId) return;
     setLoadingMods(true);
     try {
       const res = await fetch('/api/mods/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath: '' })
+        body: JSON.stringify({ folderPath: '', profileId: activeProfileId })
       });
       const data = await res.json();
       setMods(Array.isArray(data) ? data : []);
@@ -121,12 +123,12 @@ export default function App() {
     }
   };
 
-  const handleDeleteMod = async (modId: string) => {
+  const handleDeleteMod = async (modId: string, filePath?: string) => {
     try {
       const res = await fetch('/api/mods/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId, profileId: activeProfileId })
+        body: JSON.stringify({ modId, profileId: activeProfileId, filePath })
       });
       const data = await res.json();
       if (data.success) {
@@ -261,8 +263,13 @@ export default function App() {
 
   useEffect(() => {
     fetchProfiles();
-    fetchMods();
   }, []);
+
+  useEffect(() => {
+    if (activeProfileId) {
+      fetchMods();
+    }
+  }, [activeProfileId]);
 
   useEffect(() => {
     // 1. Initial load of active session
@@ -396,7 +403,7 @@ export default function App() {
         <div className="mt-auto mb-2 cursor-pointer group" onClick={() => userProfile ? setActiveTab('settings') : setShowAuthModal(true)}>
           <div className="h-10 w-10 rounded-full border border-zinc-700 bg-zinc-900 flex items-center justify-center group-hover:border-blue-500/50 group-hover:bg-blue-500/10 overflow-hidden transition-all shadow-inner">
             {userProfile ? (
-              <img src={`https://minotar.net/helm/${userProfile.name}/100.png`} alt="User" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://minotar.net/helm/Steve/100.png' }} />
+              <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-full h-full rounded-full" />
             ) : (
               <User className="h-5 w-5 text-zinc-400 group-hover:text-blue-400 transition-colors" />
             )}
@@ -456,6 +463,7 @@ export default function App() {
               onDeleteProfile={handleDeleteProfile}
               onUpdateProfile={handleUpdateProfile}
               mods={mods}
+              userProfile={userProfile}
             />
           )}
           {activeTab === 'conflicts' && (

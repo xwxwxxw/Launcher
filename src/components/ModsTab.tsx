@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ModInfo } from '../types';
 import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
@@ -8,7 +8,7 @@ interface ModsTabProps {
   mods: ModInfo[];
   loading: boolean;
   onScan: (path?: string) => Promise<void>;
-  onDelete: (modId: string) => Promise<void>;
+  onDelete: (modId: string, path?: string) => Promise<void>;
   onRefresh: () => void;
   onToggleMod: (modId: string, enabled: boolean) => Promise<void>;
   activeProfileId: string;
@@ -159,7 +159,7 @@ export default function ModsTab({ mods, loading, onScan, onDelete, onRefresh, on
                 key={mod.path} 
                 mod={mod} 
                 onShowDeps={() => setSelectedMod(mod)} 
-                onDelete={() => onDelete(mod.mod_id)} 
+                onDelete={() => onDelete(mod.mod_id, mod.path)} 
                 onToggle={(enabled) => onToggleMod(mod.mod_id, enabled)}
               />
             ))}
@@ -214,6 +214,14 @@ const ModCard: React.FC<{
   onToggle: (enabled: boolean) => void;
 }> = ({ mod, onShowDeps, onDelete, onToggle }) => {
   const isEnabled = mod.enabled !== false;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (confirmDelete) {
+      const timer = setTimeout(() => setConfirmDelete(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [confirmDelete]);
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -268,13 +276,23 @@ const ModCard: React.FC<{
             <span className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 bg-zinc-950 px-2 py-1 rounded border border-zinc-800/80">
               {mod.api_source ? mod.api_source : 'Локальный'}
             </span>
-            <button 
-              onClick={(e) => { e.stopPropagation(); if(confirm(`Удалить мод "${mod.display_name}"?`)) onDelete(); }}
-              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all border border-transparent hover:border-red-500/20"
-              title="Удалить мод"
-            >
-              <Trash2 size={13} />
-            </button>
+            {confirmDelete ? (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }}
+                className="px-2 py-1 bg-red-500/20 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/30 rounded-md transition-all animate-pulse"
+                title="Нажмите еще раз для удаления мода"
+              >
+                Точно?
+              </button>
+            ) : (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all border border-transparent hover:border-red-500/20"
+                title="Удалить мод"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         </div>
 
