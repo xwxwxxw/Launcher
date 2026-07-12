@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, Shield, Sparkles } from 'lucide-react';
 import PlayerHead2D from './PlayerHead2D';
-import FileBrowserModal from './FileBrowserModal';
 
 export default function SettingsTab({ 
   userProfile, 
@@ -10,7 +9,9 @@ export default function SettingsTab({
   ram,
   setRam,
   javaPath,
-  setJavaPath
+  setJavaPath,
+  minecraftPath,
+  setMinecraftPath
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -18,15 +19,39 @@ export default function SettingsTab({
   ram: number,
   setRam: (ram: number) => void,
   javaPath: string,
-  setJavaPath: (path: string) => void
+  setJavaPath: (path: string) => void,
+  minecraftPath: string,
+  setMinecraftPath: (path: string) => void
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [browserTarget, setBrowserTarget] = useState<'minecraft' | 'java'>('minecraft');
+  const minecraftInputRef = useRef<HTMLInputElement>(null);
+  const javaInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMinecraftFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const firstFile = files[0];
+      const relativePath = firstFile.webkitRelativePath || '';
+      const folderName = relativePath.split('/')[0] || '.minecraft';
+      const cleanName = folderName.startsWith('.') ? folderName : `.${folderName}`;
+      const simulatedPath = `C:\\Users\\MinecraftPlayer\\AppData\\Roaming\\${cleanName}`;
+      setMinecraftPath(simulatedPath);
+    }
+  };
+
+  const handleJavaFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const firstFile = files[0];
+      const relativePath = firstFile.webkitRelativePath || '';
+      const folderName = relativePath.split('/')[0] || 'jdk-17';
+      const simulatedPath = `C:\\Program Files\\Java\\${folderName}`;
+      setJavaPath(simulatedPath);
+    }
+  };
 
   // Advanced Launcher Settings State
-  const [minecraftPath, setMinecraftPath] = useState(() => localStorage.getItem('launcher_minecraft_path') || './.minecraft');
   const [resolutionWidth, setResolutionWidth] = useState(() => Number(localStorage.getItem('launcher_res_width')) || 1280);
   const [resolutionHeight, setResolutionHeight] = useState(() => Number(localStorage.getItem('launcher_res_height')) || 720);
   const [isFullscreen, setIsFullscreen] = useState(() => localStorage.getItem('launcher_fullscreen') === '1');
@@ -46,7 +71,6 @@ export default function SettingsTab({
 
   const handleMinecraftPathChange = (val: string) => {
     setMinecraftPath(val);
-    localStorage.setItem('launcher_minecraft_path', val);
   };
   const handleResWidthChange = (val: number) => {
     setResolutionWidth(val);
@@ -74,6 +98,7 @@ export default function SettingsTab({
   };
 
   const handleClearCache = () => {
+    localStorage.removeItem('simulated_file_system');
     setCacheCleared(true);
     setTimeout(() => setCacheCleared(false), 2000);
   };
@@ -255,11 +280,16 @@ export default function SettingsTab({
                   placeholder="Например, C:\Users\user\AppData\Roaming\.minecraft" 
                   className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                 />
+                <input 
+                  type="file"
+                  ref={minecraftInputRef}
+                  style={{ display: 'none' }}
+                  {...{ webkitdirectory: "", directory: "" }}
+                  onChange={handleMinecraftFolderSelect}
+                />
                 <button 
-                  onClick={() => {
-                    setBrowserTarget('minecraft');
-                    setShowFileBrowser(true);
-                  }}
+                  type="button"
+                  onClick={() => minecraftInputRef.current?.click()}
                   className="bg-zinc-800 hover:bg-zinc-700 hover:text-white px-6 py-3 border border-zinc-700 rounded-xl text-sm font-semibold transition-colors"
                 >
                   Обзор...
@@ -277,11 +307,16 @@ export default function SettingsTab({
                   placeholder="Автоматический поиск среды выполнения..." 
                   className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                 />
+                <input 
+                  type="file"
+                  ref={javaInputRef}
+                  style={{ display: 'none' }}
+                  {...{ webkitdirectory: "", directory: "" }}
+                  onChange={handleJavaFolderSelect}
+                />
                 <button 
-                  onClick={() => {
-                    setBrowserTarget('java');
-                    setShowFileBrowser(true);
-                  }}
+                  type="button"
+                  onClick={() => javaInputRef.current?.click()}
                   className="bg-zinc-800 hover:bg-zinc-700 hover:text-white px-6 py-3 border border-zinc-700 rounded-xl text-sm font-semibold transition-colors"
                 >
                   Обзор...
@@ -487,21 +522,6 @@ export default function SettingsTab({
         </div>
 
       </div>
-
-      {showFileBrowser && (
-        <FileBrowserModal 
-          onClose={() => setShowFileBrowser(false)}
-          title={browserTarget === 'minecraft' ? 'Выбор рабочей папки Minecraft' : 'Выбор папки Java (JAVA_HOME)'}
-          initialPath={browserTarget === 'minecraft' ? minecraftPath : javaPath}
-          onSelect={(selectedPath) => {
-            if (browserTarget === 'minecraft') {
-              handleMinecraftPathChange(selectedPath);
-            } else {
-              setJavaPath(selectedPath);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }

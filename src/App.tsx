@@ -15,6 +15,15 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
+    JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
+  );
+
+  const handleDismissConflict = (id: string) => {
+    const updated = [...dismissedConflictIds, id];
+    setDismissedConflictIds(updated);
+    localStorage.setItem('launcher_dismissed_conflicts', JSON.stringify(updated));
+  };
 
   // Lifted state
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -31,14 +40,30 @@ export default function App() {
   const [javaPath, setJavaPathState] = useState<string>(() => {
     return localStorage.getItem('launcher_java_path') || '';
   });
+  const [minecraftPath, setMinecraftPathState] = useState<string>(() => {
+    return localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+  });
 
   const setRam = (val: number) => {
     setRamState(val);
     localStorage.setItem('launcher_ram', val.toString());
+    if (activeProfileId) {
+      handleUpdateProfile(activeProfileId, { ram_mb: val });
+    }
   };
   const setJavaPath = (val: string) => {
     setJavaPathState(val);
     localStorage.setItem('launcher_java_path', val);
+    if (activeProfileId) {
+      handleUpdateProfile(activeProfileId, { java_path: val });
+    }
+  };
+  const setMinecraftPath = (val: string) => {
+    setMinecraftPathState(val);
+    localStorage.setItem('launcher_minecraft_path', val);
+    if (activeProfileId) {
+      handleUpdateProfile(activeProfileId, { minecraft_path: val });
+    }
   };
 
   const fetchProfiles = async () => {
@@ -118,8 +143,25 @@ export default function App() {
     setActiveProfileId(id);
     localStorage.setItem('launcher_active_profile_id', id);
     const found = profiles.find(p => p.id === id);
-    if (found && found.ram_mb) {
-      setRam(found.ram_mb);
+    if (found) {
+      if (found.ram_mb) {
+        setRamState(found.ram_mb);
+        localStorage.setItem('launcher_ram', found.ram_mb.toString());
+      }
+      if (found.java_path !== undefined) {
+        setJavaPathState(found.java_path);
+        localStorage.setItem('launcher_java_path', found.java_path);
+      } else {
+        setJavaPathState('');
+        localStorage.setItem('launcher_java_path', '');
+      }
+      if (found.minecraft_path !== undefined) {
+        setMinecraftPathState(found.minecraft_path);
+        localStorage.setItem('launcher_minecraft_path', found.minecraft_path);
+      } else {
+        setMinecraftPathState('./.minecraft');
+        localStorage.setItem('launcher_minecraft_path', './.minecraft');
+      }
     }
   };
 
@@ -179,17 +221,17 @@ export default function App() {
     const list: any[] = [];
     
     const hasSodium = mods.some(m => 
-      m.mod_id?.toLowerCase() === 'sodium' || 
-      m.display_name?.toLowerCase().includes('sodium')
+      m.enabled && (m.mod_id?.toLowerCase() === 'sodium' || 
+      m.display_name?.toLowerCase().includes('sodium'))
     );
     const hasOptifine = mods.some(m => 
-      m.mod_id?.toLowerCase() === 'optifine' || 
-      m.display_name?.toLowerCase().includes('optifine')
+      m.enabled && (m.mod_id?.toLowerCase() === 'optifine' || 
+      m.display_name?.toLowerCase().includes('optifine'))
     );
     const hasFabricApi = mods.some(m => 
-      m.mod_id?.toLowerCase() === 'fabric-api' || 
+      m.enabled && (m.mod_id?.toLowerCase() === 'fabric-api' || 
       m.display_name?.toLowerCase().includes('fabric api') ||
-      m.display_name?.toLowerCase().includes('fabric-api')
+      m.display_name?.toLowerCase().includes('fabric-api'))
     );
 
     if (hasSodium && hasOptifine) {
@@ -212,6 +254,44 @@ export default function App() {
       });
     }
 
+    // Automatic check of ALL enabled mod dependencies
+    mods.forEach(mod => {
+      if (!mod.enabled) return;
+      if (mod.depends && Array.isArray(mod.depends)) {
+        mod.depends.forEach(depId => {
+          const cleanDepId = depId.trim().toLowerCase();
+          // Skip known platform modules / system APIs
+          if (['minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'fabric-api-base'].includes(cleanDepId)) {
+            return;
+          }
+          
+          // Check if installed & enabled
+          const isInstalled = mods.some(m => 
+            m.enabled && (
+              m.mod_id?.toLowerCase() === cleanDepId || 
+              m.name?.toLowerCase() === cleanDepId ||
+              m.display_name?.toLowerCase().includes(cleanDepId)
+            )
+          );
+
+          if (!isInstalled) {
+            list.push({
+              id: `missing-dep-${mod.mod_id}-${cleanDepId}`,
+              type: 'missing_dependency_auto',
+              title: `Отсутствует зависимость для ${mod.display_name || mod.name}`,
+              description: `Для корректной работы мода "${mod.display_name || mod.name}" требуется установить отсутствующий мод "${depId}".`,
+              severity: 'high',
+              payload: {
+                parentMod: mod.display_name || mod.name,
+                dependencyId: cleanDepId,
+                dependencyName: depId
+              }
+            });
+          }
+        });
+      }
+    });
+
     if (mods.length > 0 && mods.length < 3) {
       list.push({
         id: 'warning-few-mods',
@@ -222,7 +302,8 @@ export default function App() {
       });
     }
 
-    return list;
+    // Filter out dismissed ones
+    return list.filter(item => !dismissedConflictIds.includes(item.id));
   };
 
   const conflicts = getConflicts();
@@ -234,7 +315,7 @@ export default function App() {
         const res = await fetch('/api/mods/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: 'P7dR8mSH' }) // Fabric API
+          body: JSON.stringify({ projectId: 'P7dR8mSH', profileId: activeProfileId }) // Fabric API
         });
         const data = await res.json();
         if (data.success) {
@@ -246,6 +327,25 @@ export default function App() {
       } catch (e) {
         console.error(e);
         alert('Ошибка при соединении с сервером для установки Fabric API.');
+      }
+    } else if (actionType === 'install_auto_dep' && payload) {
+      try {
+        alert(`Попытка установки ${payload.dependencyName} с Modrinth...`);
+        const res = await fetch('/api/mods/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: payload.dependencyId, versionId: 'latest', folderPath: '', profileId: activeProfileId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Зависимость ${payload.dependencyName} успешно установлена!`);
+          await fetchMods();
+        } else {
+          alert(`Не удалось автоматически установить "${payload.dependencyName}". Попробуйте найти его в Modrinth вручную.`);
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Ошибка при автоматической установке зависимости.');
       }
     } else if (actionType === 'remove_optifine') {
       try {
@@ -391,6 +491,7 @@ export default function App() {
             onClick={() => setActiveTab('conflicts')} 
             icon={<ShieldAlert size={22} strokeWidth={activeTab === 'conflicts' ? 2.5 : 2} />} 
             label="Проблемы" 
+            badge={conflicts.length}
           />
           <TabButton 
             active={activeTab === 'settings'} 
@@ -470,6 +571,7 @@ export default function App() {
             <ConflictsTab 
               conflicts={conflicts}
               onResolveConflict={handleResolveConflict}
+              onDismissConflict={handleDismissConflict}
             />
           )}
           {activeTab === 'settings' && (
@@ -481,6 +583,8 @@ export default function App() {
               setRam={setRam}
               javaPath={javaPath}
               setJavaPath={setJavaPath}
+              minecraftPath={minecraftPath}
+              setMinecraftPath={setMinecraftPath}
             />
           )}
         </main>
@@ -530,16 +634,21 @@ export default function App() {
   );
 }
 
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+function TabButton({ active, onClick, icon, label, badge }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, badge?: number }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center w-full py-3 rounded-xl transition-all duration-200 group ${
+      className={`flex flex-col items-center justify-center w-full py-3 rounded-xl transition-all duration-200 group relative ${
         active 
           ? 'text-zinc-100 bg-zinc-800/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]' 
           : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20'
       }`}
     >
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute top-2 right-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[9px] font-black text-white border-2 border-[#121214] animate-pulse">
+          {badge}
+        </span>
+      )}
       <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
         {icon}
       </div>

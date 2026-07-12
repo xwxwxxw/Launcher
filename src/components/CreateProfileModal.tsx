@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Folder, Cpu, HelpCircle } from 'lucide-react';
 import { Profile } from '../types';
-import FileBrowserModal from './FileBrowserModal';
 
 export default function CreateProfileModal({ 
   onClose, 
@@ -22,7 +21,18 @@ export default function CreateProfileModal({
   const [useSeparateFolder, setUseSeparateFolder] = useState(!!initialData?.mod_path);
   const [customPath, setCustomPath] = useState(initialData?.mod_path || '');
   const [ramMb, setRamMb] = useState<number>(initialData?.ram_mb || 4096);
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  
+  const customPathInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCustomFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const firstFile = files[0];
+      const relativePath = firstFile.webkitRelativePath || '';
+      const folderName = relativePath.split('/')[0] || 'custom_profile';
+      setCustomPath(`./profiles/${folderName}`);
+    }
+  };
 
   useEffect(() => {
     fetch('/api/minecraft/versions')
@@ -163,9 +173,16 @@ export default function CreateProfileModal({
                     className="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
                     required={useSeparateFolder}
                   />
+                  <input 
+                    type="file"
+                    ref={customPathInputRef}
+                    style={{ display: 'none' }}
+                    {...{ webkitdirectory: "", directory: "" }}
+                    onChange={handleCustomFolderSelect}
+                  />
                   <button 
                     type="button"
-                    onClick={() => setShowFileBrowser(true)}
+                    onClick={() => customPathInputRef.current?.click()}
                     className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2.5 border border-zinc-700 rounded-xl text-xs font-semibold transition-colors"
                   >
                     Обзор...
@@ -212,15 +229,6 @@ export default function CreateProfileModal({
 
         </form>
       </div>
-
-      {showFileBrowser && (
-        <FileBrowserModal 
-          onClose={() => setShowFileBrowser(false)}
-          title="Выбор пути к папке сборки"
-          initialPath={customPath}
-          onSelect={(selectedPath) => setCustomPath(selectedPath)}
-        />
-      )}
     </div>
   );
 }

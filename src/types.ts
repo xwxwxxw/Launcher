@@ -32,4 +32,6 @@ export interface Profile {
   created_at: number;
   is_active: boolean;
   ram_mb: number;
+  java_path?: string;
+  minecraft_path?: string;
 }

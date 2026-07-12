@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, AlertTriangle, AlertCircle, XCircle } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, AlertCircle, XCircle, X } from 'lucide-react';
 
 interface Conflict {
   id: string;
@@ -7,14 +7,16 @@ interface Conflict {
   title: string;
   description: string;
   severity: string;
+  payload?: any;
 }
 
 interface ConflictsTabProps {
   conflicts: Conflict[];
   onResolveConflict: (actionType: string, payload?: any) => void;
+  onDismissConflict: (id: string) => void;
 }
 
-export default function ConflictsTab({ conflicts, onResolveConflict }: ConflictsTabProps) {
+export default function ConflictsTab({ conflicts, onResolveConflict, onDismissConflict }: ConflictsTabProps) {
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical': return <XCircle className="text-red-500" size={24} />;
@@ -37,12 +39,22 @@ export default function ConflictsTab({ conflicts, onResolveConflict }: Conflicts
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full relative">
       <div className="space-y-4 max-w-4xl">
         {conflicts.map(conflict => (
-          <div key={conflict.id} className={`p-6 rounded-3xl border flex gap-5 items-start transition-all hover:scale-[1.01] ${getSeverityClass(conflict.severity)}`}>
+          <div key={conflict.id} className={`p-6 rounded-3xl border flex gap-5 items-start transition-all hover:scale-[1.01] relative group ${getSeverityClass(conflict.severity)}`}>
+            
+            {/* Dismiss / Delete button */}
+            <button 
+              onClick={() => onDismissConflict(conflict.id)}
+              title="Игнорировать эту проблему"
+              className="absolute top-5 right-5 p-1.5 rounded-lg bg-zinc-950/40 hover:bg-zinc-900 border border-zinc-800/50 text-zinc-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+            >
+              <X size={14} />
+            </button>
+
             <div className="pt-1">
               {getSeverityIcon(conflict.severity)}
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1 pr-8">
                 <h3 className="text-base font-bold text-zinc-100">{conflict.title}</h3>
                 <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full ${
                   conflict.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
@@ -55,15 +67,20 @@ export default function ConflictsTab({ conflicts, onResolveConflict }: Conflicts
               <p className="text-sm text-zinc-300 leading-relaxed mb-4">{conflict.description}</p>
               
               <div className="flex gap-3">
-                <button className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 px-4 py-2 rounded-lg text-xs font-bold transition-all text-white shadow-sm">
-                  Подробнее
-                </button>
                 {conflict.type === 'missing_dependency' && (
                   <button 
                     onClick={() => onResolveConflict('install_dep', 'P7dR8mSH')} // Fabric API Modrinth project ID
                     className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
                   >
                     Установить Fabric API
+                  </button>
+                )}
+                {conflict.type === 'missing_dependency_auto' && conflict.payload && (
+                  <button 
+                    onClick={() => onResolveConflict('install_auto_dep', conflict.payload)}
+                    className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
+                  >
+                    Установить {conflict.payload.dependencyName}
                   </button>
                 )}
                 {conflict.type === 'conflict' && (
@@ -74,6 +91,12 @@ export default function ConflictsTab({ conflicts, onResolveConflict }: Conflicts
                     Удалить OptiFine
                   </button>
                 )}
+                <button 
+                  onClick={() => onDismissConflict(conflict.id)}
+                  className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 shadow-sm"
+                >
+                  Игнорировать
+                </button>
               </div>
             </div>
           </div>

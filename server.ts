@@ -575,6 +575,39 @@ app.post('/api/mods/install', async (req, res) => {
       environment = 'server';
     }
 
+    let depends: string[] = [];
+    let dependenciesSuggested: any[] = [];
+    try {
+      const versionsRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
+      if (versionsRes.ok) {
+        const versions = await versionsRes.json();
+        if (versions.length > 0) {
+          const latestVersion = versions[0];
+          if (latestVersion.dependencies && Array.isArray(latestVersion.dependencies)) {
+            const requiredDeps = latestVersion.dependencies.filter((d: any) => d.dependency_type === 'required' && d.project_id);
+            for (const dep of requiredDeps) {
+              try {
+                const depProjectRes = await fetch(`https://api.modrinth.com/v2/project/${dep.project_id}`);
+                if (depProjectRes.ok) {
+                  const depProj = await depProjectRes.json();
+                  depends.push(depProj.slug || depProj.id);
+                  dependenciesSuggested.push({
+                    projectId: dep.project_id,
+                    slug: depProj.slug,
+                    title: depProj.title || depProj.name
+                  });
+                }
+              } catch (e) {
+                console.error('Error fetching dependency details:', e);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch dependencies from Modrinth:', err);
+    }
+
     const mod: any = {
       path: `/mock/mods/${profileId || '1'}/${modId}.jar`,
       name,
@@ -583,7 +616,7 @@ app.post('/api/mods/install', async (req, res) => {
       description,
       description_ru: descriptionRu,
       environment,
-      depends: [],
+      depends,
       is_worldgen: categories.some((c: string) => ["worldgen", "biomes", "terrain", "dimensions", "structures"].includes(c.toLowerCase())),
       is_client: environment === 'client',
       is_server: environment === 'server',
@@ -609,7 +642,12 @@ app.post('/api/mods/install', async (req, res) => {
     modsList.push(mod);
     saveMods();
 
-    res.json({ success: true, message: `Мод "${displayName}" успешно установлен.`, mod });
+    res.json({ 
+      success: true, 
+      message: `Мод "${displayName}" успешно установлен.`, 
+      mod,
+      dependenciesSuggested
+    });
   } catch (error) {
     console.error('Error installing mod:', error);
     res.status(500).json({ error: String(error) });
@@ -745,6 +783,17 @@ app.get('/api/minecraft/versions', async (req, res) => {
 });
 
 app.get('/api/minecraft/launch', (req, res) => {
+  const { 
+    profileId, 
+    ram, 
+    javaPath, 
+    minecraftPath, 
+    resWidth, 
+    resHeight, 
+    fullscreen, 
+    jvmArgs 
+  } = req.query;
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -755,28 +804,58 @@ app.get('/api/minecraft/launch', (req, res) => {
     res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
+  const activeProfile = profiles.find(p => p.id === profileId) || profiles[0] || {
+    name: 'Сборка Fabric 1.20.1',
+    game_version: '1.20.1',
+    mod_loader: 'Fabric'
+  };
+
+  const selectedRam = ram || '4096';
+  const selectedJava = javaPath ? String(javaPath) : 'По умолчанию (автопоиск)';
+  const selectedMinecraft = minecraftPath ? String(minecraftPath) : './.minecraft';
+  const jvmArguments = jvmArgs ? String(jvmArgs) : '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200';
+  const windowMode = fullscreen === '1' ? 'Полноэкранный режим' : `Оконный режим (${resWidth || '1280'}x${resHeight || '720'})`;
+
+  // Filter mods that are enabled in this profile
+  const profileMods = modsList.filter(m => m.profile_id === profileId && m.enabled !== false);
+
   const steps = [
-    { delay: 500, msg: 'Аутентификация...' },
-    { delay: 800, msg: 'Получение манифеста версии (1.20.1)...' },
-    { delay: 1000, msg: 'Проверка ресурсов (assets)...' },
-    { delay: 2000, msg: 'Загрузка отсутствующих ресурсов (234/234)...' },
-    { delay: 1500, msg: 'Проверка библиотек Minecraft...' },
-    { delay: 1200, msg: 'Загрузка библиотек Fabric (0.15.7)...' },
-    { delay: 800, msg: 'Подготовка natives...' },
-    { delay: 500, msg: 'Сборка аргументов JVM...' },
-    { delay: 600, msg: 'Запуск процесса Java...' }
+    { delay: 400, msg: `Инициализация профиля "${activeProfile.name}"...` },
+    { delay: 400, msg: `Рабочая директория игры: ${selectedMinecraft}` },
+    { delay: 450, msg: `Путь к среде выполнения Java: ${selectedJava}` },
+    { delay: 500, msg: `Выделение памяти: ${selectedRam} MB (-Xmx${selectedRam}M)` },
+    { delay: 450, msg: `Режим экрана: ${windowMode}` },
+    { delay: 600, msg: `Аргументы JVM: ${jvmArguments}` },
+    { delay: 600, msg: 'Проверка системных библиотек и natives...' },
+    { delay: 700, msg: `Обнаружено ${profileMods.length} активных модификаций.` }
   ];
+
+  // Dynamically list loading of each mod
+  profileMods.forEach(mod => {
+    steps.push({
+      delay: 300,
+      msg: `Загрузка модификации [${mod.api_source || 'Local'}] ${mod.display_name || mod.name} (${mod.mod_id})...`
+    });
+  });
+
+  steps.push(
+    { delay: 800, msg: 'Запуск виртуальной машины Java...' },
+    { delay: 600, msg: `Лог запуска: Setting user: ${req.headers['user-agent'] ? 'MinecraftPlayer' : 'LayleUser'}` },
+    { delay: 400, msg: 'Лог запуска: [LWJGL] GLFW window context created.' },
+    { delay: 500, msg: 'Лог запуска: [Minecraft] Loading assets, textures, sounds...' },
+    { delay: 400, msg: 'Процесс игры успешно создан и запущен в фоне.' }
+  );
 
   let totalDelay = 0;
   steps.forEach((step, index) => {
     totalDelay += step.delay;
     setTimeout(() => {
-      sendEvent('log', { message: step.msg, progress: Math.round(((index + 1) / steps.length) * 100) });
+      sendEvent('log', { message: step.msg, progress: Math.min(100, Math.round(((index + 1) / steps.length) * 100)) });
       if (index === steps.length - 1) {
         setTimeout(() => {
           sendEvent('done', { message: 'Minecraft запущен!' });
           res.end();
-        }, 1500);
+        }, 1200);
       }
     }, totalDelay);
   });

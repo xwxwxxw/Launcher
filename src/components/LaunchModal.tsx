@@ -13,8 +13,28 @@ export default function LaunchModal({ onClose, profileName }: LaunchModalProps) 
 
   useEffect(() => {
     setStatus('launching');
+
+    const profileId = localStorage.getItem('launcher_active_profile_id') || '1';
+    const ram = localStorage.getItem('launcher_ram') || '4096';
+    const javaPath = localStorage.getItem('launcher_java_path') || '';
+    const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+    const resWidth = localStorage.getItem('launcher_res_width') || '1280';
+    const resHeight = localStorage.getItem('launcher_res_height') || '720';
+    const fullscreen = localStorage.getItem('launcher_fullscreen') || '0';
+    const jvmArgs = localStorage.getItem('launcher_jvm_args') || '';
+
+    const query = new URLSearchParams({
+      profileId,
+      ram,
+      javaPath,
+      minecraftPath,
+      resWidth,
+      resHeight,
+      fullscreen,
+      jvmArgs
+    });
     
-    const eventSource = new EventSource('/api/minecraft/launch');
+    const eventSource = new EventSource(`/api/minecraft/launch?${query.toString()}`);
     
     eventSource.addEventListener('log', (e: any) => {
       const data = JSON.parse(e.data);

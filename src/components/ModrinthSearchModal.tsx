@@ -18,6 +18,10 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
   const [loading, setLoading] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
 
+  const [suggestedDeps, setSuggestedDeps] = useState<{ projectId: string, title: string, slug: string }[]>([]);
+  const [currentModName, setCurrentModName] = useState('');
+  const [isInstallingDeps, setIsInstallingDeps] = useState(false);
+
   useEffect(() => {
     if (!query) {
       setResults([]);
@@ -51,14 +55,22 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
     try {
       // In a real app we would pick version by minecraft version
       // Mocking installation via backend
-      await fetch('/api/mods/install', {
+      const res = await fetch('/api/mods/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, versionId: 'latest', folderPath: '', profileId: activeProfileId })
       });
+      const data = await res.json();
+      
       if (onInstalled) {
         onInstalled();
       }
+
+      if (data.success && data.dependenciesSuggested && data.dependenciesSuggested.length > 0) {
+        setCurrentModName(data.mod.display_name || data.mod.name);
+        setSuggestedDeps(data.dependenciesSuggested);
+      }
+      
       // Show success briefly
       setTimeout(() => {
         setInstallingId(null);
@@ -67,6 +79,26 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
       console.error('Failed to install', err);
       setInstallingId(null);
     }
+  };
+
+  const handleInstallDependencies = async () => {
+    setIsInstallingDeps(true);
+    for (const dep of suggestedDeps) {
+      try {
+        await fetch('/api/mods/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: dep.projectId, versionId: 'latest', folderPath: '', profileId: activeProfileId })
+        });
+      } catch (e) {
+        console.error('Failed to install dependency mod:', dep.title, e);
+      }
+    }
+    if (onInstalled) {
+      onInstalled();
+    }
+    setIsInstallingDeps(false);
+    setSuggestedDeps([]);
   };
 
   return (
@@ -180,6 +212,62 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
           )}
         </div>
       </div>
+
+      {suggestedDeps.length > 0 && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-6 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="bg-[#0b0b0c] border border-amber-500/20 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Ambient amber glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-amber-500/10 blur-2xl pointer-events-none rounded-full"></div>
+            
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center text-amber-400 shrink-0">
+                <Box size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white tracking-tight">Нужны зависимости</h3>
+                <p className="text-xs text-zinc-500">Для мода "{currentModName}"</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-zinc-300 leading-relaxed mb-5">
+              Для стабильной работы этого мода требуются следующие важные зависимости. Рекомендуем установить их прямо сейчас:
+            </p>
+
+            <div className="space-y-2.5 mb-6">
+              {suggestedDeps.map((dep) => (
+                <div key={dep.projectId} className="flex items-center gap-3 bg-zinc-950/60 border border-zinc-850 p-3.5 rounded-xl">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                  <span className="text-sm text-zinc-200 font-bold">{dep.title}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSuggestedDeps([])}
+                disabled={isInstallingDeps}
+                className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded-xl py-3 text-xs font-bold transition-all disabled:opacity-50"
+              >
+                Пропустить
+              </button>
+              <button
+                onClick={handleInstallDependencies}
+                disabled={isInstallingDeps}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-xl py-3 text-xs font-extrabold transition-all shadow-lg shadow-amber-500/10 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isInstallingDeps ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin text-zinc-950" />
+                    Установка...
+                  </>
+                ) : (
+                  'Установить все'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

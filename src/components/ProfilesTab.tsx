@@ -52,6 +52,17 @@ const getLoaderBadge = (loader: string) => {
   }
 };
 
+const getLoaderIcon = (loader: string, className = "w-6 h-6") => {
+  switch (loader) {
+    case 'Fabric':
+      return <FabricIcon className={className} />;
+    case 'Forge':
+      return <ForgeIcon className={className} />;
+    default:
+      return <VanillaIcon className={className} />;
+  }
+};
+
 interface ProfilesTabProps {
   profiles: Profile[];
   loading: boolean;
@@ -188,13 +199,17 @@ const ProfileCard: React.FC<{
         <div className="flex items-center gap-3.5">
           <div className="relative w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/80 shadow-inner flex items-center justify-center overflow-visible shrink-0">
             <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-zinc-900">
-              {userProfile ? (
-                <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-9 h-9 scale-110" />
-              ) : (
-                <PlayerHead2D username="Steve" uuid="" className="w-9 h-9 scale-110" />
-              )}
+              {getLoaderIcon(profile.mod_loader, "w-6 h-6")}
             </div>
-            {getLoaderBadge(profile.mod_loader)}
+            {userProfile ? (
+              <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-zinc-950 border border-zinc-850 shadow-lg flex items-center justify-center overflow-hidden animate-pulse" title={userProfile.name}>
+                <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-4.5 h-4.5 scale-110" />
+              </div>
+            ) : (
+              <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-zinc-950 border border-zinc-850 shadow-lg flex items-center justify-center overflow-hidden" title="Steve">
+                <PlayerHead2D username="Steve" uuid="" className="w-4.5 h-4.5 scale-110" />
+              </div>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
