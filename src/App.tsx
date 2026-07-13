@@ -643,7 +643,7 @@ export default function App() {
           <div className="flex items-center space-x-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
             <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
-              v{launcherVersion || '0.0.4'}
+              v{launcherVersion || '0.0.6'}
             </span>
           </div>
           <div className="flex items-center -mr-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -739,6 +739,7 @@ export default function App() {
               minecraftPath={minecraftPath}
               setMinecraftPath={setMinecraftPath}
               onCheckForUpdates={checkForUpdates}
+              currentVersion={launcherVersion || '0.0.6'}
             />
           )}
         </main>

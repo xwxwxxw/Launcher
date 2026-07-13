@@ -3,7 +3,8 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # При создании тега v1.0.0, v1.0.1...
+      - 'v*'        # При создании тега v1.0.0, v1.0.1...
+      - 'Layle_v_*' # При создании тега Layle_v_0.0.6...
 
 jobs:
   build:

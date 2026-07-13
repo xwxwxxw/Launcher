@@ -13,7 +13,8 @@ export default function SettingsTab({
   setJavaPath,
   minecraftPath,
   setMinecraftPath,
-  onCheckForUpdates
+  onCheckForUpdates,
+  currentVersion
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -24,7 +25,8 @@ export default function SettingsTab({
   setJavaPath: (path: string) => void,
   minecraftPath: string,
   setMinecraftPath: (path: string) => void,
-  onCheckForUpdates: (silent: boolean) => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>
+  onCheckForUpdates: (silent: boolean) => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>,
+  currentVersion: string
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
@@ -603,7 +605,7 @@ export default function SettingsTab({
           
           <div className="bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <p className="text-xs text-zinc-300 font-semibold">Текущая версия: <span className="font-mono font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 border border-zinc-800 rounded">v0.0.4</span></p>
+              <p className="text-xs text-zinc-300 font-semibold">Текущая версия: <span className="font-mono font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 border border-zinc-800 rounded">v{currentVersion}</span></p>
               {updateStatus === 'latest' && <p className="text-[11px] text-emerald-400 mt-1.5 font-medium">✓ Установлена последняя версия!</p>}
               {updateStatus === 'checking' && <p className="text-[11px] text-zinc-400 mt-1.5 animate-pulse">Поиск обновлений...</p>}
               {updateStatus === 'available' && <p className="text-[11px] text-emerald-400 mt-1.5 font-semibold">★ Доступно обновление v{latestVer}! Оно запустится автоматически в углу.</p>}

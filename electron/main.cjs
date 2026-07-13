@@ -124,7 +124,8 @@ ipcMain.handle('check-updates', async (event, repo) => {
         try {
           if (res.statusCode !== 200) return resolve({ error: `GitHub API status ${res.statusCode}` });
           const release = JSON.parse(data);
-          const latestVersion = release.tag_name.replace(/^v/, '');
+          const versionMatch = release.tag_name.match(/(\d+\.\d+\.\d+)/);
+          const latestVersion = versionMatch ? versionMatch[1] : release.tag_name.replace(/^v/, '');
           const currentVersion = app.getVersion();
           
           if (latestVersion !== currentVersion) {
