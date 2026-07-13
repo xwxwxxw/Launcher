@@ -6,17 +6,21 @@ on:
       - 'v*'        # При создании тега v1.0.0, v1.0.1...
       - 'Layle_v_*' # При создании тега Layle_v_0.0.6...
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: 'npm'
       
       - name: Install dependencies
         run: npm install
@@ -25,7 +29,7 @@ jobs:
         run: npm run dist:win
       
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: release/*.exe
         env:
