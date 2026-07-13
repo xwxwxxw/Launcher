@@ -158,7 +158,7 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   if (mainWindow) {
-    if (!app.isQuiting && global.minimizeToTray) {
+    if (!app.isQuiting) {
       mainWindow.hide();
     } else {
       mainWindow.close();
@@ -288,7 +288,8 @@ ipcMain.handle('install-update', async (event, tempPath) => {
       fs.copyFileSync(tempPath, targetPath);
     }
     app.relaunch();
-    app.quit();
+    app.isQuiting = true;
+    app.exit(0);
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
@@ -309,10 +310,14 @@ function getFreePort() {
 }
 
 async function createWindow() {
+  const windowIconPath = path.join(__dirname, '../public/icon.png');
+  const winIcon = fs.existsSync(windowIconPath) ? nativeImage.createFromPath(windowIconPath) : undefined;
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     frame: false,
+    icon: winIcon,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -325,7 +330,7 @@ async function createWindow() {
 
 
   mainWindow.on('close', (event) => {
-    if (!app.isQuiting && global.minimizeToTray) {
+    if (!app.isQuiting) {
       event.preventDefault();
       mainWindow.hide();
     }

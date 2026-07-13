@@ -13,7 +13,7 @@ import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
 import SkinViewer from './components/SkinViewer';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X } from 'lucide-react';
+import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X, Gamepad2, Home } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
 export default function App() {
@@ -669,17 +669,17 @@ export default function App() {
       )}
       
       {/* Sidebar Navigation */}
-      <nav className="flex w-[88px] flex-col items-center border-r border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md py-8 flex-shrink-0 z-20 shadow-2xl">
-        <div className="mb-12">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-            <Package className="h-6 w-6 text-white" strokeWidth={2.5} />
+      <nav className="flex w-[88px] flex-col items-center border-r border-zinc-800/40 bg-zinc-950/60 backdrop-blur-md py-8 flex-shrink-0 z-20 shadow-2xl relative">
+        <div className="mb-10">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
+            <Gamepad2 className="h-6 w-6 text-white" strokeWidth={2.5} />
           </div>
         </div>
-        <div className="flex flex-col space-y-6 w-full px-4">
+        <div className="flex flex-col space-y-4 w-full px-2.5">
           <TabButton 
             active={activeTab === 'home'} 
             onClick={() => setActiveTab('home')} 
-            icon={<Package size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />} 
+            icon={<Home size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />} 
             label="Главная" 
           />
           <TabButton 
@@ -703,20 +703,22 @@ export default function App() {
           />
           <TabButton 
             active={activeTab === 'settings'} 
-
             onClick={() => setActiveTab('settings')} 
             icon={<Settings size={22} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />} 
             label="Настройки" 
           />
         </div>
-        <div className="mt-auto mb-2 cursor-pointer group" onClick={() => userProfile ? setActiveTab('settings') : setShowAuthModal(true)}>
-          <div className="h-10 w-10 rounded-full border border-zinc-700 bg-zinc-900 flex items-center justify-center group-hover:border-blue-500/50 group-hover:bg-blue-500/10 overflow-hidden transition-all shadow-inner">
+        <div className="mt-auto mb-1 cursor-pointer group flex flex-col items-center" onClick={() => userProfile ? setActiveTab('settings') : setShowAuthModal(true)}>
+          <div className="h-10 w-10 rounded-full border border-zinc-800 bg-zinc-900/80 flex items-center justify-center group-hover:border-cyan-500/50 group-hover:bg-cyan-500/10 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] overflow-hidden transition-all duration-300 shadow-inner">
             {userProfile ? (
               <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-full h-full rounded-full" />
             ) : (
-              <User className="h-5 w-5 text-zinc-400 group-hover:text-blue-400 transition-colors" />
+              <User className="h-5 w-5 text-zinc-400 group-hover:text-cyan-400 transition-colors duration-300" />
             )}
           </div>
+          <span className="text-[8px] font-bold text-zinc-500 group-hover:text-cyan-400 transition-colors mt-1.5 uppercase tracking-wider">
+            {userProfile ? 'Профиль' : 'Войти'}
+          </span>
         </div>
       </nav>
 
@@ -939,21 +941,34 @@ function TabButton({ active, onClick, icon, label, badge }: { active: boolean, o
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center w-full py-3 rounded-xl transition-all duration-200 group relative ${
+      className={`flex flex-col items-center justify-center w-full py-2.5 rounded-xl transition-all duration-300 group relative ${
         active 
-          ? 'text-zinc-100 bg-zinc-800/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]' 
-          : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20'
+          ? 'text-cyan-400 bg-cyan-500/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_15px_rgba(6,182,212,0.1)] border border-cyan-500/20' 
+          : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 border border-transparent'
       }`}
     >
+      {/* Animated Left Accent Indicator */}
+      <div className={`absolute left-0 top-[20%] bottom-[20%] w-[3px] bg-cyan-500 rounded-r-md transition-all duration-300 ${
+        active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
+      }`} />
+
       {badge !== undefined && badge > 0 && (
-        <span className="absolute top-2 right-4 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[9px] font-black text-white border-2 border-[#121214] animate-pulse">
+        <span className="absolute top-1 right-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[8.5px] font-black text-white border-2 border-zinc-950 animate-pulse z-10">
           {badge}
         </span>
       )}
-      <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+      
+      <div className={`transition-all duration-300 ${active ? 'scale-110 text-cyan-400' : 'group-hover:scale-110 group-hover:text-zinc-200'}`}>
         {icon}
       </div>
-      <span className={`mt-2 text-[9px] uppercase tracking-widest font-bold transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>{label}</span>
+      
+      <span className={`mt-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all duration-300 ${
+        active 
+          ? 'text-cyan-400 opacity-100 font-extrabold' 
+          : 'text-zinc-500 opacity-70 group-hover:opacity-100 group-hover:text-zinc-300'
+      }`}>
+        {label}
+      </span>
     </button>
   );
 }
