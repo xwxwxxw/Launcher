@@ -49,6 +49,26 @@ export default function App() {
             if (app) setLauncherVersion(app.getVersion());
           });
 
+        // Load auth from auth.json via get-auth
+        ipcRenderer.invoke('get-auth')
+          .then((authData: any) => {
+            if (authData) {
+              setUserProfile(authData);
+              const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
+              originalSetItem('ely_session', JSON.stringify(authData));
+            }
+          })
+          .catch((err: any) => console.error('Failed to load auth via IPC:', err));
+
+        // Listen for session-restore from Electron main process
+        ipcRenderer.on('session-restore', (event: any, authData: any) => {
+          if (authData) {
+            setUserProfile(authData);
+            const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
+            originalSetItem('ely_session', JSON.stringify(authData));
+          }
+        });
+
         // Load all persistent settings from Electron's settings.json
         ipcRenderer.invoke('get-settings')
           .then((settings: any) => {
@@ -614,9 +634,11 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     localStorage.removeItem('ely_session');
-    if (typeof window !== 'undefined' && window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.invoke('save-auth', null).catch(() => {});
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        ipcRenderer.invoke('save-auth', null).catch(() => {});
+      } catch (e) {}
     }
   };
 

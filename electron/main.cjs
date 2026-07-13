@@ -178,7 +178,12 @@ ipcMain.handle('check-updates', async (event, repo) => {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          if (res.statusCode !== 200) return resolve({ error: `GitHub API status ${res.statusCode}` });
+          if (res.statusCode !== 200) {
+            if (res.statusCode === 404) {
+              return resolve({ error: 'Релизы в репозитории не найдены или репозиторий приватный/не существует (404)' });
+            }
+            return resolve({ error: `GitHub API status ${res.statusCode}` });
+          }
           const release = JSON.parse(data);
           const versionMatch = release.tag_name.match(/(\d+\.\d+\.\d+)/);
           const latestVersion = versionMatch ? versionMatch[1] : release.tag_name.replace(/^v/, '');

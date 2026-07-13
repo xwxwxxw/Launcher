@@ -1552,7 +1552,10 @@ app.get('/api/system/check-update', async (req, res) => {
     });
     
     if (!response.ok) {
-      return res.json({ updateAvailable: false });
+      if (response.status === 404) {
+        return res.json({ success: false, error: 'Релизы в репозитории не найдены или репозиторий приватный/не существует (404)' });
+      }
+      return res.json({ success: false, error: `GitHub API status ${response.status}` });
     }
 
     const data = await response.json();
