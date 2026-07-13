@@ -11,7 +11,7 @@ interface LaunchModalProps {
 export default function LaunchModal({ onClose, profileName, userProfile, onGameStatusChange }: LaunchModalProps) {
   const [logs, setLogs] = useState<{msg: string, time: string}[]>([]);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'initializing' | 'launching' | 'running' | 'error' | 'closed'>('initializing');
+  const [status, setStatus] = useState<any>('initializing');
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,7 +63,19 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
     });
 
     eventSource.addEventListener('game_closed', (e: any) => {
-      setStatus('closed');
+      const data = JSON.parse(e.data);
+      if (data.code !== 0) {
+        if (data.crashMessage) {
+           setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.crashMessage}`, time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+        }
+        if (data.outOfMemory) {
+           setTimeout(() => alert("Недостаточно памяти! Пожалуйста, увеличьте RAM для этой сборки в настройках профиля."), 500);
+        }
+        setStatus('error');
+      } else {
+        setStatus('closed');
+      }
+      
       if (onGameStatusChange) onGameStatusChange('idle');
       eventSource.close();
     });

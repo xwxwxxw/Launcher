@@ -4,7 +4,17 @@ import fs from 'fs';
 import os from 'os';
 import { exec } from 'child_process';
 import mclc from 'minecraft-launcher-core';
+import multer from 'multer';
+import * as archiverPkg from 'archiver';
+import * as unzipperPkg from 'unzipper';
+const archiver: any = archiverPkg && (archiverPkg as any).default ? (archiverPkg as any).default : archiverPkg;
+const unzipper: any = unzipperPkg && (unzipperPkg as any).default ? (unzipperPkg as any).default : unzipperPkg;
+
+import crypto from 'crypto';
+
+const upload = multer({ dest: os.tmpdir() });
 const { Client, Authenticator } = mclc;
+let activeProcess: any = null;
 import dotenv from 'dotenv';
 import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } from './src/lib/modParser.js';
 import { TRANSLATIONS } from './src/lib/constants.js';
@@ -14,7 +24,7 @@ import { Profile } from './src/types.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = 3000;
 app.use(express.json());
 
 // Define standard directory for storing profiles and mods data
@@ -75,7 +85,7 @@ if (fs.existsSync(PROFILES_FILE)) {
     let migrated = false;
     profiles.forEach(p => {
       if (!p.mod_path || p.mod_path.trim() === '') {
-        p.mod_path = `./profiles/${p.id}/mods`;
+        p.mod_path = `./profiles/${p.id}/.minecraft/mods`;
         migrated = true;
       }
     });
@@ -92,8 +102,8 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       name: 'Сборка Fabric 1.20.1',
       description: 'Сборка на загрузчике Fabric с оптимизацией FPS (Sodium) и поддержкой современных модов.',
       game_version: '1.20.1',
-      mod_loader: 'Fabric',
-      mod_path: './profiles/1/mods',
+      mod_loader: 'Fabric' as const,
+      mod_path: './profiles/1/.minecraft/mods',
       created_at: Date.now() - 100000,
       is_active: true,
       ram_mb: 4096
@@ -104,7 +114,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       description: 'Классическая сборка на загрузчике Forge для работы с масштабными индустриальными и магическими модификациями.',
       game_version: '1.20.1',
       mod_loader: 'Forge',
-      mod_path: './profiles/2/mods',
+      mod_path: './profiles/2/.minecraft/mods',
       created_at: Date.now() - 50000,
       is_active: false,
       ram_mb: 4096
@@ -156,12 +166,116 @@ app.post('/api/profiles', (req, res) => {
   res.json(newProfile);
 });
 
+
+app.get('/api/profiles/:id/export', async (req, res) => {
+  const profileId = req.params.id;
+  const profile = profiles.find(p => p.id === profileId);
+  
+  if (!profile) return res.status(404).send('Profile not found');
+  
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId}`);
+  if (!fs.existsSync(profileDir)) return res.status(404).send('Profile directory not found');
+
+  res.attachment(`${profile.name || 'profile'}_export.zip`);
+  
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  archive.on('error', (err) => { res.status(500).send({ error: err.message }); });
+  
+  archive.pipe(res);
+  
+  // We can include the profile metadata inside the zip
+  archive.append(JSON.stringify(profile, null, 2), { name: 'profile.json' });
+  
+  // And the whole folder
+  archive.directory(profileDir, 'profile_data');
+  
+  await archive.finalize();
+});
+
+app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
+  if (!(req as any).file) return res.status(400).json({ error: 'No file uploaded' });
+  
+  const tempPath = (req as any).file.path;
+  const newId = Date.now().toString();
+  const profileDir = path.resolve(process.cwd(), `./profiles/${newId}`);
+  fs.mkdirSync(profileDir, { recursive: true });
+  
+  try {
+    const directory = await unzipper.Open.file(tempPath);
+    let profileData = null;
+    
+    for (const file of directory.files) {
+      if (file.path === 'profile.json') {
+        const content = await file.buffer();
+        profileData = JSON.parse(content.toString());
+      } else if (file.path.startsWith('profile_data/')) {
+        const relativePath = file.path.substring('profile_data/'.length);
+        if (!relativePath) continue;
+        const outPath = path.join(profileDir, relativePath);
+        if (file.type === 'Directory') {
+          if (!fs.existsSync(outPath)) fs.mkdirSync(outPath, { recursive: true });
+        } else {
+          const content = await file.buffer();
+          if (!fs.existsSync(path.dirname(outPath))) fs.mkdirSync(path.dirname(outPath), { recursive: true });
+          fs.writeFileSync(outPath, content);
+        }
+      }
+    }
+    
+    fs.unlinkSync(tempPath);
+    
+    if (profileData) {
+      profileData.id = newId;
+      profileData.mod_path = `./profiles/${newId}/.minecraft/mods`;
+      profiles.push(profileData);
+      saveProfiles();
+      
+      // We also need to rescan mods!
+      if (fs.existsSync(path.join(profileDir, '.minecraft', 'mods'))) {
+        const jarFiles = fs.readdirSync(path.join(profileDir, '.minecraft', 'mods')).filter(f => f.endsWith('.jar'));
+        for (const jar of jarFiles) {
+          modsList.push({
+            path: path.join(profileDir, '.minecraft', 'mods', jar),
+            name: jar,
+            mod_id: jar.replace('.jar', ''),
+            display_name: jar,
+            profile_id: newId,
+            enabled: true
+          });
+        }
+        saveMods();
+      }
+      
+      return res.json({ success: true, profile: profileData });
+    } else {
+      // Create generic profile if profile.json was missing
+      const genericProfile = { description: '',
+        id: newId,
+        name: 'Импортированная сборка',
+        game_version: '1.20.1',
+        mod_loader: 'Fabric' as const,
+        mod_loader_version: '0.15.7',
+        mod_path: `./profiles/${newId}/.minecraft/mods`,
+        created_at: Date.now(),
+        is_active: false,
+        ram_mb: 4096
+      };
+      profiles.push(genericProfile);
+      saveProfiles();
+      return res.json({ success: true, profile: genericProfile });
+    }
+  } catch (err) {
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/api/profiles/:id', (req, res) => {
   const index = profiles.findIndex(p => p.id === req.params.id);
   if (index !== -1) {
     const updated = { ...profiles[index], ...req.body };
     if (!updated.mod_path || updated.mod_path.trim() === '') {
-      updated.mod_path = `./profiles/${req.params.id}/mods`;
+      updated.mod_path = `./profiles/${req.params.id}/.minecraft/mods`;
     }
     profiles[index] = updated;
     saveProfiles();
@@ -215,14 +329,23 @@ app.get('/api/skin', async (req, res) => {
 
     let response: any = null;
     let success = false;
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36';
     
     // 1. Try to fetch from skinsystem.ely.by by username
     if (username && username.toLowerCase() !== 'steve' && username.toLowerCase() !== 'alex') {
       try {
         const url = `https://skinsystem.ely.by/skins/${username}.png`;
-        response = await fetch(url);
+        response = await fetch(url, { headers: { 'User-Agent': userAgent } });
         if (response.ok) {
           success = true;
+        } else {
+          // Try skins.ely.by fallback
+          const urlFallback = `https://skins.ely.by/skins/${username}.png`;
+          const resFallback = await fetch(urlFallback, { headers: { 'User-Agent': userAgent } });
+          if (resFallback.ok) {
+            response = resFallback;
+            success = true;
+          }
         }
       } catch (e) {
         console.error('Failed fetching from ely.by by username:', e);
@@ -233,26 +356,47 @@ app.get('/api/skin', async (req, res) => {
     if (!success && uuid) {
       try {
         const url = `https://skinsystem.ely.by/skins/${uuid}.png`;
-        response = await fetch(url);
+        response = await fetch(url, { headers: { 'User-Agent': userAgent } });
         if (response.ok) {
           success = true;
+        } else {
+          // Try skins.ely.by fallback by uuid
+          const urlFallback = `https://skins.ely.by/skins/${uuid}.png`;
+          const resFallback = await fetch(urlFallback, { headers: { 'User-Agent': userAgent } });
+          if (resFallback.ok) {
+            response = resFallback;
+            success = true;
+          }
         }
       } catch (e) {
         console.error('Failed fetching from ely.by by uuid:', e);
       }
     }
 
-    // 3. Fallback to minotar.net
+    // 3. Fallback to minotar.net (username or Steve)
     if (!success) {
       try {
         const nameParam = username || 'Steve';
         const url = `https://minotar.net/skin/${nameParam}`;
-        response = await fetch(url);
+        response = await fetch(url, { headers: { 'User-Agent': userAgent } });
         if (response.ok) {
           success = true;
         }
       } catch (e) {
         console.error('Failed fetching from minotar:', e);
+      }
+    }
+
+    // 4. Ultimate server-side fallback if everything else failed
+    if (!success) {
+      try {
+        const url = `https://minotar.net/skin/Steve`;
+        response = await fetch(url, { headers: { 'User-Agent': userAgent } });
+        if (response.ok) {
+          success = true;
+        }
+      } catch (e) {
+        console.error('Failed fetching ultimate Steve fallback:', e);
       }
     }
 
@@ -265,10 +409,22 @@ app.get('/api/skin', async (req, res) => {
       return res.send(Buffer.from(arrayBuffer));
     }
 
-    res.redirect('https://minotar.net/skin/Steve');
+    res.status(404).send('Skin not found');
   } catch (error) {
     console.error('Skin proxy general error:', error);
-    res.redirect('https://minotar.net/skin/Steve');
+    try {
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36';
+      const fallbackResponse = await fetch('https://minotar.net/skin/Steve', { headers: { 'User-Agent': userAgent } });
+      if (fallbackResponse.ok) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        const arrayBuffer = await fallbackResponse.arrayBuffer();
+        return res.send(Buffer.from(arrayBuffer));
+      }
+    } catch (e) {
+      console.error('Ultimate catch block fetch failed:', e);
+    }
+    res.status(500).send('Internal Server Error');
   }
 });
 
@@ -1019,14 +1175,18 @@ app.get('/api/minecraft/launch', async (req, res) => {
     res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  const activeProfile = profiles.find(p => p.id === profileId) || profiles[0] || {
+  const activeProfile: any = profiles.find(p => p.id === profileId) || profiles[0] || {
+    id: profileId ? String(profileId) : '1',
     name: 'Сборка Fabric 1.20.1',
     game_version: '1.20.1',
-    mod_loader: 'Fabric'
+    mod_loader: 'Fabric',
+    mod_path: './profiles/1/.minecraft/mods',
+    description: ''
   };
 
   const selectedRam = ram || '4096';
-  const selectedMinecraft = minecraftPath ? String(minecraftPath) : './.minecraft';
+  const baseDir = getStorageDir(); // Or process.cwd() ? Wait! It should probably go in the APPDATA folder now!
+  const selectedMinecraft = minecraftPath ? String(minecraftPath) : `./profiles/${activeProfile.id}/.minecraft`;
   const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(process.cwd(), selectedMinecraft);
   const jvmArguments = jvmArgs ? String(jvmArgs).split(' ') : [];
 
@@ -1045,10 +1205,21 @@ app.get('/api/minecraft/launch', async (req, res) => {
       authData = await Authenticator.getAuth("LaylePlayer");
   }
   
+  // Always use global root for assets and libraries to prevent redownloading
+  const globalRoot = path.resolve(process.cwd(), './.minecraft');
+  const isolatedDir = path.resolve(process.cwd(), `./profiles/${activeProfile.id}/.minecraft`);
+  
+  if (!fs.existsSync(isolatedDir)) {
+    fs.mkdirSync(isolatedDir, { recursive: true });
+  }
+
   let opts: any = {
     clientPackage: null,
     authorization: authData,
-    root: minecraftPathAbsolute,
+    root: globalRoot,
+    overrides: {
+      gameDirectory: isolatedDir,
+    },
     version: {
         number: activeProfile.game_version,
         type: "release"
@@ -1123,6 +1294,15 @@ app.get('/api/minecraft/launch', async (req, res) => {
     
     // Will throw if errors out, or return ChildProcess when fully started
     const proc = await launcher.launch(opts);
+    activeProcess = proc;
+    
+    const startTime = Date.now();
+    if (!activeProfile.stats) {
+      activeProfile.stats = { totalPlayTimeMs: 0, lastLaunchTime: 0, launchCount: 0 };
+    }
+    activeProfile.stats.launchCount++;
+    activeProfile.stats.lastLaunchTime = startTime;
+    saveProfiles();
     
     if (proc === null) {
       sendEvent('error', 'Не удалось запустить Minecraft. Убедитесь, что Java установлена и путь указан верно (в настройках лаунчера).');
@@ -1134,8 +1314,51 @@ app.get('/api/minecraft/launch', async (req, res) => {
     sendEvent('done', { message: 'Minecraft запущен!' });
 
     proc.on('close', (code: number) => {
+       activeProcess = null;
        sendEvent('log', { message: `Процесс завершился с кодом ${code}`, progress: 100 });
-       sendEvent('game_closed', { code });
+       
+       let crashMessage = null;
+       let outOfMemory = false;
+       
+       if (code !== 0) {
+         // Check crash reports
+         const crashDir = path.join(isolatedDir, 'crash-reports');
+         if (fs.existsSync(crashDir)) {
+           const files = fs.readdirSync(crashDir).filter(f => f.endsWith('.txt')).sort();
+           if (files.length > 0) {
+             const crashPath = path.join(crashDir, files[files.length - 1]);
+             const stats = fs.statSync(crashPath);
+             // If crash report is newer than process start
+             if (Date.now() - stats.mtimeMs < 60000) {
+               const crashContent = fs.readFileSync(crashPath, 'utf8');
+               if (crashContent.includes('java.lang.OutOfMemoryError')) {
+                 outOfMemory = true;
+                 crashMessage = 'Недостаточно оперативной памяти (OutOfMemoryError). Увеличьте RAM в настройках профиля.';
+               } else {
+                 crashMessage = 'Произошла ошибка. См. краш-репорт в ' + crashPath;
+               }
+             }
+           }
+         }
+         
+         if (!crashMessage) {
+           // Maybe we can check latest.log for out of memory
+           const logPath = path.join(isolatedDir, 'logs', 'latest.log');
+           if (fs.existsSync(logPath)) {
+             const logContent = fs.readFileSync(logPath, 'utf8');
+             if (logContent.includes('java.lang.OutOfMemoryError')) {
+               outOfMemory = true;
+               crashMessage = 'Недостаточно оперативной памяти (OutOfMemoryError). Увеличьте RAM в настройках профиля.';
+             }
+           }
+         }
+       }
+       
+       if (activeProfile.stats) {
+         activeProfile.stats.totalPlayTimeMs += (Date.now() - startTime);
+         saveProfiles();
+       }
+       sendEvent('game_closed', { code, crashMessage, outOfMemory });
        res.end();
     });
     
@@ -1148,6 +1371,146 @@ app.get('/api/minecraft/launch', async (req, res) => {
   req.on('close', () => {
     // If the client disconnects before finishing
   });
+});
+
+
+
+// ==================== LOGS & SCREENSHOTS ====================
+
+app.get('/api/minecraft/logs', (req, res) => {
+  const { profileId } = req.query;
+  const profile = profiles.find(p => p.id === profileId);
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  
+  const logPath = path.join(profileDir, 'logs', 'latest.log');
+  
+  if (fs.existsSync(logPath)) {
+    const content = fs.readFileSync(logPath, 'utf8');
+    res.json({ content });
+  } else {
+    // Check crash reports?
+    const crashDir = path.join(profileDir, 'crash-reports');
+    if (fs.existsSync(crashDir)) {
+      const files = fs.readdirSync(crashDir).filter(f => f.endsWith('.txt')).sort();
+      if (files.length > 0) {
+        const crashPath = path.join(crashDir, files[files.length - 1]);
+        const crashContent = fs.readFileSync(crashPath, 'utf8');
+        return res.json({ content: `Лог latest.log не найден.\nПоследний краш-репорт:\n\n${crashContent}` });
+      }
+    }
+    res.json({ content: 'Лог-файл не найден. Запустите игру хотя бы один раз.' });
+  }
+});
+
+app.post('/api/minecraft/open-logs-folder', async (req, res) => {
+  const { profileId } = req.query;
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const logsDir = path.join(profileDir, 'logs');
+  
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  
+  // Use Electron shell.openPath if available, otherwise just try to open it somehow
+  try {
+    const { shell } = require('electron');
+    if (shell) await shell.openPath(logsDir);
+  } catch (e) {
+    // maybe it's just web?
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/minecraft/screenshots', (req, res) => {
+  const { profileId, globalPath } = req.query;
+  // Minecraft usually saves screenshots in isolated dir or global if not isolated.
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const screenshotsDir = path.join(profileDir, 'screenshots');
+  
+  if (!fs.existsSync(screenshotsDir)) {
+    return res.json({ screenshots: [] });
+  }
+  
+  try {
+    const files = fs.readdirSync(screenshotsDir)
+      .filter(f => f.endsWith('.png'))
+      .map(f => {
+        const filePath = path.join(screenshotsDir, f);
+        const stats = fs.statSync(filePath);
+        return {
+          name: f,
+          path: filePath,
+          date: stats.mtimeMs,
+          // We can read it and send as base64 to display in UI
+          url: 'data:image/png;base64,' + fs.readFileSync(filePath, 'base64')
+        };
+      })
+      .sort((a, b) => b.date - a.date);
+      
+    res.json({ screenshots: files });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/minecraft/screenshots/delete', (req, res) => {
+  const { paths } = req.body;
+  if (Array.isArray(paths)) {
+    for (const p of paths) {
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+      }
+    }
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/minecraft/open-screenshots-folder', async (req, res) => {
+  const { profileId } = req.query;
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const dir = path.join(profileDir, 'screenshots');
+  
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  try {
+    const { shell } = require('electron');
+    if (shell) await shell.openPath(dir);
+  } catch (e) {}
+  res.json({ success: true });
+});
+
+app.post('/api/minecraft/open-game-folder', async (req, res) => {
+  const { profileId } = req.query;
+  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
+  try {
+    const { shell } = require('electron');
+    if (shell) await shell.openPath(profileDir);
+  } catch (e) {}
+  res.json({ success: true });
+});
+
+// ============================================================
+
+app.get('/api/minecraft/status', (req, res) => {
+  if (activeProcess && !activeProcess.killed) {
+    res.json({ status: 'running', pid: activeProcess.pid });
+  } else {
+    res.json({ status: 'idle' });
+  }
+});
+
+app.post('/api/minecraft/kill', (req, res) => {
+  if (activeProcess) {
+    try {
+      activeProcess.kill('SIGTERM');
+      activeProcess = null;
+      res.json({ success: true });
+    } catch(e) {
+      res.json({ success: false, error: e.message });
+    }
+  } else {
+    res.json({ success: false, error: 'No active process' });
+  }
 });
 
 app.get('/api/system/check-update', async (req, res) => {

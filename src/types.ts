@@ -1,4 +1,6 @@
 export interface ModInfo {
+  profile_id?: string;
+  enabled?: boolean;
   path: string;
   name: string;
   mod_id: string;
@@ -34,4 +36,9 @@ export interface Profile {
   ram_mb: number;
   java_path?: string;
   minecraft_path?: string;
+  stats?: {
+    totalPlayTimeMs: number;
+    lastLaunchTime: number;
+    launchCount: number;
+  };
 }

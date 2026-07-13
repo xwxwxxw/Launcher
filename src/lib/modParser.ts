@@ -14,6 +14,7 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
   let description = '';
   let environment = '';
   let depends: string[] = [];
+  let iconDataUrl = '';
 
   try {
     const data = await fs.promises.readFile(filePath);
@@ -33,6 +34,13 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
         }
         if (json.depends && typeof json.depends === 'object') {
           depends = Object.keys(json.depends);
+        }
+        if (json.icon && typeof json.icon === 'string') {
+          const iconFile = zip.file(json.icon);
+          if (iconFile) {
+            const buffer = await iconFile.async('nodebuffer');
+            iconDataUrl = 'data:image/png;base64,' + buffer.toString('base64');
+          }
         }
         break;
       }
@@ -57,7 +65,7 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
     is_library: false,
     is_optimization: false,
     warnings: [],
-    icon_url: '',
+    icon_url: iconDataUrl,
     project_url: '',
     categories: [],
     categories_ru: [],
@@ -166,7 +174,9 @@ export async function fetchModrinthData(mod: ModInfo): Promise<void> {
         const fullText = `${desc} ${body}`;
         const cleanText = fullText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         mod.description = cleanText.substring(0, 600) || 'Описание отсутствует';
-        mod.icon_url = project.icon_url || '';
+        if (!mod.icon_url) {
+          mod.icon_url = project.icon_url || '';
+        }
         mod.project_url = `https://modrinth.com/mod/${project.slug}`;
         mod.categories = project.categories || [];
         mod.categories_ru = mod.categories.map((c: string) => TRANSLATIONS[c.toLowerCase()] || c);

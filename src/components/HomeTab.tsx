@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package, ShieldAlert, Cpu, Layers, FolderTree, PlaySquare, Settings, ArrowRight, User } from 'lucide-react';
 import PlayerSkin2D from './PlayerSkin2D';
+import SkinViewer from './SkinViewer';
 
 export default function HomeTab({ 
   onNavigate, 
@@ -10,7 +11,8 @@ export default function HomeTab({
   profilesCount,
   conflictsCount,
   ram,
-  activeProfileName
+  activeProfileName,
+  activeProfile
 }: { 
   onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => void, 
   userProfile?: {name: string, id: string, accessToken: string} | null, 
@@ -19,7 +21,8 @@ export default function HomeTab({
   profilesCount: number,
   conflictsCount: number,
   ram: number,
-  activeProfileName: string
+  activeProfileName: string,
+  activeProfile?: any
 }) {
   return (
     <div className="flex-1 w-full h-full overflow-hidden flex flex-row relative">
@@ -60,25 +63,63 @@ export default function HomeTab({
       </div>
 
       {/* Right Sidebar for Skin Viewer */}
-      <div className="w-80 h-full border-l border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md flex-shrink-0 flex flex-col items-center justify-center p-8 relative z-20 shadow-2xl">
+      <div className="w-80 h-full overflow-y-auto border-l border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md flex-shrink-0 flex flex-col items-center py-10 px-6 relative z-20 shadow-2xl">
         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
         
         {userProfile ? (
-          <div className="flex flex-col items-center group relative z-10">
-            <div className="relative w-40 h-80 flex justify-center items-center">
-               <PlayerSkin2D username={userProfile.name} uuid={userProfile.id} isElyBy={true} className="w-auto h-[90%] filter drop-shadow-[0_15px_25px_rgba(59,130,246,0.35)] group-hover:scale-[1.03] transition-all duration-500" />
+          <div className="flex flex-col items-center group relative z-10 w-full mt-4">
+            <div className="relative w-full flex justify-center items-center min-h-[300px]">
+               <SkinViewer username={userProfile.name} uuid={userProfile.id} width={200} height={250} />
                <div className="absolute -bottom-2 w-32 h-4 bg-blue-900/30 blur-[15px] rounded-[100%] scale-x-150"></div>
                <div className="absolute -bottom-2 w-16 h-2 bg-blue-500/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>
             <div className="mt-8 flex flex-col items-center">
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full mb-3 shadow-[0_0_10px_rgba(16,185,129,0.1)]">Ely.by Connected</span>
-              <h3 className="text-xl font-bold tracking-wide text-zinc-100">{userProfile.name}</h3>
+                            <h3 className="text-xl font-bold tracking-wide text-zinc-100 mb-4">{userProfile.name}</h3>
+              <button 
+                onClick={() => {
+                  if (typeof window !== 'undefined' && (window as any).require) {
+                    const { shell } = (window as any).require('electron');
+                    shell.openExternal('https://ely.by');
+                  } else {
+                    window.open('https://ely.by', '_blank');
+                  }
+                }}
+                className="px-5 py-2 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 text-[10px] font-bold uppercase tracking-widest transition-colors border border-blue-500/30"
+              >
+                Изменить скин (Ely.by)
+              </button>
             </div>
+            
+          {activeProfile && activeProfile.stats && (
+            <div className="mt-8 bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4 w-full">
+              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Статистика профиля</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-zinc-400">Сыграно времени</span>
+                  <span className="text-emerald-400 font-mono font-medium">
+                    {Math.floor(activeProfile.stats.totalPlayTimeMs / 3600000)}ч {Math.floor((activeProfile.stats.totalPlayTimeMs % 3600000) / 60000)}м
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-zinc-400">Последний запуск</span>
+                  <span className="text-blue-400 font-medium">
+                    {activeProfile.stats.lastLaunchTime > 0 ? new Date(activeProfile.stats.lastLaunchTime).toLocaleString() : 'Никогда'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-zinc-400">Всего запусков</span>
+                  <span className="text-purple-400 font-mono font-medium">{activeProfile.stats.launchCount}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           </div>
         ) : (
           <div className="flex flex-col items-center group relative z-10 w-full">
-            <div className="relative w-40 h-80 flex justify-center items-center opacity-40 grayscale group-hover:grayscale-[0.5] group-hover:opacity-70 transition-all duration-700">
-               <PlayerSkin2D username="Steve" isElyBy={false} className="w-auto h-[90%] filter drop-shadow-[0_15px_15px_rgba(0,0,0,0.8)]" />
+            <div className="relative w-full flex justify-center items-center min-h-[300px] opacity-40 grayscale group-hover:grayscale-[0.5] group-hover:opacity-70 transition-all duration-700">
+               <SkinViewer username="Steve" width={200} height={250} />
                <div className="absolute -bottom-2 w-32 h-4 bg-black/60 blur-[15px] rounded-[100%] scale-x-150"></div>
                <div className="absolute -bottom-2 w-16 h-2 bg-black/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>

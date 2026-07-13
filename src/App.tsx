@@ -8,8 +8,12 @@ import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
 import UpdateModal from './components/UpdateModal';
 import LauncherSplashScreen from './components/LauncherSplashScreen';
+import SettingsModal from './components/SettingsModal';
+import LogsTab from './components/LogsTab';
+import ScreenshotsTab from './components/ScreenshotsTab';
+import SkinViewer from './components/SkinViewer';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown } from 'lucide-react';
+import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2 } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
 export default function App() {
@@ -27,6 +31,16 @@ export default function App() {
   const [gameStatus, setGameStatus] = useState<'idle' | 'installing' | 'running'>('idle');
   const [isInstalled, setIsInstalled] = useState(false);
   const [isCheckingInstall, setIsCheckingInstall] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [globalGamePath, setGlobalGamePath] = useState(localStorage.getItem('launcher_minecraft_path') || './.minecraft');
+  const [launcherVersion, setLauncherVersion] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      const { app } = (window as any).require('electron').remote || {};
+      if (app) setLauncherVersion(app.getVersion());
+    }
+  }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
     JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
@@ -432,6 +446,21 @@ export default function App() {
     // Check immediately on mount
     checkPendingSession();
 
+    // Poll for game status periodically
+    const checkGameStatus = async () => {
+      try {
+        const res = await fetch('/api/minecraft/status');
+        if (res.ok) {
+          const data = await res.json();
+          setGameStatus(data.status);
+        }
+      } catch (e) {}
+    };
+    
+    // Check initially and then every 3 seconds
+    checkGameStatus();
+    const gameStatusInterval = setInterval(checkGameStatus, 3000);
+
     // 3. Listen to storage changes (fired when other windows/tabs modify localStorage)
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === 'ely_session_pending' && e.newValue) {
@@ -452,7 +481,7 @@ export default function App() {
     return () => {
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
+      clearInterval(gameStatusInterval);
     };
   }, []);
 
@@ -465,16 +494,23 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     localStorage.removeItem('ely_session');
+    if (typeof window !== 'undefined' && window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.invoke('save-auth', null).catch(() => {});
+    }
   };
 
-  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
+  const activeProfile: any = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
     id: '1',
     name: 'Vanilla 1.20.1',
     game_version: '1.20.1',
     mod_loader: 'Vanilla',
     mod_loader_version: '0.15.7',
     description: 'Чистая сборка без модов.',
-    ram_mb: ram
+    ram_mb: ram,
+    mod_path: './profiles/1/.minecraft/mods',
+    created_at: Date.now(),
+    is_active: true
   };
 
   return (
@@ -551,6 +587,9 @@ export default function App() {
         <header className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80">
           <div className="flex items-center space-x-3">
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
+            <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
+              v{launcherVersion || '0.0.4'}
+            </span>
           </div>
           <div className="flex items-center space-x-3 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
             <div className="h-3 w-3 rounded-full bg-zinc-700 hover:bg-red-500 transition-colors"></div>
@@ -571,6 +610,7 @@ export default function App() {
               conflictsCount={conflicts.length}
               ram={ram}
               activeProfileName={activeProfile.name}
+              activeProfile={activeProfile}
             />
           )}
           {activeTab === 'mods' && (
@@ -604,6 +644,12 @@ export default function App() {
               onResolveConflict={handleResolveConflict}
               onDismissConflict={handleDismissConflict}
             />
+          )}
+          {(activeTab as any) === 'logs' && (
+            <LogsTab activeProfileId={activeProfileId} />
+          )}
+          {(activeTab as any) === 'screenshots' && (
+            <ScreenshotsTab activeProfileId={activeProfileId} globalGamePath={globalGamePath} />
           )}
           {activeTab === 'settings' && (
             <SettingsTab 
@@ -666,13 +712,20 @@ export default function App() {
               </div>
 
               <button 
-                onClick={() => setShowLaunchModal(true)} 
-                disabled={gameStatus === 'running' || gameStatus === 'installing'}
+                onClick={() => {
+                  if (gameStatus === 'running') {
+                    // Try to kill
+                    fetch('/api/minecraft/kill', { method: 'POST' }).then(() => setGameStatus('idle'));
+                  } else {
+                    setShowLaunchModal(true);
+                  }
+                }} 
+                disabled={gameStatus === 'installing'}
                 className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-50 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
                 <span className="relative flex items-center gap-2">
-                  <PlaySquare size={16} fill="currentColor" /> {isCheckingInstall ? '...' : (isInstalled ? 'Играть' : 'Установить')}
+                  <PlaySquare size={16} fill="currentColor" /> {gameStatus === 'running' ? 'Остановить' : (isCheckingInstall ? '...' : (isInstalled ? 'Играть' : 'Установить'))}
                 </span>
               </button>
             </div>
@@ -690,6 +743,13 @@ export default function App() {
       )}
       
       <UpdateModal />
+      {showSettingsModal && (
+        <SettingsModal 
+          onClose={() => setShowSettingsModal(false)}
+          gamePath={globalGamePath}
+          setGamePath={setGlobalGamePath}
+        />
+      )}
 
       {showSplashScreen && (
         <LauncherSplashScreen 

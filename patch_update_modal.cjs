@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+const fs = require('fs');
+let code = fs.readFileSync('src/components/UpdateModal.tsx', 'utf8');
+
+const replacement = `import React, { useEffect, useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
@@ -102,3 +105,6 @@ export default function UpdateModal() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/UpdateModal.tsx', replacement);
