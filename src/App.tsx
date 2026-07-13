@@ -33,12 +33,66 @@ export default function App() {
   const [isCheckingInstall, setIsCheckingInstall] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [globalGamePath, setGlobalGamePath] = useState(localStorage.getItem('launcher_minecraft_path') || './.minecraft');
-  const [launcherVersion, setLauncherVersion] = useState('');
+  const [launcherVersion, setLauncherVersion] = useState((import.meta as any).env.VITE_APP_VERSION || '0.0.11');
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).require) {
-      const { app } = (window as any).require('electron').remote || {};
-      if (app) setLauncherVersion(app.getVersion());
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        ipcRenderer.invoke('get-app-version')
+          .then((v: string) => {
+            if (v) setLauncherVersion(v);
+          })
+          .catch((err: any) => {
+            console.error('Failed to get app version via IPC:', err);
+            const { app } = (window as any).require('electron').remote || {};
+            if (app) setLauncherVersion(app.getVersion());
+          });
+
+        // Load all persistent settings from Electron's settings.json
+        ipcRenderer.invoke('get-settings')
+          .then((settings: any) => {
+            if (settings) {
+              const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
+              Object.keys(settings).forEach(key => {
+                originalSetItem(key, settings[key]);
+              });
+              
+              // Trigger state updates
+              if (settings.launcher_active_tab) {
+                setActiveTab(settings.launcher_active_tab);
+              }
+              if (settings.launcher_minecraft_path) {
+                setGlobalGamePath(settings.launcher_minecraft_path);
+                setMinecraftPathState(settings.launcher_minecraft_path);
+              }
+              if (settings.launcher_ram) {
+                setRamState(Number(settings.launcher_ram));
+              }
+              if (settings.launcher_java_path) {
+                setJavaPathState(settings.launcher_java_path);
+              }
+              if (settings.launcher_active_profile_id) {
+                setActiveProfileId(settings.launcher_active_profile_id);
+              }
+              if (settings.ely_session) {
+                try {
+                  setUserProfile(JSON.parse(settings.ely_session));
+                } catch (e) {}
+              }
+              
+              if (settings.launcher_minimize_tray !== undefined) {
+                ipcRenderer.invoke('set-minimize-to-tray', settings.launcher_minimize_tray === '1');
+              }
+              if (settings.launcher_autostart !== undefined) {
+                ipcRenderer.invoke('set-autostart', settings.launcher_autostart === '1');
+              }
+            }
+          })
+          .catch((err: any) => console.error('Failed to load initial settings via IPC:', err));
+      } catch (e) {
+        console.error('Failed to setup version fetch:', e);
+      }
     }
   }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
@@ -68,7 +122,8 @@ export default function App() {
     if (typeof window !== 'undefined' && (window as any).require) {
       try {
         const { ipcRenderer } = (window as any).require('electron');
-        const data = await ipcRenderer.invoke('check-updates', 'Z-O-O-N-E/layle-launcher-v3');
+        const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+        const data = await ipcRenderer.invoke('check-updates', repo);
         if (data && data.updateAvailable) {
           setUpdateInfo({
             version: data.latestVersion,
@@ -486,6 +541,13 @@ export default function App() {
           localStorage.setItem('ely_session', JSON.stringify(profile));
           setShowAuthModal(false);
           
+          if (typeof window !== 'undefined' && (window as any).require) {
+            try {
+              const { ipcRenderer } = (window as any).require('electron');
+              ipcRenderer.invoke('save-auth', profile).catch(() => {});
+            } catch (e) {}
+          }
+          
           // Clear pending items to prevent infinite triggers
           localStorage.removeItem('ely_session_pending');
           localStorage.removeItem('ely_session_pending_time');
@@ -541,6 +603,12 @@ export default function App() {
     setUserProfile(profile);
     localStorage.setItem('ely_session', JSON.stringify(profile));
     setShowAuthModal(false);
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        ipcRenderer.invoke('save-auth', profile).catch(() => {});
+      } catch (e) {}
+    }
   };
 
   const handleLogout = () => {

@@ -31,6 +31,16 @@ Menu.setApplicationMenu(null);
 
 // 1. Session saving
 const authPath = path.join(app.getPath('userData'), 'auth.json');
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+try {
+  if (fs.existsSync(settingsPath)) {
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (s.launcher_minimize_tray === '1' || s.launcher_minimize_tray === true) {
+      global.minimizeToTray = true;
+    }
+  }
+} catch (e) {}
 
 ipcMain.handle('save-auth', (event, authData) => {
   fs.writeFileSync(authPath, JSON.stringify(authData));
@@ -43,6 +53,52 @@ ipcMain.handle('get-auth', () => {
     } catch(e) {}
   }
   return null;
+});
+
+ipcMain.handle('save-settings', (event, newSettings) => {
+  try {
+    let current = {};
+    if (fs.existsSync(settingsPath)) {
+      current = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+    const updated = { ...current, ...newSettings };
+    fs.writeFileSync(settingsPath, JSON.stringify(updated, null, 2));
+    return true;
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+    return false;
+  }
+});
+
+ipcMain.handle('get-settings', () => {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      return JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+  return {};
+});
+
+ipcMain.handle('delete-setting', (event, key) => {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const current = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      if (key in current) {
+        delete current[key];
+        fs.writeFileSync(settingsPath, JSON.stringify(current, null, 2));
+      }
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to delete setting:', e);
+    return false;
+  }
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
 });
 
 ipcMain.handle('select-directory', async (event, defaultPath) => {
@@ -304,17 +360,32 @@ app.whenReady().then(() => {
   
   // 5. Tray
   try {
-    // If we have an icon, create tray
-    const iconPath = path.join(__dirname, '../public/icon.png');
-    if (fs.existsSync(iconPath)) {
-      const icon = nativeImage.createFromPath(iconPath);
-      tray = new Tray(icon);
-      tray.setContextMenu(Menu.buildFromTemplate([
-        { label: 'Показать', click: () => { if(mainWindow) mainWindow.show(); } },
-        { label: 'Выход', click: () => app.quit() }
-      ]));
-      tray.setToolTip('Layle Launcher');
+    const trayIconPath = path.join(app.getPath('userData'), 'tray_icon.png');
+    if (!fs.existsSync(trayIconPath)) {
+      const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAByklEQVQ4T4XSy0uUURgH8N/zvt+Z8b0oXgYvSAsrtI2gFi3atCgIolUrtGvTIn9ArVq1S9vYorZpEwiitIigFrXpYREtYmSpID7G0Yxzfud9T8zSgXN6F+fAOfCc57OfIitUunL8W9X4bV9S012b1P1oInbve31n6VzN+gX6r2C7tqHl0fDoxSOf7R+9fXf7p7DizQ62V3vWstH99E06vH1y319+X9z7+atgG5st3Kx8dZ9E8N0M78/q06XOfmCjWsuWyR8O+pMvXp3VByvdfX+jSks2gRshEThPAnpAnuFv8H6V3y7pgyf7CPhhT+GHeSg48yWCHs4H9AitD5GgU+6gK9fI5S5gU84u72C/4TfoAnmAO86p4vshnS8X9N79fT06d7WAtpP96uNf0VbYJ5A68S07SgE+E9pXp/mP9gI9WsvtSQRf03mKq6f6fFwKNoAHiY4nQ+T6fL83rvb8vBfTIWlB6yV0m2p9U9PZsf6nS7v9vWqNlg9rO7mOifU1g+kR46vSgPljs7vs7ZUt89/bKofXunvXuntXuhva69jrWv9Z61b61YrXvtW8sXevW678D/Ac2K/u6yC9p9wAAAABJRU5ErkJggg==';
+      fs.writeFileSync(trayIconPath, Buffer.from(base64Data, 'base64'));
     }
+    
+    let useIconPath = trayIconPath;
+    const prodIconPath = path.join(__dirname, '../public/icon.png');
+    if (fs.existsSync(prodIconPath)) {
+      useIconPath = prodIconPath;
+    }
+    
+    const icon = nativeImage.createFromPath(useIconPath);
+    tray = new Tray(icon);
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Показать', click: () => { if(mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+      { label: 'Выход', click: () => { app.isQuiting = true; app.quit(); } }
+    ]));
+    tray.setToolTip('Layle Launcher');
+    
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
   } catch(e) {
     console.error('Tray error:', e);
   }

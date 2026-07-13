@@ -1531,7 +1531,17 @@ app.post('/api/minecraft/kill', (req, res) => {
 app.get('/api/system/check-update', async (req, res) => {
   try {
     const currentVersion = require('./package.json').version || '1.0.0';
-    const repo = process.env.GITHUB_REPO || '';
+    let repo = process.env.GITHUB_REPO || '';
+    if (repo) {
+      repo = repo.trim().replace(/\.git$/, '');
+      if (repo.includes('github.com/')) {
+        const parts = repo.split('github.com/');
+        if (parts.length > 1) repo = parts[1];
+      } else if (repo.includes('github.com:')) {
+        const parts = repo.split('github.com:');
+        if (parts.length > 1) repo = parts[1];
+      }
+    }
     
     if (!repo) {
        return res.json({ updateAvailable: false });
