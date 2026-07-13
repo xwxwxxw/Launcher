@@ -1,30 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
-export default function UpdateModal() {
-  const [updateInfo, setUpdateInfo] = useState<{ version: string, notes: string, assets: any[] } | null>(null);
+interface UpdateModalProps {
+  updateInfo: { version: string; notes: string; assets: any[] } | null;
+  onClose: () => void;
+}
+
+export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [status, setStatus] = useState<'idle' | 'downloading' | 'installing' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      const { ipcRenderer } = (window as any).require('electron');
-      // Set your repo here!
-      ipcRenderer.invoke('check-updates', 'Z-O-O-N-E/layle-launcher-v3').then((data: any) => {
-        if (data.updateAvailable) {
-          setUpdateInfo({
-            version: data.latestVersion,
-            notes: data.releaseNotes,
-            assets: data.assets
-          });
-        }
-      }).catch(console.error);
-    }
-  }, []);
-
-  if (!updateInfo || dismissed) return null;
+  if (!updateInfo) return null;
 
   const handleUpdate = async () => {
     if (typeof window !== 'undefined' && (window as any).require) {
@@ -39,7 +26,6 @@ export default function UpdateModal() {
       
       setStatus('downloading');
       
-      // Let's see if we have sha256 asset? (Optional)
       const shaAsset = updateInfo.assets.find(a => a.name.endsWith('.exe.sha256'));
       
       try {
@@ -63,13 +49,17 @@ export default function UpdateModal() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-5 z-50 animate-in slide-in-from-bottom-5">
+    <div className="fixed bottom-6 right-6 w-96 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl p-5 z-50 animate-in slide-in-from-bottom-5">
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-emerald-400 font-bold flex items-center gap-2">
           {status === 'downloading' || status === 'installing' ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
           {status === 'downloading' ? 'Скачивание...' : status === 'installing' ? 'Установка...' : status === 'error' ? 'Ошибка обновления' : 'Доступно обновление'}
         </h3>
-        <button onClick={() => setDismissed(true)} disabled={status === 'downloading' || status === 'installing'} className="text-zinc-500 hover:text-white disabled:opacity-50">
+        <button 
+          onClick={onClose} 
+          disabled={status === 'downloading' || status === 'installing'} 
+          className="text-zinc-500 hover:text-white disabled:opacity-50 cursor-pointer"
+        >
           <X size={18} />
         </button>
       </div>
@@ -93,9 +83,15 @@ export default function UpdateModal() {
         <div className="flex gap-3">
           <button 
             onClick={handleUpdate}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors"
+            className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors cursor-pointer"
           >
             Скачать и установить
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+          >
+            Позже
           </button>
         </div>
       )}

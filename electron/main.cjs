@@ -83,6 +83,33 @@ ipcMain.handle('set-minimize-to-tray', (event, enable) => {
   global.minimizeToTray = enable;
 });
 
+// Window controls IPC handlers
+ipcMain.on('window-minimize', () => {
+  if (mainWindow) {
+    mainWindow.minimize();
+  }
+});
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.on('window-close', () => {
+  if (mainWindow) {
+    if (!app.isQuiting && global.minimizeToTray) {
+      mainWindow.hide();
+    } else {
+      mainWindow.close();
+    }
+  }
+});
+
 // 3. GitHub Updates
 ipcMain.handle('check-updates', async (event, repo) => {
   return new Promise((resolve) => {
@@ -223,11 +250,12 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    frame: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     },
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'hidden',
     backgroundColor: '#09090b',
     show: true
   });

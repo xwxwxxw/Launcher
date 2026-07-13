@@ -12,7 +12,8 @@ export default function SettingsTab({
   javaPath,
   setJavaPath,
   minecraftPath,
-  setMinecraftPath
+  setMinecraftPath,
+  onCheckForUpdates
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -22,12 +23,38 @@ export default function SettingsTab({
   javaPath: string,
   setJavaPath: (path: string) => void,
   minecraftPath: string,
-  setMinecraftPath: (path: string) => void
+  setMinecraftPath: (path: string) => void,
+  onCheckForUpdates: (silent: boolean) => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
   const minecraftInputRef = useRef<HTMLInputElement>(null);
   const javaInputRef = useRef<HTMLInputElement>(null);
+
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'latest' | 'available' | 'error'>('idle');
+  const [latestVer, setLatestVer] = useState('');
+  const [updateError, setUpdateError] = useState('');
+
+  const handleCheckUpdate = async () => {
+    setUpdateStatus('checking');
+    try {
+      const res = await onCheckForUpdates(false);
+      if (res.success) {
+        if (res.updateAvailable) {
+          setUpdateStatus('available');
+          setLatestVer(res.version || '');
+        } else {
+          setUpdateStatus('latest');
+        }
+      } else {
+        setUpdateStatus('error');
+        setUpdateError(res.error || 'Неизвестная ошибка');
+      }
+    } catch (e: any) {
+      setUpdateStatus('error');
+      setUpdateError(e.message || 'Ошибка');
+    }
+  };
 
   const handleMinecraftBrowse = async () => {
     if (typeof window !== 'undefined' && (window as any).require) {
@@ -559,6 +586,36 @@ export default function SettingsTab({
               />
               <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
+          </div>
+        </div>
+
+        {/* Launcher Updates */}
+        <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/60 text-emerald-400">
+              <Sparkles size={24} strokeWidth={1.5} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Обновление лаунчера</h3>
+              <p className="text-[11px] text-zinc-500 mt-1">Проверка наличия новых версий Layle Launcher.</p>
+            </div>
+          </div>
+          
+          <div className="bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-zinc-300 font-semibold">Текущая версия: <span className="font-mono font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 border border-zinc-800 rounded">v0.0.4</span></p>
+              {updateStatus === 'latest' && <p className="text-[11px] text-emerald-400 mt-1.5 font-medium">✓ Установлена последняя версия!</p>}
+              {updateStatus === 'checking' && <p className="text-[11px] text-zinc-400 mt-1.5 animate-pulse">Поиск обновлений...</p>}
+              {updateStatus === 'available' && <p className="text-[11px] text-emerald-400 mt-1.5 font-semibold">★ Доступно обновление v{latestVer}! Оно запустится автоматически в углу.</p>}
+              {updateStatus === 'error' && <p className="text-[11px] text-red-400 mt-1.5 font-medium">⚠ Ошибка: {updateError}</p>}
+            </div>
+            <button
+              onClick={handleCheckUpdate}
+              disabled={updateStatus === 'checking'}
+              className="bg-zinc-800 hover:bg-zinc-750 text-zinc-200 hover:text-white px-6 h-11 border border-zinc-700/80 rounded-xl text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {updateStatus === 'checking' ? 'Проверка...' : 'Проверить обновления'}
+            </button>
           </div>
         </div>
 

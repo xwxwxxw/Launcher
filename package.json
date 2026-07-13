@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "layle-launcher",
   "private": true,
   "version": "0.0.4",
   "type": "module",
@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
     "preelectron:build": "npm version patch --no-git-tag-version"
   },
   "build": {

@@ -13,7 +13,7 @@ import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
 import SkinViewer from './components/SkinViewer';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2 } from 'lucide-react';
+import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 
 export default function App() {
@@ -42,6 +42,58 @@ export default function App() {
     }
   }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
+
+  const handleMinimize = () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      (window as any).require('electron').ipcRenderer.send('window-minimize');
+    }
+  };
+
+  const handleMaximize = () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      (window as any).require('electron').ipcRenderer.send('window-maximize');
+    }
+  };
+
+  const handleClose = () => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      (window as any).require('electron').ipcRenderer.send('window-close');
+    }
+  };
+
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; notes: string; assets: any[] } | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+  const checkForUpdates = async (silent = true) => {
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const data = await ipcRenderer.invoke('check-updates', 'Z-O-O-N-E/layle-launcher-v3');
+        if (data && data.updateAvailable) {
+          setUpdateInfo({
+            version: data.latestVersion,
+            notes: data.releaseNotes,
+            assets: data.assets
+          });
+          setShowUpdateModal(true);
+          return { success: true, updateAvailable: true, version: data.latestVersion };
+        } else if (data && data.error) {
+          return { success: false, error: data.error };
+        } else {
+          return { success: true, updateAvailable: false };
+        }
+      } catch (err: any) {
+        console.error('Update check failed:', err);
+        return { success: false, error: err.message };
+      }
+    }
+    return { success: false, error: 'Работает в веб-режиме (Electron не обнаружен)' };
+  };
+
+  useEffect(() => {
+    checkForUpdates(true);
+  }, []);
+
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
     JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
   );
@@ -584,17 +636,41 @@ export default function App() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-blue-500/5 blur-[120px] pointer-events-none rounded-full"></div>
 
         {/* Custom Title Bar */}
-        <header className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80">
-          <div className="flex items-center space-x-3">
+        <header 
+          className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80 select-none"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <div className="flex items-center space-x-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
             <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
               v{launcherVersion || '0.0.4'}
             </span>
           </div>
-          <div className="flex items-center space-x-3 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
-            <div className="h-3 w-3 rounded-full bg-zinc-700 hover:bg-red-500 transition-colors"></div>
-            <div className="h-3 w-3 rounded-full bg-zinc-700 hover:bg-amber-500 transition-colors"></div>
-            <div className="h-3 w-3 rounded-full bg-zinc-700 hover:bg-emerald-500 transition-colors"></div>
+          <div className="flex items-center -mr-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {/* Minimize */}
+            <button
+              onClick={handleMinimize}
+              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              title="Свернуть"
+            >
+              <Minus size={16} />
+            </button>
+            {/* Maximize */}
+            <button
+              onClick={handleMaximize}
+              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              title="Развернуть"
+            >
+              <Square size={13} />
+            </button>
+            {/* Close */}
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center h-14 w-14 text-zinc-400 hover:text-white hover:bg-red-600 active:bg-red-700 transition-colors focus:outline-none cursor-pointer rounded-tr-none"
+              title="Закрыть"
+            >
+              <X size={18} />
+            </button>
           </div>
         </header>
 
@@ -662,6 +738,7 @@ export default function App() {
               setJavaPath={setJavaPath}
               minecraftPath={minecraftPath}
               setMinecraftPath={setMinecraftPath}
+              onCheckForUpdates={checkForUpdates}
             />
           )}
         </main>
@@ -742,7 +819,12 @@ export default function App() {
         />
       )}
       
-      <UpdateModal />
+      {showUpdateModal && (
+        <UpdateModal 
+          updateInfo={updateInfo} 
+          onClose={() => setShowUpdateModal(false)} 
+        />
+      )}
       {showSettingsModal && (
         <SettingsModal 
           onClose={() => setShowSettingsModal(false)}

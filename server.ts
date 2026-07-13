@@ -24,19 +24,34 @@ import { Profile } from './src/types.js';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
 // Define standard directory for storing profiles and mods data
 const getStorageDir = () => {
   let baseDir = process.cwd();
+  let oldBaseDir = '';
   if (process.env.APPDATA) {
-    baseDir = path.join(process.env.APPDATA, 'MinecraftLauncher');
+    baseDir = path.join(process.env.APPDATA, 'LayleLauncher');
+    oldBaseDir = path.join(process.env.APPDATA, 'MinecraftLauncher');
   } else if (process.platform === 'darwin') {
-    baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'MinecraftLauncher');
+    baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'LayleLauncher');
+    oldBaseDir = path.join(os.homedir(), 'Library', 'Application Support', 'MinecraftLauncher');
   } else {
-    baseDir = path.join(os.homedir(), '.MinecraftLauncher');
+    baseDir = path.join(os.homedir(), '.LayleLauncher');
+    oldBaseDir = path.join(os.homedir(), '.MinecraftLauncher');
   }
+
+  // Migrate old directory if exists
+  if (!fs.existsSync(baseDir) && oldBaseDir && fs.existsSync(oldBaseDir)) {
+    try {
+      fs.renameSync(oldBaseDir, baseDir);
+      console.log(`Migrated storage folder from ${oldBaseDir} to ${baseDir}`);
+    } catch (e) {
+      console.error('Failed to migrate launcher directory:', e);
+    }
+  }
+
   if (!fs.existsSync(baseDir)) {
     fs.mkdirSync(baseDir, { recursive: true });
   }
