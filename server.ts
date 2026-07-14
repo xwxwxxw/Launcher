@@ -1242,16 +1242,30 @@ app.get('/api/minecraft/check-installed', async (req, res) => {
     }
     const mcPath = path.isAbsolute(String(minecraftPath)) ? String(minecraftPath) : path.resolve(process.cwd(), String(minecraftPath));
     
-    let versionFolder = String(version);
+    let installed = false;
     if (loader === 'Fabric') {
-       versionFolder = `fabric-loader-0.15.7-${version}`; // Assuming 0.15.7 based on launch route
-    } else if (loader === 'Forge') {
-       // Forge might have a different folder name, simplistic check for now
-       // Often something like <version>-forge-<forge-version>
+      const versionsDir = path.join(mcPath, 'versions');
+      if (fs.existsSync(versionsDir)) {
+        try {
+          const dirs = fs.readdirSync(versionsDir);
+          const matchingDir = dirs.find(d => d.startsWith('fabric-loader-') && d.endsWith(`-${version}`));
+          if (matchingDir) {
+            const jsonPath = path.join(versionsDir, matchingDir, `${matchingDir}.json`);
+            installed = fs.existsSync(jsonPath);
+          }
+        } catch (e) {
+          console.error('Error scanning versions directory for Fabric check:', e);
+        }
+      }
+    } else {
+      let versionFolder = String(version);
+      if (loader === 'Forge') {
+         // Forge might have a different folder name, but check-installed will default to the game version folder
+         // or if there's any forge-labeled version folder in future. For now:
+      }
+      const jsonPath = path.join(mcPath, 'versions', versionFolder, `${versionFolder}.json`);
+      installed = fs.existsSync(jsonPath);
     }
-    
-    const jsonPath = path.join(mcPath, 'versions', versionFolder, `${versionFolder}.json`);
-    const installed = fs.existsSync(jsonPath);
     
     res.json({ installed });
   } catch (err) {
