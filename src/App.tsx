@@ -19,7 +19,7 @@ import ModrinthModal from './components/ModrinthModal';
 
 
 export default function App() {
-  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' >(() => {
+  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>(() => {
     return (localStorage.getItem('launcher_active_tab') as any) || 'home';
   });
 
@@ -27,7 +27,7 @@ export default function App() {
   const [highlightRam, setHighlightRam] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
-  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' ) => {
+  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => {
     setActiveTabState(tab);
     localStorage.setItem('launcher_active_tab', tab);
     setShowModrinthModal(false); // Close mod installation modal on tab switch!
@@ -983,7 +983,7 @@ export default function App() {
                 disabled={gameStatus === 'installing'}
                 className="relative group overflow-hidden flex h-12 w-48 items-center justify-center rounded-xl bg-zinc-100 text-[#09090b] text-sm font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-50 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-50 group-hover:animate-shimmer -translate-x-full"></div>
                 <span className="relative flex items-center gap-2">
                   <PlaySquare size={16} fill="currentColor" /> {gameStatus === 'running' ? 'Остановить' : (isCheckingInstall ? '...' : (isInstalled ? 'Играть' : 'Установить'))}
                 </span>

@@ -33,7 +33,7 @@
       "category": "public.app-category.games"
     },
     "win": {
-      "icon": "public/icon.png",
+      "icon": "public/icon.ico",
       "target": "nsis"
     },
     "linux": {

@@ -6,6 +6,33 @@ const https = require('https');
 const crypto = require('crypto');
 const os = require('os');
 
+// Update mode
+if (process.argv.includes('--update-mode')) {
+  const tempPath = process.argv[process.argv.indexOf('--update-mode') + 1];
+  const targetPath = process.execPath;
+  
+  // Wait to ensure parent process exits
+  setTimeout(() => {
+    try {
+      if (process.platform === 'win32') {
+         const oldPath = targetPath + '.old';
+         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+         fs.renameSync(targetPath, oldPath);
+         fs.copyFileSync(tempPath, targetPath);
+         require('child_process').spawn(targetPath, [], { detached: true, stdio: 'ignore' }).unref();
+      } else {
+         fs.copyFileSync(tempPath, targetPath);
+         require('child_process').spawn(targetPath, [], { detached: true, stdio: 'ignore' }).unref();
+      }
+      process.exit(0);
+    } catch (e) {
+      console.error('Update failed:', e);
+      process.exit(1);
+    }
+  }, 2000);
+  return;
+}
+
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
 
 // 6. Single instance
@@ -334,22 +361,12 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
 
 ipcMain.handle('install-update', async (event, tempPath) => {
   try {
-    const targetPath = process.execPath;
-    // We can't rename process.execPath while it's running directly if it's locked.
-    // Usually on Windows, we can rename the running .exe and copy the new one over.
-    if (process.platform === 'win32') {
-      const oldPath = targetPath + '.old';
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      fs.renameSync(targetPath, oldPath);
-      fs.copyFileSync(tempPath, targetPath);
-    } else {
-      fs.copyFileSync(tempPath, targetPath);
-    }
-    app.relaunch();
+    app.relaunch({ args: [...process.argv.slice(1), '--update-mode', tempPath] });
     app.isQuiting = true;
-    app.exit(0);
+    app.quit();
     return { success: true };
   } catch (e) {
+    console.error('Update install failed:', e);
     return { success: false, error: e.message };
   }
 });
