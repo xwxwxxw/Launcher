@@ -135,24 +135,42 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
           {/* Progress Section */}
           <div className="p-8 pb-4 relative z-10">
             <div className="flex justify-between items-end mb-3">
-              <p className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin text-blue-400" /> 
-                {status === 'error' ? 'Ошибка запуска' : 'Установка и подготовка...'}
-              </p>
-              <span className="text-xl font-bold font-mono text-zinc-500">{progress}%</span>
+              <div className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                {status === 'error' ? (
+                  <span className="text-red-400 flex items-center gap-2 font-extrabold animate-pulse">
+                    ● Ошибка запуска
+                  </span>
+                ) : (
+                  <div className="text-zinc-300 flex items-center gap-2">
+                    <Loader2 size={14} className="animate-spin text-blue-400" /> 
+                    <span>Установка и подготовка...</span>
+                  </div>
+                )}
+              </div>
+              <span className={`text-xl font-bold font-mono ${status === 'error' ? 'text-red-500' : 'text-zinc-500'}`}>{progress}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-zinc-800/50 overflow-hidden">
-              <div className="h-full rounded-full bg-blue-500 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}></div>
+              <div 
+                className={`h-full rounded-full transition-all duration-300 ease-out ${status === 'error' ? 'bg-red-500' : 'bg-blue-500'}`} 
+                style={{ width: `${progress}%` }}
+              ></div>
             </div>
+
+            {status === 'error' && (
+              <div className="mt-4 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs leading-relaxed">
+                <span className="font-bold uppercase tracking-wider block mb-1">Совет по устранению неполадок:</span>
+                Пожалуйста, убедитесь, что у вас стабильное подключение к интернету, выбран правильный путь к Java и выделено достаточно оперативной памяти (RAM) в настройках профиля.
+              </div>
+            )}
           </div>
 
           {/* Terminal / Logs */}
-          <div className="px-8 pb-8 flex-1">
-            <div className="bg-zinc-950 border border-zinc-800/60 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs flex flex-col gap-1.5 shadow-inner scrollbar-none">
+          <div className="px-8 pb-6 flex-1">
+            <div className="bg-zinc-950 border border-zinc-800/60 rounded-xl p-4 h-60 overflow-y-auto font-mono text-xs flex flex-col gap-1.5 shadow-inner scrollbar-none">
               {logs.map((log, i) => (
                 <div key={i} className="flex gap-3 text-zinc-400 hover:bg-zinc-900/50 px-2 py-0.5 rounded transition-colors animate-in slide-in-from-bottom-2 duration-300 fade-in">
                   <span className="text-zinc-600 shrink-0">[{log.time}]</span>
-                  <span className={log.msg.includes('Ошибка') ? 'text-red-400' : 'text-zinc-300'}>{log.msg}</span>
+                  <span className={log.msg.toLowerCase().includes('ошибка') || log.msg.toLowerCase().includes('error') ? 'text-red-400 font-medium' : 'text-zinc-300'}>{log.msg}</span>
                 </div>
               ))}
               {status !== 'error' && status !== 'running' && (
@@ -164,6 +182,18 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
               <div ref={logsEndRef} />
             </div>
           </div>
+
+          {/* Footer controls when completed or errored */}
+          {(status === 'error' || status === 'closed') && (
+            <div className="px-8 pb-8 flex justify-end gap-3 border-t border-zinc-800/40 pt-4 bg-zinc-900/10">
+              <button
+                onClick={onClose}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-5 rounded-xl text-xs uppercase tracking-widest transition-all"
+              >
+                Закрыть окно
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

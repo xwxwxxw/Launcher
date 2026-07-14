@@ -14,7 +14,9 @@ export default function SettingsTab({
   minecraftPath,
   setMinecraftPath,
   onCheckForUpdates,
-  currentVersion
+  currentVersion,
+  initialSubTab = 'account',
+  highlightRam = false
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -26,7 +28,9 @@ export default function SettingsTab({
   minecraftPath: string,
   setMinecraftPath: (path: string) => void,
   onCheckForUpdates: (silent: boolean) => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>,
-  currentVersion: string
+  currentVersion: string,
+  initialSubTab?: 'account' | 'game' | 'graphics' | 'system',
+  highlightRam?: boolean
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
@@ -142,6 +146,40 @@ export default function SettingsTab({
   const [cacheCleared, setCacheCleared] = useState(false);
   const [settingsReset, setSettingsReset] = useState(false);
   const [subTab, setSubTab] = useState<'account' | 'game' | 'graphics' | 'system'>('account');
+
+  // Auto RAM selection state and effects
+  const [systemRamSpecs, setSystemRamSpecs] = useState<{ total: number; free: number; suggested: number } | null>(null);
+  const [isAutoRam, setIsAutoRam] = useState(() => {
+    const saved = localStorage.getItem('launcher_auto_ram');
+    return saved !== '0'; // default to true (Auto selection enabled by default)
+  });
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  useEffect(() => {
+    fetch('/api/system/ram')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setSystemRamSpecs({
+            total: data.totalMb,
+            free: data.freeMb,
+            suggested: data.suggestedMb
+          });
+        }
+      })
+      .catch(err => console.error('Failed to fetch RAM specs:', err));
+  }, []);
+
+  useEffect(() => {
+    if (isAutoRam && systemRamSpecs && systemRamSpecs.suggested) {
+      setRam(systemRamSpecs.suggested);
+    }
+  }, [isAutoRam, systemRamSpecs, setRam]);
 
   useEffect(() => {
     const savedAutoUpdate = localStorage.getItem('auto_update_mods');
@@ -369,32 +407,86 @@ export default function SettingsTab({
         {subTab === 'game' && (
           <div className="space-y-6 animate-fade-in">
             {/* Memory Settings */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
-                  <Cpu size={24} strokeWidth={1.5} />
+            <div className={`rounded-3xl border p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-1000 ${
+              highlightRam 
+                ? 'border-cyan-500 bg-cyan-500/5 shadow-[0_0_30px_rgba(6,182,212,0.15)] ring-2 ring-cyan-500/20' 
+                : 'border-zinc-800/40 bg-zinc-900/40'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
+                    <Cpu size={24} strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Выделение памяти (RAM)</h3>
+                    <p className="text-[11px] text-zinc-500 mt-1">Определяет объем ОЗУ, доступный для виртуальной машины Java.</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Выделение памяти (RAM)</h3>
-                  <p className="text-[11px] text-zinc-500 mt-1">Определяет объем ОЗУ, доступный для виртуальной машины Java.</p>
-                </div>
+
+                {/* Auto selection button */}
+                <button 
+                  onClick={() => {
+                    const nextVal = !isAutoRam;
+                    setIsAutoRam(nextVal);
+                    localStorage.setItem('launcher_auto_ram', nextVal ? '1' : '0');
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border flex items-center gap-2 select-none cursor-pointer ${
+                    isAutoRam 
+                      ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]' 
+                      : 'bg-zinc-950/40 text-zinc-500 border-zinc-800/60 hover:text-zinc-300 hover:border-zinc-700/60'
+                  }`}
+                >
+                  <Sparkles size={12} className={isAutoRam ? "animate-pulse text-cyan-400" : ""} />
+                  {isAutoRam ? "Авто выбор: Вкл" : "Авто выбор: Выкл"}
+                </button>
               </div>
               
-              <div className="flex items-center gap-6 mb-4 bg-zinc-950/30 p-6 rounded-xl border border-zinc-800/40">
-                <input 
-                  type="range" 
-                  min="512" 
-                  max="16384" 
-                  step="512" 
-                  value={ram}
-                  onChange={(e) => setRam(Number(e.target.value))}
-                  className="flex-1 accent-cyan-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
-                />
-                <div className="bg-zinc-900 border border-zinc-700/50 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-zinc-200 shadow-inner min-w-[110px] text-center">
-                  {ram} MB
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="flex items-center gap-6 bg-zinc-950/30 p-6 rounded-xl border border-zinc-800/40">
+                  <input 
+                    type="range" 
+                    min="1024" 
+                    max={systemRamSpecs ? Math.max(8192, systemRamSpecs.total) : "16384"} 
+                    step="512" 
+                    value={ram}
+                    onChange={(e) => {
+                      setRam(Number(e.target.value));
+                      setIsAutoRam(false);
+                      localStorage.setItem('launcher_auto_ram', '0');
+                    }}
+                    className="flex-1 accent-cyan-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                  />
+                  <div className="bg-zinc-900 border border-zinc-700/50 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-zinc-200 shadow-inner min-w-[110px] text-center">
+                    {ram} MB
+                  </div>
                 </div>
+
+                {systemRamSpecs && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-zinc-950/20 p-4 rounded-xl border border-zinc-800/20 text-xs text-zinc-400">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Всего в ПК</span>
+                      <span className="font-mono text-zinc-300 font-medium">{(systemRamSpecs.total / 1024).toFixed(1)} GB ({systemRamSpecs.total} MB)</span>
+                    </div>
+                    <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Доступно / Свободно</span>
+                      <span className="font-mono text-emerald-400 font-medium">{(systemRamSpecs.free / 1024).toFixed(1)} GB ({systemRamSpecs.free} MB)</span>
+                    </div>
+                    <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Оптимально (Выбрано)</span>
+                      <span className="font-mono text-cyan-400 font-medium">{(systemRamSpecs.suggested / 1024).toFixed(1)} GB ({systemRamSpecs.suggested} MB)</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-amber-500/80 font-medium ml-2">Рекомендуется выделять не более 70% от общего объема системной памяти.</p>
+              
+              <div className="flex items-center gap-2 ml-2">
+                <span className="text-amber-500/80 text-xs">⚠️</span>
+                <p className="text-[11px] text-amber-500/80 font-medium">
+                  {isAutoRam 
+                    ? "Память оптимизирована под вашу конфигурацию ПК (с учетом ОЗУ под Windows и фоновые программы)." 
+                    : "Рекомендуется выделять не более 70% от общего объема системной памяти для предотвращения зависаний."}
+                </p>
+              </div>
             </div>
 
             {/* Directory Paths */}

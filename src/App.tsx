@@ -23,12 +23,28 @@ export default function App() {
     return (localStorage.getItem('launcher_active_tab') as any) || 'home';
   });
 
+  const [settingsSubTab, setSettingsSubTab] = useState<'account' | 'game' | 'graphics' | 'system'>('account');
+  const [highlightRam, setHighlightRam] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
   const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' ) => {
     setActiveTabState(tab);
     localStorage.setItem('launcher_active_tab', tab);
+    setShowModrinthModal(false); // Close mod installation modal on tab switch!
   };
 
-  const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
+  const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(() => {
+    try {
+      const saved = localStorage.getItem('ely_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.name) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [showModrinthModal, setShowModrinthModal] = useState(false);
@@ -79,6 +95,16 @@ export default function App() {
             if (settings) {
               const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
               Object.keys(settings).forEach(key => {
+                if (key === 'ely_session') {
+                  // Only restore settings session if it's valid and non-empty
+                  try {
+                    const parsed = JSON.parse(settings[key]);
+                    if (parsed && parsed.name) {
+                      originalSetItem(key, settings[key]);
+                    }
+                  } catch (e) {}
+                  return;
+                }
                 originalSetItem(key, settings[key]);
               });
               
@@ -101,7 +127,10 @@ export default function App() {
               }
               if (settings.ely_session) {
                 try {
-                  setUserProfile(JSON.parse(settings.ely_session));
+                  const parsed = JSON.parse(settings.ely_session);
+                  if (parsed && parsed.name) {
+                    setUserProfile(parsed);
+                  }
                 } catch (e) {}
               }
               
@@ -646,6 +675,23 @@ export default function App() {
     }
   };
 
+  const handleNavigate = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts', section?: string) => {
+    setActiveTab(tab);
+    if (tab === 'settings') {
+      if (section === 'ram' || section === 'game') {
+        setSettingsSubTab('game');
+        if (section === 'ram') {
+          setHighlightRam(true);
+          setTimeout(() => {
+            setHighlightRam(false);
+          }, 4000);
+        }
+      } else {
+        setSettingsSubTab('account');
+      }
+    }
+  };
+
   const activeProfile: any = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
     id: '1',
     name: 'Vanilla 1.20.1',
@@ -775,7 +821,7 @@ export default function App() {
         <main className="flex flex-1 flex-row overflow-hidden relative z-10">
           {activeTab === 'home' && (
             <HomeTab 
-              onNavigate={setActiveTab} 
+              onNavigate={handleNavigate} 
               userProfile={userProfile} 
               onLoginClick={() => setShowAuthModal(true)} 
               modsCount={mods.length}
@@ -843,6 +889,8 @@ export default function App() {
               setMinecraftPath={setMinecraftPath}
               onCheckForUpdates={checkForUpdates}
               currentVersion={launcherVersion || '0.0.6'}
+              initialSubTab={settingsSubTab}
+              highlightRam={highlightRam}
             />
           )}
         </main>
@@ -876,20 +924,51 @@ export default function App() {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="relative group">
-                <select 
-                  value={activeProfile.id}
-                  onChange={(e) => handleSelectProfile(e.target.value)}
-                  className="bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50 text-zinc-200 text-sm font-semibold rounded-xl pl-4 pr-10 h-12 outline-none appearance-none cursor-pointer transition-all shadow-inner backdrop-blur-md min-w-[160px] truncate"
-                  title="Выбор сборки"
+              {/* Custom Elegant Dropdown for Profiles */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  className="bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50 text-zinc-200 text-sm font-semibold rounded-xl pl-4 pr-10 h-12 outline-none cursor-pointer transition-all flex items-center justify-between gap-3 shadow-inner backdrop-blur-md min-w-[180px] max-w-[260px] truncate select-none text-left"
                 >
-                  {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                  <ChevronDown size={18} />
-                </div>
+                  <span className="truncate pr-1">{activeProfile.name}</span>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                    <ChevronDown size={18} className={`transition-transform duration-200 ${showProfileDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                  </div>
+                </button>
+                
+                {showProfileDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
+                    <div className="absolute bottom-full mb-2 right-0 w-[240px] bg-zinc-950/95 border border-zinc-800/80 backdrop-blur-xl rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] p-2 z-50 flex flex-col gap-1 max-h-[250px] overflow-y-auto">
+                      <div className="px-2.5 py-1 border-b border-zinc-900 mb-1">
+                        <span className="text-[9px] uppercase tracking-widest font-extrabold text-zinc-500">Доступные сборки</span>
+                      </div>
+                      {profiles.map(p => {
+                        const isSelected = p.id === activeProfile.id;
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              handleSelectProfile(p.id);
+                              setShowProfileDropdown(false);
+                            }}
+                            className={`w-full flex flex-col gap-0.5 px-3 py-2 rounded-xl text-left transition-all ${
+                              isSelected 
+                                ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.1)]' 
+                                : 'hover:bg-zinc-900 border border-transparent text-zinc-400 hover:text-zinc-100'
+                            }`}
+                          >
+                            <span className="text-xs font-bold truncate w-full">{p.name}</span>
+                            <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-mono">
+                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40">Ver: {p.game_version}</span>
+                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-cyan-500/80">{p.mod_loader}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               <button 

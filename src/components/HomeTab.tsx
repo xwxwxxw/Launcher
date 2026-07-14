@@ -14,7 +14,7 @@ export default function HomeTab({
   activeProfileName,
   activeProfile
 }: { 
-  onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => void, 
+  onNavigate: (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts', section?: string) => void, 
   userProfile?: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void,
   modsCount: number,
@@ -33,7 +33,7 @@ export default function HomeTab({
           <StatCard icon={<Package className="text-blue-400" size={20} strokeWidth={2} />} title="Установлено модов" value={modsCount} trend="В выбранной сборке" onClick={() => onNavigate('mods')} />
           <StatCard icon={<Layers className="text-emerald-400" size={20} strokeWidth={2} />} title="Активные сборки" value={profilesCount} trend={activeProfileName} onClick={() => onNavigate('profiles')} />
           <StatCard icon={<ShieldAlert className={conflictsCount > 0 ? "text-amber-400" : "text-emerald-400"} size={20} strokeWidth={2} />} title="Проблемы и конфликты" value={conflictsCount} trend={conflictsCount > 0 ? "Обнаружены проблемы" : "Проблем не найдено"} onClick={() => onNavigate('conflicts')} />
-          <StatCard icon={<Cpu className="text-indigo-400" size={20} strokeWidth={2} />} title="Выделено памяти" value={(ram >= 1024) ? (ram / 1024).toFixed(ram % 1024 === 0 ? 0 : 1) + " GB" : ram + " MB"} trend={ram < 3072 ? "Рекомендуется больше" : ram > 8192 ? "Слишком много" : "Оптимально"} onClick={() => onNavigate('settings')} />
+          <StatCard icon={<Cpu className="text-indigo-400" size={20} strokeWidth={2} />} title="Выделено памяти" value={(ram >= 1024) ? (ram / 1024).toFixed(ram % 1024 === 0 ? 0 : 1) + " GB" : ram + " MB"} trend={ram < 3072 ? "Рекомендуется больше" : ram > 8192 ? "Слишком много" : "Оптимально"} onClick={() => onNavigate('settings', 'ram')} />
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -67,15 +67,13 @@ export default function HomeTab({
         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
         
         {userProfile ? (
-          <div className="flex flex-col items-center group relative z-10 w-full mt-4">
-            <div className="relative w-full flex justify-center items-center min-h-[300px]">
+          <div className="flex flex-col items-center group relative z-10 w-full">
+            <div className="relative w-full flex justify-center items-center">
                <SkinViewer username={userProfile.name} uuid={userProfile.id} width={200} height={250} />
-               <div className="absolute -bottom-2 w-32 h-4 bg-blue-900/30 blur-[15px] rounded-[100%] scale-x-150"></div>
-               <div className="absolute -bottom-2 w-16 h-2 bg-blue-500/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>
-            <div className="mt-8 flex flex-col items-center">
+            <div className="mt-4 flex flex-col items-center">
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full mb-3 shadow-[0_0_10px_rgba(16,185,129,0.1)]">Ely.by Connected</span>
-                            <h3 className="text-xl font-bold tracking-wide text-zinc-100 mb-4">{userProfile.name}</h3>
+              <h3 className="text-xl font-bold tracking-wide text-zinc-100 mb-4">{userProfile.name}</h3>
               <button 
                 onClick={() => {
                   if (typeof window !== 'undefined' && (window as any).require) {
@@ -118,12 +116,10 @@ export default function HomeTab({
           </div>
         ) : (
           <div className="flex flex-col items-center group relative z-10 w-full">
-            <div className="relative w-full flex justify-center items-center min-h-[300px] opacity-40 grayscale group-hover:grayscale-[0.5] group-hover:opacity-70 transition-all duration-700">
+            <div className="relative w-full flex justify-center items-center opacity-40 grayscale group-hover:grayscale-[0.5] group-hover:opacity-70 transition-all duration-700">
                <SkinViewer username="Steve" width={200} height={250} />
-               <div className="absolute -bottom-2 w-32 h-4 bg-black/60 blur-[15px] rounded-[100%] scale-x-150"></div>
-               <div className="absolute -bottom-2 w-16 h-2 bg-black/40 blur-[8px] rounded-[100%] scale-x-150"></div>
             </div>
-            <div className="mt-8 flex flex-col items-center w-full">
+            <div className="mt-4 flex flex-col items-center w-full">
               <button 
                 onClick={onLoginClick} 
                 className="w-full bg-white text-black hover:bg-zinc-200 py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2.5"

@@ -54,7 +54,7 @@ export default function PlayerSkin2D({ username, uuid, isElyBy = true, className
     return () => {
       active = false;
     };
-  }, [username, isElyBy]);
+  }, [username, uuid, isElyBy]);
 
   const drawSkin = (img: HTMLImageElement) => {
     const canvas = canvasRef.current;
@@ -134,6 +134,7 @@ export default function PlayerSkin2D({ username, uuid, isElyBy = true, className
           src="https://minotar.net/armor/body/Steve/200.png" 
           alt="Fallback Steve" 
           className="w-auto h-full object-contain filter drop-shadow-[0_15px_15px_rgba(0,0,0,0.8)]"
+          referrerPolicy="no-referrer"
         />
       ) : (
         <canvas

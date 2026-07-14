@@ -166,6 +166,7 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
                       src={mod.icon_url} 
                       alt={mod.title} 
                       className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 object-cover shrink-0 shadow-md group-hover:scale-105 transition-transform" 
+                      referrerPolicy="no-referrer"
                       onError={(e) => {
                         e.currentTarget.src = 'https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png';
                       }}
@@ -175,6 +176,7 @@ export default function ModrinthSearchModal({ onClose, onInstalled, activeProfil
                       src="https://cdn.modrinth.com/data/AANobbMI/d6fdfa8fb485121401f80be0bd7e5e347e3a1f10.png" 
                       alt="fallback icon" 
                       className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 object-cover shrink-0 shadow-md" 
+                      referrerPolicy="no-referrer"
                     />
                   )}
                   

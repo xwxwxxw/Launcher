@@ -854,6 +854,7 @@ app.post('/api/mods/install', async (req, res) => {
       console.error('Failed to fetch dependencies from Modrinth:', err);
     }
 
+    const profile = profiles.find(p => p.id === profileId);
     const projectType = project.project_type || 'mod';
     const computedContentType = projectType === 'resourcepack' 
       ? 'resourcepacks' 
@@ -974,10 +975,10 @@ app.post('/api/mods/scan', async (req, res) => {
     }
   }
 
-      const installTarget = req.body.installTarget || 'client';
-      const destFolder = computedContentType === 'resourcepacks' 
-        ? 'resourcepacks' 
-        : (computedContentType === 'shaderpacks' ? 'shaderpacks' : (installTarget === 'server' ? 'server-mods' : 'mods'));
+  const installTarget = req.body.installTarget || 'client';
+  const destFolder = contentType === 'resourcepacks' 
+    ? 'resourcepacks' 
+    : (contentType === 'shaderpacks' ? 'shaderpacks' : (installTarget === 'server' ? 'server-mods' : 'mods'));
 
   if (folderPath && folderPath.trim() !== '') {
     folderPath = folderPath.replace(/mods\/?$/, destFolder);
@@ -1078,6 +1079,36 @@ app.post('/api/mods/scan', async (req, res) => {
       return res.json(filtered);
     }
     return res.json(modsList);
+  }
+});
+
+app.get('/api/system/ram', (req, res) => {
+  try {
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    
+    const totalMb = Math.round(totalMem / (1024 * 1024));
+    const freeMb = Math.round(freeMem / (1024 * 1024));
+    
+    let suggestedMb = 4096;
+    if (totalMb <= 4096) {
+      suggestedMb = Math.max(1024, Math.round(totalMb * 0.45));
+    } else if (totalMb <= 8192) {
+      suggestedMb = 3072;
+    } else if (totalMb <= 16384) {
+      suggestedMb = 6144;
+    } else {
+      suggestedMb = 8192;
+    }
+
+    res.json({
+      success: true,
+      totalMb,
+      freeMb,
+      suggestedMb
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -1299,6 +1330,26 @@ app.get('/api/minecraft/launch', async (req, res) => {
   
   if (!fs.existsSync(isolatedDir)) {
     fs.mkdirSync(isolatedDir, { recursive: true });
+  }
+
+  // Pre-configure Russian language in options.txt if not already set
+  const optionsTxtPath = path.join(isolatedDir, 'options.txt');
+  try {
+    if (fs.existsSync(optionsTxtPath)) {
+      let content = fs.readFileSync(optionsTxtPath, 'utf8');
+      if (!content.includes('lang:ru_ru')) {
+        if (content.includes('lang:')) {
+          content = content.replace(/^lang:.*$/m, 'lang:ru_ru');
+        } else {
+          content += '\nlang:ru_ru\n';
+        }
+        fs.writeFileSync(optionsTxtPath, content, 'utf8');
+      }
+    } else {
+      fs.writeFileSync(optionsTxtPath, 'lang:ru_ru\n', 'utf8');
+    }
+  } catch (e) {
+    console.error('Failed to pre-configure options.txt language:', e);
   }
 
   let opts: any = {

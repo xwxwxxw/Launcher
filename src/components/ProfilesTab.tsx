@@ -3,6 +3,7 @@ import { Profile } from '../types';
 import { Plus, Edit, Trash2, Box, Download, Upload } from 'lucide-react';
 import CreateProfileModal from './CreateProfileModal';
 import PlayerHead2D from './PlayerHead2D';
+import { openFolderInExplorer } from '../utils/explorer';
 
 const ForgeIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) => (
   <svg className={`${className} text-amber-500`} viewBox="0 0 24 24" fill="currentColor">
@@ -299,7 +300,7 @@ const ProfileCard: React.FC<{
         </div>
         <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-800/50">
           <button 
-            onClick={(e) => { e.stopPropagation(); (window as any).require('electron').ipcRenderer.invoke('open-path', profile.mod_path); }}
+            onClick={(e) => { e.stopPropagation(); openFolderInExplorer(profile.mod_path); }}
             className="flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200 text-[9px] uppercase tracking-widest font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
             title="Открыть папку модов"
           >

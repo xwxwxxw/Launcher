@@ -88,6 +88,7 @@ export default function PlayerHead2D({ username, uuid, className = '' }: PlayerH
           src="https://minotar.net/helm/Steve/100.png" 
           alt="Fallback Steve" 
           className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
         />
       ) : (
         <canvas

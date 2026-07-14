@@ -109,27 +109,56 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
           ></motion.div>
 
-          {/* Minecraft Voxel Box visual */}
-          <div className="relative w-14 h-14 transform-gpu [transform-style:preserve-3d] animate-[spin_10s_linear_infinite]">
-            {/* Front */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded border border-white/20 shadow-lg shadow-blue-500/20"></div>
-            {/* Overlay grid design inside the block */}
-            <div className="absolute inset-1 border border-white/10 rounded flex items-center justify-center">
-              <div className="w-6 h-6 bg-white/5 rounded-sm flex items-center justify-center border border-white/5">
-                <div className="w-2 h-2 bg-blue-400 rounded-sm"></div>
+          {/* Glowing 3D CSS Voxel Box */}
+          <div className="relative w-20 h-20 flex items-center justify-center" style={{ perspective: '400px' }}>
+            <div 
+              className="w-12 h-12 relative animate-[spin_8s_linear_infinite]" 
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              {/* Front face */}
+              <div 
+                className="absolute inset-0 bg-blue-600/80 border border-blue-400 text-white flex items-center justify-center rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.5)] backface-hidden" 
+                style={{ transform: 'translateZ(24px)' }}
+              >
+                <div className="w-3.5 h-3.5 bg-cyan-400 rounded-sm animate-pulse" />
               </div>
+              {/* Back face */}
+              <div 
+                className="absolute inset-0 bg-blue-900/90 border border-blue-600/70 rounded-lg backface-hidden" 
+                style={{ transform: 'rotateY(180deg) translateZ(24px)' }}
+              />
+              {/* Left face */}
+              <div 
+                className="absolute inset-0 bg-indigo-700/90 border border-indigo-400/70 rounded-lg backface-hidden" 
+                style={{ transform: 'rotateY(-90deg) translateZ(24px)' }}
+              />
+              {/* Right face */}
+              <div 
+                className="absolute inset-0 bg-indigo-950/90 border border-indigo-600/70 rounded-lg backface-hidden" 
+                style={{ transform: 'rotateY(90deg) translateZ(24px)' }}
+              />
+              {/* Top face */}
+              <div 
+                className="absolute inset-0 bg-cyan-600/85 border border-cyan-400/80 rounded-lg backface-hidden" 
+                style={{ transform: 'rotateX(90deg) translateZ(24px)' }}
+              />
+              {/* Bottom face */}
+              <div 
+                className="absolute inset-0 bg-zinc-950/90 border border-zinc-800/80 rounded-lg backface-hidden" 
+                style={{ transform: 'rotateX(-90deg) translateZ(24px)' }}
+              />
             </div>
           </div>
         </div>
 
         {/* Brand Header */}
-        <h1 className="text-2xl font-black tracking-widest text-white uppercase text-center mb-1">
-          Layle Launcher
+        <h1 className="text-3xl font-extrabold tracking-[0.15em] bg-gradient-to-r from-white via-zinc-200 to-blue-400 bg-clip-text text-transparent text-center mb-1 drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+          LAYLE LAUNCHER
         </h1>
         <div className="flex items-center gap-1.5 mb-8">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-          <span className="text-[10px] tracking-widest font-mono text-zinc-500 uppercase font-bold">
-            Система инициализации v2.4
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+          <span className="text-[9px] tracking-[0.25em] font-mono text-zinc-500 uppercase font-bold">
+            Система инициализации v2.5
           </span>
         </div>
 

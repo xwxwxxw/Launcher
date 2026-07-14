@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, FolderOpen, RefreshCw, AlertTriangle } from 'lucide-react';
+import { openFolderInExplorer } from '../utils/explorer';
 
 export default function LogsTab({ activeProfileId }: { activeProfileId: string }) {
   const [logs, setLogs] = useState<string>('');
@@ -34,11 +35,7 @@ export default function LogsTab({ activeProfileId }: { activeProfileId: string }
   }, [logs]);
 
   const handleOpenFolder = async () => {
-    try {
-      await fetch(`/api/minecraft/open-logs-folder?profileId=${activeProfileId}`, { method: 'POST' });
-    } catch (e) {
-      console.error(e);
-    }
+    openFolderInExplorer(`./profiles/${activeProfileId}/.minecraft/logs`);
   };
 
   return (

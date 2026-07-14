@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Folder, FolderOpen, Cpu, HelpCircle } from 'lucide-react';
+import { X, Loader2, Folder, FolderOpen, Cpu, HelpCircle, ChevronDown } from 'lucide-react';
 import { Profile } from '../types';
 import { openFolderInExplorer } from '../utils/explorer';
 
@@ -22,6 +22,9 @@ export default function CreateProfileModal({
   const [useSeparateFolder, setUseSeparateFolder] = useState(!!initialData?.mod_path);
   const [customPath, setCustomPath] = useState(initialData?.mod_path || '');
   const [ramMb, setRamMb] = useState<number>(initialData?.ram_mb || 4096);
+  
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+  const [showLoaderDropdown, setShowLoaderDropdown] = useState(false);
   
   const customPathInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,29 +134,93 @@ export default function CreateProfileModal({
                 Версия игры
                 {loadingVersions && <Loader2 size={12} className="animate-spin text-blue-400" />}
               </label>
-              <select 
-                value={version}
-                onChange={e => setVersion(e.target.value)}
-                disabled={loadingVersions}
-                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer disabled:opacity-50"
-              >
-                {versions.map(v => (
-                  <option key={v} value={v} className="bg-zinc-950">{v}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVersionDropdown(!showVersionDropdown);
+                    setShowLoaderDropdown(false);
+                  }}
+                  disabled={loadingVersions}
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors flex items-center justify-between gap-2 cursor-pointer disabled:opacity-50 select-none text-left h-11"
+                >
+                  <span className="truncate">{version}</span>
+                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showVersionDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                </button>
+                
+                {showVersionDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowVersionDropdown(false)} />
+                    <div className="absolute top-full mt-1.5 left-0 w-full bg-zinc-950/95 border border-zinc-850 backdrop-blur-xl rounded-xl shadow-xl p-1 z-50 flex flex-col gap-0.5 max-h-[160px] overflow-y-auto">
+                      {versions.map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => {
+                            setVersion(v);
+                            setShowVersionDropdown(false);
+                          }}
+                          className={`px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all ${
+                            v === version 
+                              ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' 
+                              : 'hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div>
               <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">Мод-Лоадер</label>
-              <select 
-                value={modLoader}
-                onChange={e => setModLoader(e.target.value as any)}
-                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
-              >
-                <option value="Fabric" className="bg-zinc-950">Fabric (Рекомендуется)</option>
-                <option value="Forge" className="bg-zinc-950">Forge</option>
-                <option value="Vanilla" className="bg-zinc-950">Vanilla (Чистый клиент)</option>
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLoaderDropdown(!showLoaderDropdown);
+                    setShowVersionDropdown(false);
+                  }}
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors flex items-center justify-between gap-2 cursor-pointer select-none text-left h-11"
+                >
+                  <span className="truncate">
+                    {modLoader === 'Fabric' ? 'Fabric (Рекомендуется)' : modLoader === 'Forge' ? 'Forge' : 'Vanilla (Чистый клиент)'}
+                  </span>
+                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showLoaderDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                </button>
+                
+                {showLoaderDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowLoaderDropdown(false)} />
+                    <div className="absolute top-full mt-1.5 left-0 w-full bg-zinc-950/95 border border-zinc-850 backdrop-blur-xl rounded-xl shadow-xl p-1 z-50 flex flex-col gap-0.5">
+                      {[
+                        { id: 'Fabric', label: 'Fabric (Рекомендуется)' },
+                        { id: 'Forge', label: 'Forge' },
+                        { id: 'Vanilla', label: 'Vanilla (Чистый клиент)' }
+                      ].map(loader => (
+                        <button
+                          key={loader.id}
+                          type="button"
+                          onClick={() => {
+                            setModLoader(loader.id as any);
+                            setShowLoaderDropdown(false);
+                          }}
+                          className={`px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all ${
+                            loader.id === modLoader 
+                              ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' 
+                              : 'hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          {loader.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
