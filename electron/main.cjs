@@ -42,6 +42,64 @@ try {
   }
 } catch (e) {}
 
+ipcMain.handle('elyLogin', async (event, params) => {
+  return new Promise((resolve, reject) => {
+    const authWindow = new BrowserWindow({
+      width: 500,
+      height: 700,
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    const urlParams = new URLSearchParams();
+    urlParams.append('origin', 'http://localhost:3000');
+    if (params?.customClientId) urlParams.append('client_id', params.customClientId);
+    if (params?.customClientSecret) urlParams.append('client_secret', params.customClientSecret);
+
+    const loginUrl = `http://localhost:3000/api/auth/ely/url?${urlParams.toString()}`;
+
+    authWindow.loadURL(loginUrl);
+    authWindow.show();
+
+    let resolved = false;
+
+    // We can intercept the success page by listening to title changes or injecting a script
+    authWindow.webContents.on('did-finish-load', async () => {
+      try {
+        const title = authWindow.getTitle();
+        // The callback page in server.ts sets localStorage and window.opener.postMessage
+        // Let's just execute JS to read localStorage
+        const pendingSession = await authWindow.webContents.executeJavaScript('localStorage.getItem("ely_session_pending")');
+        if (pendingSession) {
+          const profile = JSON.parse(pendingSession);
+          await authWindow.webContents.executeJavaScript('localStorage.removeItem("ely_session_pending")');
+          if (!resolved) {
+            resolved = true;
+            authWindow.close();
+            resolve(profile);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to check auth status in popup:', e);
+      }
+    });
+
+    authWindow.on('closed', () => {
+      if (!resolved) {
+        reject(new Error('Окно авторизации было закрыто'));
+      }
+    });
+  });
+});
+
+ipcMain.handle('getUserData', () => {
+  return null; // Implemented in React, but added for compatibility with prompt
+});
+
 ipcMain.handle('save-auth', (event, authData) => {
   fs.writeFileSync(authPath, JSON.stringify(authData));
 });
@@ -382,7 +440,11 @@ app.whenReady().then(() => {
       useIconPath = prodIconPath;
     }
     
-    const icon = nativeImage.createFromPath(useIconPath);
+    // Resize icon for tray specifically (16x16 or 32x32) to prevent transparent square issue
+    let icon = nativeImage.createFromPath(useIconPath);
+    if (!icon.isEmpty()) {
+      icon = icon.resize({ width: 16, height: 16 });
+    }
     tray = new Tray(icon);
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Показать', click: () => { if(mainWindow) { mainWindow.show(); mainWindow.focus(); } } },

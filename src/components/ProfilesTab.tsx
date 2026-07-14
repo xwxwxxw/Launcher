@@ -73,6 +73,7 @@ interface ProfilesTabProps {
   onUpdateProfile: (id: string, updatedFields: any) => Promise<void>;
   mods: any[];
   userProfile: {name: string, id: string, accessToken: string} | null;
+  onOpenModrinth?: () => void;
 }
 
 export default function ProfilesTab({
@@ -84,7 +85,8 @@ export default function ProfilesTab({
   onDeleteProfile,
   onUpdateProfile,
   mods,
-  userProfile
+  userProfile,
+  onOpenModrinth
 }: ProfilesTabProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
@@ -96,7 +98,7 @@ export default function ProfilesTab({
 
   return (
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full">
-      <div className="flex justify-end items-end mb-10 max-w-6xl">
+      <div className="flex justify-end items-end mb-10 max-w-6xl gap-4">
         <button 
           onClick={() => setShowCreate(true)}
           className="bg-white text-black hover:bg-zinc-200 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-105 active:scale-95 flex items-center gap-2"
@@ -287,13 +289,22 @@ const ProfileCard: React.FC<{
       
       <p className="text-xs text-zinc-400 mb-6 line-clamp-2 leading-relaxed relative z-10">{profile.description}</p>
       
-      <div className="rounded-xl border border-zinc-800/40 bg-zinc-950/50 p-4 mt-auto mb-5 relative z-10">
+      <div className="rounded-xl border border-zinc-800/40 bg-zinc-950/50 p-4 mt-auto mb-4 relative z-10">
         <div className="flex justify-between items-center mb-2">
            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">RAM Allotment</p>
            <span className="text-[10px] font-mono text-zinc-300 font-bold">{profile.ram_mb} MB</span>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
+        <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden mb-3">
           <div className="h-full rounded-full bg-blue-500/80" style={{ width: `${Math.min(100, (profile.ram_mb / 16384) * 100)}%` }}></div>
+        </div>
+        <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-800/50">
+          <button 
+            onClick={(e) => { e.stopPropagation(); (window as any).require('electron').ipcRenderer.invoke('open-path', profile.mod_path); }}
+            className="flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200 text-[9px] uppercase tracking-widest font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+            title="Открыть папку модов"
+          >
+            Папка модов
+          </button>
         </div>
       </div>
 

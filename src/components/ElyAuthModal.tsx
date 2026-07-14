@@ -117,6 +117,20 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         localStorage.setItem('ely_custom_client_secret', customClientSecret);
       }
 
+      if ((window as any).require) {
+        const { ipcRenderer } = (window as any).require('electron');
+        const profile = await ipcRenderer.invoke('elyLogin', {
+          customClientId: useCustomOAuth ? customClientId : undefined,
+          customClientSecret: useCustomOAuth ? customClientSecret : undefined
+        });
+        
+        if (profile) {
+          onSuccess(profile);
+          onClose();
+        }
+        return;
+      }
+
       // Build parameters
       const params = new URLSearchParams();
       params.append('origin', window.location.origin);

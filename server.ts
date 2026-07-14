@@ -780,7 +780,7 @@ app.get('/api/auth/ely/callback', handleElyCallback);
 app.get('/api/auth/ely/callback/', handleElyCallback);
 
 app.post('/api/mods/install', async (req, res) => {
-  const { projectId, versionId, folderPath, profileId } = req.body;
+  const { projectId, versionId, folderPath, profileId, contentType } = req.body;
   
   if (!projectId) {
     return res.status(400).json({ error: 'Missing projectId' });
@@ -854,10 +854,22 @@ app.post('/api/mods/install', async (req, res) => {
       console.error('Failed to fetch dependencies from Modrinth:', err);
     }
 
-    let targetPath = `/mock/mods/${profileId || '1'}/${modId}.jar`;
-    const profile = profiles.find(p => p.id === profileId);
+    const projectType = project.project_type || 'mod';
+    const computedContentType = projectType === 'resourcepack' 
+      ? 'resourcepacks' 
+      : (projectType === 'shader' ? 'shaderpacks' : 'mods');
+
+    let targetPath = `/mock/${computedContentType}/${profileId || '1'}/${modId}${projectType === 'mod' ? '.jar' : '.zip'}`;
     let destDir = folderPath;
     if (profile && profile.mod_path) destDir = profile.mod_path;
+    
+    if (destDir) {
+      const installTarget = req.body.installTarget || 'client';
+      const destFolder = computedContentType === 'resourcepacks' 
+        ? 'resourcepacks' 
+        : (computedContentType === 'shaderpacks' ? 'shaderpacks' : (installTarget === 'server' ? 'server-mods' : 'mods'));
+      destDir = destDir.replace(/mods\/?$/, destFolder);
+    }
     
     if (destDir && downloadUrl) {
       const absDir = path.isAbsolute(destDir) ? destDir : path.resolve(process.cwd(), destDir);
@@ -890,13 +902,14 @@ app.post('/api/mods/install', async (req, res) => {
       is_optimization: categories.some((c: string) => ["optimization", "performance"].includes(c.toLowerCase())),
       warnings: [],
       icon_url: project.icon_url || '',
-      project_url: `https://modrinth.com/mod/${project.slug || project.id}`,
+      project_url: `https://modrinth.com/${projectType}/${project.slug || project.id}`,
       categories,
       categories_ru: categoriesRu,
       downloads: project.downloads || 0,
       api_source: 'Modrinth',
       profile_id: profileId || '1',
-      enabled: true
+      enabled: true,
+      contentType: contentType
     };
 
     generateWarningsRu(mod);
@@ -925,14 +938,19 @@ app.post('/api/mods/delete', (req, res) => {
     return res.status(400).json({ error: 'Missing modId' });
   }
   
-  // Physically delete the jar file if filePath is passed and exists
+  // Physically delete the jar or pack file/folder if filePath is passed and exists
   if (filePath) {
     try {
       if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
       }
     } catch (e) {
-      console.error('Failed to physically delete mod file:', e);
+      console.error('Failed to physically delete content file:', e);
     }
   }
   
@@ -943,11 +961,11 @@ app.post('/api/mods/delete', (req, res) => {
   }
   
   saveMods();
-  res.json({ success: true, message: 'Мод успешно удален.' });
+  res.json({ success: true, message: 'Успешно удалено.' });
 });
 
 app.post('/api/mods/scan', async (req, res) => {
-  let { folderPath, profileId } = req.body;
+  let { folderPath, profileId, contentType = 'mods' } = req.body;
   
   if (profileId) {
     const profile = profiles.find(p => p.id === profileId);
@@ -956,53 +974,107 @@ app.post('/api/mods/scan', async (req, res) => {
     }
   }
 
+      const installTarget = req.body.installTarget || 'client';
+      const destFolder = computedContentType === 'resourcepacks' 
+        ? 'resourcepacks' 
+        : (computedContentType === 'shaderpacks' ? 'shaderpacks' : (installTarget === 'server' ? 'server-mods' : 'mods'));
+
   if (folderPath && folderPath.trim() !== '') {
+    folderPath = folderPath.replace(/mods\/?$/, destFolder);
     try {
       if (!fs.existsSync(folderPath)) {
         fs.mkdirSync(folderPath, { recursive: true });
       }
       
       const files = fs.readdirSync(folderPath);
-      const jarFiles = files.filter(f => f.endsWith('.jar')).map(f => path.join(folderPath, f));
+      // Filter out system hidden files
+      const validFiles = files.filter(f => !f.startsWith('.'));
       
-      if (jarFiles.length === 0) {
-        // Clear cached mods from list if folder is empty
+      if (contentType === 'mods') {
+        const jarFiles = validFiles.filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled')).map(f => path.join(folderPath, f));
+        
+        if (jarFiles.length === 0) {
+          if (profileId) {
+            modsList = modsList.filter(m => !(m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType)));
+            saveMods();
+          }
+          const filtered = modsList.filter(m => m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType));
+          return res.json(filtered);
+        }
+
+        const parsedMods = await Promise.all(jarFiles.map(async (f) => {
+          const parsed = await parseModJar(f);
+          const isFileDisabled = f.endsWith('.disabled');
+          const modId = parsed.mod_id;
+          const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
+          
+          const mod: any = {
+            ...parsed,
+            profile_id: profileId,
+            enabled: isFileDisabled ? false : (existing ? existing.enabled !== false : true),
+            contentType: 'mods'
+          };
+          return mod;
+        }));
+
         if (profileId) {
-          modsList = modsList.filter(m => m.profile_id !== profileId);
+          modsList = modsList.filter(m => !(m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType)));
+          modsList.push(...parsedMods);
           saveMods();
         }
-        const filtered = modsList.filter(m => m.profile_id === profileId);
-        return res.json(filtered);
+
+        res.json(parsedMods);
+      } else {
+        // resourcepacks or shaderpacks
+        const parsedItems = await Promise.all(validFiles.map(async (f) => {
+          const fullPath = path.join(folderPath, f);
+          const isFileDisabled = f.endsWith('.disabled');
+          const cleanName = f.replace('.disabled', '');
+          const extension = path.extname(cleanName);
+          const modId = cleanName.replace(extension, '');
+
+          // Check if we already have this in our modsList with rich metadata
+          const existing = modsList.find(m => 
+            m.profile_id === profileId && 
+            m.contentType === contentType && 
+            (m.mod_id === modId || m.name === cleanName || m.path === fullPath || m.path === fullPath.replace('.disabled', ''))
+          );
+
+          const item: any = {
+            path: fullPath,
+            name: cleanName,
+            mod_id: modId,
+            display_name: existing?.display_name || modId,
+            description: existing?.description || 'Локальный пакет контента.',
+            description_ru: existing?.description_ru || 'Локальный пакет контента.',
+            icon_url: existing?.icon_url || '',
+            downloads: existing?.downloads || 0,
+            api_source: existing?.api_source || 'Локальный',
+            profile_id: profileId,
+            enabled: !isFileDisabled,
+            contentType: contentType,
+            categories: existing?.categories || [contentType === 'resourcepacks' ? 'resource packs' : 'shaders'],
+            categories_ru: existing?.categories_ru || [contentType === 'resourcepacks' ? 'Ресурспаки' : 'Шейдеры'],
+          };
+          return item;
+        }));
+
+        if (profileId) {
+          modsList = modsList.filter(m => !(m.profile_id === profileId && m.contentType === contentType));
+          modsList.push(...parsedItems);
+          saveMods();
+        }
+
+        res.json(parsedItems);
       }
-
-      const parsedMods = await Promise.all(jarFiles.map(async (f) => {
-        const parsed = await parseModJar(f);
-        // Find if we already have this mod in modsList for this profile
-        const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
-        
-        const mod: any = {
-          ...parsed,
-          profile_id: profileId,
-          enabled: existing ? existing.enabled : true,
-        };
-        return mod;
-      }));
-
-      // Update modsList for this profile
-      if (profileId) {
-        modsList = modsList.filter(m => m.profile_id !== profileId);
-        modsList.push(...parsedMods);
-        saveMods();
-      }
-
-      res.json(parsedMods);
     } catch (error) {
-      const filtered = modsList.filter(m => m.profile_id === profileId);
+      console.error(`Error scanning ${contentType}:`, error);
+      const filtered = modsList.filter(m => m.profile_id === profileId && m.contentType === contentType);
       return res.json(filtered);
     }
   } else {
     if (profileId) {
-      const filtered = modsList.filter(m => m.profile_id === profileId);
+      const filtered = modsList.filter(m => m.profile_id === profileId && m.contentType === contentType);
       return res.json(filtered);
     }
     return res.json(modsList);
@@ -1060,7 +1132,7 @@ app.post('/api/mods/toggle', (req, res) => {
     // Physically rename the file on disk if it exists
     if (fs.existsSync(mod.path)) {
       let newPath = mod.path;
-      if (!enabled && mod.path.endsWith('.jar')) {
+      if (!enabled && !mod.path.endsWith('.disabled')) {
         newPath = mod.path + '.disabled';
         try {
           fs.renameSync(mod.path, newPath);
@@ -1068,7 +1140,7 @@ app.post('/api/mods/toggle', (req, res) => {
         } catch (e) {
           console.error('Failed to rename file to disabled:', e);
         }
-      } else if (enabled && mod.path.endsWith('.jar.disabled')) {
+      } else if (enabled && mod.path.endsWith('.disabled')) {
         newPath = mod.path.slice(0, -9); // remove '.disabled'
         try {
           fs.renameSync(mod.path, newPath);
@@ -1079,15 +1151,16 @@ app.post('/api/mods/toggle', (req, res) => {
       }
     } else {
       // Fallback for mock path
+      const ext = mod.contentType === 'resourcepacks' || mod.contentType === 'shaderpacks' ? '.zip' : '.jar';
       if (enabled) {
-        mod.path = `/mock/mods/${profileId}/${modId}.jar`;
+        mod.path = `/mock/mods/${profileId}/${modId}${ext}`;
       } else {
-        mod.path = `/mock/mods/${profileId}/.disabled/${modId}.jar`;
+        mod.path = `/mock/mods/${profileId}/.disabled/${modId}${ext}.disabled`;
       }
     }
     
     saveMods();
-    res.json({ success: true, message: enabled ? 'Мод включен.' : 'Мод выключен.', mod });
+    res.json({ success: true, message: enabled ? 'Успешно включено.' : 'Успешно выключено.', mod });
   } else {
     res.status(404).json({ error: 'Mod not found' });
   }
@@ -1250,31 +1323,99 @@ app.get('/api/minecraft/launch', async (req, res) => {
     }
   };
 
+  // Get the latest loader version dynamically
+  let loaderVer = '';
   if (activeProfile.mod_loader === 'Fabric') {
-      const loaderVer = '0.15.7'; // Or fetch latest
-      const customVersionName = `fabric-loader-${loaderVer}-${activeProfile.game_version}`;
-      opts.version.custom = customVersionName;
-      
-      const versionsDir = path.join(minecraftPathAbsolute, 'versions', customVersionName);
-      if (!fs.existsSync(versionsDir)) {
-          fs.mkdirSync(versionsDir, { recursive: true });
+    try {
+      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
-      const jsonPath = path.join(versionsDir, `${customVersionName}.json`);
-      if (!fs.existsSync(jsonPath)) {
-          sendEvent('log', { message: 'Скачивание профиля Fabric...', progress: 5 });
-          try {
-              const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-              if (res.ok) {
-                  const data = await res.text();
-                  fs.writeFileSync(jsonPath, data);
-                  sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
-              }
-          } catch (e) {
-              console.error('Failed to download Fabric profile', e);
-          }
+    } catch(e) {}
+    if (!loaderVer) loaderVer = '0.16.10'; // Fallback to a modern version
+
+    const customVersionName = `fabric-loader-${loaderVer}-${activeProfile.game_version}`;
+    opts.version.custom = customVersionName;
+    
+    const versionsDir = path.join(minecraftPathAbsolute, 'versions', customVersionName);
+    if (!fs.existsSync(versionsDir)) {
+        fs.mkdirSync(versionsDir, { recursive: true });
+    }
+    const jsonPath = path.join(versionsDir, `${customVersionName}.json`);
+    if (!fs.existsSync(jsonPath)) {
+        sendEvent('log', { message: 'Скачивание профиля Fabric...', progress: 5 });
+        try {
+            const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (res.ok) {
+                const data = await res.text();
+                fs.writeFileSync(jsonPath, data);
+                sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
+            }
+        } catch (e) {
+            console.error('Failed to download Fabric profile', e);
+        }
+    }
+  } else if (activeProfile.mod_loader === 'Quilt') {
+    try {
+      const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
+    } catch(e) {}
+    if (!loaderVer) loaderVer = '0.24.0';
+
+    const customVersionName = `quilt-loader-${loaderVer}-${activeProfile.game_version}`;
+    opts.version.custom = customVersionName;
+    
+    const versionsDir = path.join(minecraftPathAbsolute, 'versions', customVersionName);
+    if (!fs.existsSync(versionsDir)) {
+        fs.mkdirSync(versionsDir, { recursive: true });
+    }
+    const jsonPath = path.join(versionsDir, `${customVersionName}.json`);
+    if (!fs.existsSync(jsonPath)) {
+        sendEvent('log', { message: 'Скачивание профиля Quilt...', progress: 5 });
+        try {
+            const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (res.ok) {
+                const data = await res.text();
+                fs.writeFileSync(jsonPath, data);
+                sendEvent('log', { message: 'Профиль Quilt успешно загружен.', progress: 10 });
+            }
+        } catch (e) {
+            console.error('Failed to download Quilt profile', e);
+        }
+    }
   } else if (activeProfile.mod_loader === 'Forge') {
-      opts.forge = minecraftPathAbsolute; // Depending on how MCLC handles it, normally it downloads if needed.
+    try {
+      const res = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+      if (res.ok) {
+        const data = await res.json();
+        loaderVer = data.promos[`${activeProfile.game_version}-recommended`] || data.promos[`${activeProfile.game_version}-latest`];
+      }
+    } catch(e) {}
+
+    if (loaderVer) {
+      sendEvent('log', { message: 'Скачивание Forge установщика...', progress: 5 });
+      const forgeInstallerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${activeProfile.game_version}-${loaderVer}/forge-${activeProfile.game_version}-${loaderVer}-installer.jar`;
+      const tempPath = path.join(os.tmpdir(), `forge-${activeProfile.game_version}-${loaderVer}-installer.jar`);
+      
+      if (!fs.existsSync(tempPath)) {
+        try {
+          const res = await fetch(forgeInstallerUrl);
+          if (res.ok) {
+             const buffer = await res.arrayBuffer();
+             fs.writeFileSync(tempPath, Buffer.from(buffer));
+          }
+        } catch(e) {
+          console.error('Failed to download Forge installer', e);
+        }
+      }
+      if (fs.existsSync(tempPath)) {
+        opts.forge = tempPath;
+      }
+    }
   }
 
   if (javaPath && javaPath !== '') {

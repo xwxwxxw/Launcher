@@ -13,21 +13,25 @@ import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
 import SkinViewer from './components/SkinViewer';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X, Gamepad2, Home } from 'lucide-react';
+import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X, Gamepad2, Home, DownloadCloud } from 'lucide-react';
 import { ModInfo, Profile } from './types';
+import ModrinthModal from './components/ModrinthModal';
+
 
 export default function App() {
-  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>(() => {
+  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' >(() => {
     return (localStorage.getItem('launcher_active_tab') as any) || 'home';
   });
 
-  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => {
+  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' ) => {
     setActiveTabState(tab);
     localStorage.setItem('launcher_active_tab', tab);
   };
+
   const [userProfile, setUserProfile] = useState<{name: string, id: string, accessToken: string} | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [showModrinthModal, setShowModrinthModal] = useState(false);
   const [gameStatus, setGameStatus] = useState<'idle' | 'installing' | 'running'>('idle');
   const [isInstalled, setIsInstalled] = useState(false);
   const [isCheckingInstall, setIsCheckingInstall] = useState(false);
@@ -688,6 +692,7 @@ export default function App() {
             icon={<FolderTree size={22} strokeWidth={activeTab === 'mods' ? 2.5 : 2} />} 
             label="Моды" 
           />
+
           <TabButton 
             active={activeTab === 'profiles'} 
             onClick={() => setActiveTab('profiles')} 
@@ -783,16 +788,13 @@ export default function App() {
           )}
           {activeTab === 'mods' && (
             <ModsTab 
-              mods={mods.filter(m => m.profile_id === activeProfileId)}
-              loading={loadingMods}
-              onScan={fetchMods}
-              onDelete={handleDeleteMod}
               onRefresh={fetchMods}
-              onToggleMod={handleToggleMod}
               activeProfileId={activeProfileId}
               activeProfile={activeProfile}
+              onOpenModrinth={() => setShowModrinthModal(true)}
             />
           )}
+
           {activeTab === 'profiles' && (
             <ProfilesTab 
               profiles={profiles}
@@ -804,6 +806,15 @@ export default function App() {
               onUpdateProfile={handleUpdateProfile}
               mods={mods}
               userProfile={userProfile}
+              onOpenModrinth={() => setShowModrinthModal(true)}
+            />
+          )}
+          {showModrinthModal && (
+            <ModrinthModal 
+              onClose={() => setShowModrinthModal(false)}
+              onRefresh={fetchMods}
+              activeProfileId={activeProfileId}
+              activeProfile={activeProfile}
             />
           )}
           {activeTab === 'conflicts' && (
