@@ -127,23 +127,6 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         params.append('client_secret', customClientSecret);
       }
 
-      if (typeof window !== 'undefined' && (window as any).require) {
-        const { ipcRenderer } = (window as any).require('electron');
-        ipcRenderer.invoke('elyLogin', {
-          customClientId: useCustomOAuth ? customClientId : undefined,
-          customClientSecret: useCustomOAuth ? customClientSecret : undefined
-        }).then((profile: any) => {
-          if (profile) {
-            onSuccess(profile);
-            onClose();
-          }
-        }).catch((err: any) => {
-          setError(err.message || 'Ошибка авторизации через Ely.by');
-          setLoading(false);
-        });
-        return;
-      }
-
       const res = await fetch(`/api/auth/ely/url?${params.toString()}`);
       const data = await res.json();
       
@@ -151,11 +134,19 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         throw new Error(data.error || 'Не удалось получить ссылку авторизации.');
       }
 
-      const width = 600;
-      const height = 700;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-      window.open(data.url, 'ely_oauth_popup', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`);
+      // If running inside Electron, open the system browser via shell.openExternal
+      if (typeof window !== 'undefined' && (window as any).require) {
+        try {
+          const { shell } = (window as any).require('electron');
+          shell.openExternal(data.url);
+        } catch (err) {
+          console.error("Failed to open via Electron shell:", err);
+          window.open(data.url, '_blank');
+        }
+      } else {
+        // Open the authorization page in the user's main/default browser as a new tab
+        window.open(data.url, '_blank');
+      }
       
       // Poll the local server to check if the user completed auth in the system browser
       const checkStatus = setInterval(async () => {
