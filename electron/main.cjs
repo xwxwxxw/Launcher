@@ -291,69 +291,55 @@ ipcMain.handle('check-updates', async (event, repo) => {
 });
 
 ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
-  return new Promise((resolve, reject) => {
+  try {
     const tempPath = path.join(os.tmpdir(), `launcher-update-${Date.now()}.exe`);
     
-    const downloadFile = (url, dest) => {
-      return new Promise((res, rej) => {
-        const file = fs.createWriteStream(dest);
-        https.get(url, { headers: { 'User-Agent': 'Minecraft-Launcher' } }, (response) => {
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            https.get(response.headers.location, { headers: { 'User-Agent': 'Minecraft-Launcher' } }, (redirectRes) => {
-              redirectRes.pipe(file);
-              file.on('finish', () => file.close(res));
-            }).on('error', rej);
-          } else {
-            response.pipe(file);
-            file.on('finish', () => file.close(res));
-          }
-        }).on('error', rej);
+    const downloadFile = async (url, dest) => {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Minecraft-Launcher' }
       });
-    };
-
-    const downloadText = (url) => {
-      return new Promise((res, rej) => {
-        https.get(url, { headers: { 'User-Agent': 'Minecraft-Launcher' } }, (response) => {
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            https.get(response.headers.location, { headers: { 'User-Agent': 'Minecraft-Launcher' } }, (redirectRes) => {
-              let d = '';
-              redirectRes.on('data', c => d+=c);
-              redirectRes.on('end', () => res(d));
-            }).on('error', rej);
-          } else {
-            let d = '';
-            response.on('data', c => d+=c);
-            response.on('end', () => res(d));
-          }
-        }).on('error', rej);
-      });
-    };
-
-    downloadFile(assetUrl, tempPath).then(async () => {
-      if (sha256AssetUrl) {
-        try {
-          const shaText = await downloadText(sha256AssetUrl);
-          const expectedSha = shaText.split(' ')[0].trim().toLowerCase();
-          
-          const hash = crypto.createHash('sha256');
-          const fileBuffer = fs.readFileSync(tempPath);
-          hash.update(fileBuffer);
-          const actualSha = hash.digest('hex').toLowerCase();
-          
-          if (expectedSha && actualSha !== expectedSha) {
-             fs.unlinkSync(tempPath);
-             return resolve({ success: false, error: 'SHA256 mismatch' });
-          }
-        } catch (e) {
-          console.error('SHA verification failed:', e);
-        }
+      if (!response.ok) {
+        throw new Error(`Не удалось скачать файл: HTTP ${response.status} ${response.statusText}`);
       }
-      
-      resolve({ success: true, tempPath });
-    }).catch(e => {
-      resolve({ success: false, error: e.message });
-    });
-  });
+      const arrayBuffer = await response.arrayBuffer();
+      await fs.promises.writeFile(dest, Buffer.from(arrayBuffer));
+    };
+
+    const downloadText = async (url) => {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Minecraft-Launcher' }
+      });
+      if (!response.ok) {
+        throw new Error(`Не удалось получить данные: HTTP ${response.status} ${response.statusText}`);
+      }
+      return await response.text();
+    };
+
+    await downloadFile(assetUrl, tempPath);
+
+    if (sha256AssetUrl) {
+      try {
+        const shaText = await downloadText(sha256AssetUrl);
+        const expectedSha = shaText.split(' ')[0].trim().toLowerCase();
+        
+        const hash = crypto.createHash('sha256');
+        const fileBuffer = fs.readFileSync(tempPath);
+        hash.update(fileBuffer);
+        const actualSha = hash.digest('hex').toLowerCase();
+        
+        if (expectedSha && actualSha !== expectedSha) {
+           fs.unlinkSync(tempPath);
+           return { success: false, error: 'SHA256 mismatch' };
+        }
+      } catch (e) {
+        console.error('SHA verification failed:', e);
+      }
+    }
+    
+    return { success: true, tempPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 ipcMain.handle('install-update', async (event, tempPath) => {
