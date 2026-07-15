@@ -127,6 +127,23 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         params.append('client_secret', customClientSecret);
       }
 
+      if (typeof window !== 'undefined' && (window as any).require) {
+        const { ipcRenderer } = (window as any).require('electron');
+        ipcRenderer.invoke('elyLogin', {
+          customClientId: useCustomOAuth ? customClientId : undefined,
+          customClientSecret: useCustomOAuth ? customClientSecret : undefined
+        }).then((profile: any) => {
+          if (profile) {
+            onSuccess(profile);
+            onClose();
+          }
+        }).catch((err: any) => {
+          setError(err.message || 'Ошибка авторизации через Ely.by');
+          setLoading(false);
+        });
+        return;
+      }
+
       const res = await fetch(`/api/auth/ely/url?${params.toString()}`);
       const data = await res.json();
       
@@ -134,16 +151,11 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         throw new Error(data.error || 'Не удалось получить ссылку авторизации.');
       }
 
-      if (typeof window !== 'undefined' && (window as any).require) {
-        const { shell } = (window as any).require('electron');
-        shell.openExternal(data.url);
-      } else {
-        const width = 600;
-        const height = 700;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-        window.open(data.url, 'ely_oauth_popup', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`);
-      }
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      window.open(data.url, 'ely_oauth_popup', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`);
       
       // Poll the local server to check if the user completed auth in the system browser
       const checkStatus = setInterval(async () => {

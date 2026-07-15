@@ -3,14 +3,18 @@ import { ModInfo, Profile } from '../types';
 import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe, Palette, Sun, Layers } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
 import { openFolderInExplorer } from '../utils/explorer';
+import CustomSelect from './CustomSelect';
 
 interface ModsTabProps {
   onRefresh: () => void;
   globalGamePath: string;
   onOpenModrinth: () => void;
+  profiles: Profile[];
+  activeProfileId: string;
+  onSelectProfile: (id: string) => void;
 }
 
-export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: ModsTabProps) {
+export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, profiles, activeProfileId, onSelectProfile }: ModsTabProps) {
   const [contentType, setContentType] = useState<'mods' | 'resourcepacks' | 'shaderpacks'>('mods');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +37,12 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
       const res = await fetch('/api/mods/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath: `${globalGamePath}/mods`, profileId: 'global', contentType, minecraftPath: globalGamePath })
+        body: JSON.stringify({ 
+          folderPath: activeProfileId === 'global' ? `${globalGamePath}/mods` : undefined, 
+          profileId: activeProfileId, 
+          contentType, 
+          minecraftPath: globalGamePath 
+        })
       });
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
@@ -46,7 +55,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
 
   useEffect(() => {
     fetchItems();
-  }, [contentType, globalGamePath]);
+  }, [contentType, globalGamePath, activeProfileId]);
 
   const handleUpdateMods = async () => {
     setUpdating(true);
@@ -75,7 +84,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
       const res = await fetch('/api/mods/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId: itemId, profileId: 'global', enabled, minecraftPath: globalGamePath })
+        body: JSON.stringify({ modId: itemId, profileId: activeProfileId, enabled, minecraftPath: globalGamePath })
       });
       const data = await res.json();
       if (data.success) {
@@ -95,7 +104,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
       const res = await fetch('/api/mods/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId: itemId, profileId: 'global', filePath, minecraftPath: globalGamePath })
+        body: JSON.stringify({ modId: itemId, profileId: activeProfileId, filePath, minecraftPath: globalGamePath })
       });
       const data = await res.json();
       if (data.success) {
@@ -110,10 +119,27 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
     }
   };
 
-  const clientPath = `${globalGamePath}/mods`;
   const destFolder = contentType === 'resourcepacks' ? 'resourcepacks' : (contentType === 'shaderpacks' ? 'shaderpacks' : 'mods');
-  const currentFolderPath = clientPath.replace(/mods\/?$/, destFolder);
-  const serverPath = clientPath.replace('/mods', '/server-mods').replace('\\mods', '\\server-mods');
+
+  const getFolderPath = () => {
+    if (activeProfileId === 'global') {
+      const clientPath = `${globalGamePath}/mods`;
+      return clientPath.replace(/mods\/?$/, destFolder);
+    }
+    const prof = profiles.find(p => p.id === activeProfileId);
+    const pPath = prof && prof.mod_path ? prof.mod_path : `./profiles/${activeProfileId}/mods`;
+    if (pPath.startsWith('./profiles') || pPath.includes('/profiles/')) {
+      const regex = new RegExp(`\\.?\\/?profiles\\/${activeProfileId}\\/?(.*)`);
+      const match = pPath.match(regex);
+      const sub = match && match[1] ? match[1] : '';
+      const resolved = `${globalGamePath}/profiles/${activeProfileId}/${sub}`;
+      return resolved.replace(/mods\/?$/, destFolder);
+    }
+    return pPath.replace(/mods\/?$/, destFolder);
+  };
+
+  const currentFolderPath = getFolderPath();
+  const serverPath = currentFolderPath.replace('/mods', '/server-mods').replace('\\mods', '\\server-mods');
 
   const filteredItems = useMemo(() => {
     return items.filter(m => {
@@ -162,35 +188,54 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
               {loading && <RefreshCw size={12} className="animate-spin text-blue-400" />}
             </div>
             
-            {/* Content Switcher */}
-            <div className="flex bg-zinc-900/40 rounded-xl border border-zinc-800/50 p-1 mt-3 shadow-inner">
-              <button
-                onClick={() => setContentType('mods')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'mods' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Layers size={14} />
-                <span>Моды</span>
-              </button>
-              <button
-                onClick={() => setContentType('resourcepacks')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'resourcepacks' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Palette size={14} />
-                <span>Ресурспаки</span>
-              </button>
-              <button
-                onClick={() => setContentType('shaderpacks')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'shaderpacks' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Sun size={14} />
-                <span>Шейдеры</span>
-              </button>
+            <div className="flex flex-wrap items-center gap-4 mt-3">
+              {/* Content Switcher */}
+              <div className="flex bg-zinc-900/40 rounded-xl border border-zinc-800/50 p-1 shadow-inner">
+                <button
+                  onClick={() => setContentType('mods')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'mods' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Layers size={14} />
+                  <span>Моды</span>
+                </button>
+                <button
+                  onClick={() => setContentType('resourcepacks')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'resourcepacks' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Palette size={14} />
+                  <span>Ресурспаки</span>
+                </button>
+                <button
+                  onClick={() => setContentType('shaderpacks')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'shaderpacks' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Sun size={14} />
+                  <span>Шейдеры</span>
+                </button>
+              </div>
+
+              {/* Profile Selector */}
+              <div className="flex items-center gap-2 bg-[#09090b]/40 rounded-xl border border-zinc-800/50 p-1 px-3 shadow-inner h-[38px]">
+                <span className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-widest">Сборка:</span>
+                <CustomSelect
+                  value={activeProfileId}
+                  onChange={onSelectProfile}
+                  options={[
+                    { value: 'global', label: 'Общая папка игры (Глобальные)' },
+                    ...profiles.map(p => ({
+                      value: p.id,
+                      label: `${p.name} (${p.game_version})`
+                    }))
+                  ]}
+                  className="w-48"
+                />
+              </div>
             </div>
           </div>
           
@@ -214,25 +259,11 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: M
             </button>
             
             <button 
-              onClick={() => openFolderInExplorer(clientPath.replace(/mods\/?$/, 'mods'))} 
+              onClick={() => openFolderInExplorer(currentFolderPath)} 
               className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm"
             >
               <FolderOpen size={14} className="text-zinc-400" />
-              <span>Моды</span>
-            </button>
-            <button 
-              onClick={() => openFolderInExplorer(clientPath.replace(/mods\/?$/, 'resourcepacks'))} 
-              className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm"
-            >
-              <FolderOpen size={14} className="text-zinc-400" />
-              <span>Ресурсы</span>
-            </button>
-            <button 
-              onClick={() => openFolderInExplorer(clientPath.replace(/mods\/?$/, 'shaderpacks'))} 
-              className="bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800/80 hover:border-zinc-700 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-zinc-300 transition-all shadow-sm"
-            >
-              <FolderOpen size={14} className="text-zinc-400" />
-              <span>Шейдеры</span>
+              <span>Открыть папку</span>
             </button>
           </div>
         </div>

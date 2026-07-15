@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Download, Loader2, Star, DownloadCloud, Box, Globe, Palette, Sun, Layers, Folder, Server, History, X } from 'lucide-react';
 import { Profile } from '../types';
+import CustomSelect from './CustomSelect';
 
 interface ModrinthProject {
   project_id: string;
@@ -296,34 +297,36 @@ export default function ModrinthTab({ onRefresh, activeProfileId, activeProfile 
                   </button>
                 </div>
 
-                <select
+                <CustomSelect
                   value={gameVersion}
-                  onChange={(e) => setGameVersion(e.target.value)}
-                  className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                >
-                  <option value="" className="bg-[#0b0b0c] text-zinc-300">Все версии Minecraft</option>
-                  <option value="1.21" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.21</option>
-                  <option value="1.20.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.4</option>
-                  <option value="1.20.1" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.1</option>
-                  <option value="1.19.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.4</option>
-                  <option value="1.19.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.2</option>
-                  <option value="1.18.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.18.2</option>
-                  <option value="1.16.5" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.16.5</option>
-                  <option value="1.12.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.12.2</option>
-                </select>
+                  onChange={setGameVersion}
+                  options={[
+                    { value: '', label: 'Все версии Minecraft' },
+                    { value: '1.21', label: 'Minecraft 1.21' },
+                    { value: '1.20.4', label: 'Minecraft 1.20.4' },
+                    { value: '1.20.1', label: 'Minecraft 1.20.1' },
+                    { value: '1.19.4', label: 'Minecraft 1.19.4' },
+                    { value: '1.19.2', label: 'Minecraft 1.19.2' },
+                    { value: '1.18.2', label: 'Minecraft 1.18.2' },
+                    { value: '1.16.5', label: 'Minecraft 1.16.5' },
+                    { value: '1.12.2', label: 'Minecraft 1.12.2' }
+                  ]}
+                  className="w-56"
+                />
 
                 {contentType === 'mod' && (
-                  <select
+                  <CustomSelect
                     value={modLoader}
-                    onChange={(e) => setModLoader(e.target.value)}
-                    className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                  >
-                    <option value="" className="bg-[#0b0b0c] text-zinc-300">Все загрузчики</option>
-                    <option value="fabric" className="bg-[#0b0b0c] text-zinc-300">Fabric</option>
-                    <option value="forge" className="bg-[#0b0b0c] text-zinc-300">Forge</option>
-                    <option value="neoforge" className="bg-[#0b0b0c] text-zinc-300">NeoForge</option>
-                    <option value="quilt" className="bg-[#0b0b0c] text-zinc-300">Quilt</option>
-                  </select>
+                    onChange={setModLoader}
+                    options={[
+                      { value: '', label: 'Все загрузчики' },
+                      { value: 'fabric', label: 'Fabric' },
+                      { value: 'forge', label: 'Forge' },
+                      { value: 'neoforge', label: 'NeoForge' },
+                      { value: 'quilt', label: 'Quilt' }
+                    ]}
+                    className="w-48"
+                  />
                 )}
               </div>
 

@@ -35,13 +35,19 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
     // If stats can't be read, continue without cache
   }
 
+  let loader = 'unknown';
+
   try {
     const data = await fs.promises.readFile(filePath);
     const zip = await JSZip.loadAsync(data);
     
-    const candidates = ['fabric.mod.json', 'quilt.mod.json'];
-    for (const candidate of candidates) {
-      const file = zip.file(candidate);
+    const isFabric = zip.file('fabric.mod.json');
+    const isQuilt = zip.file('quilt.mod.json');
+    const isForge = zip.file('META-INF/mods.toml') || zip.file('mcmod.info');
+
+    if (isFabric) {
+      loader = 'fabric';
+      const file = zip.file('fabric.mod.json');
       if (file) {
         const content = await file.async('string');
         const json = JSON.parse(content);
@@ -61,8 +67,28 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
             iconDataUrl = 'data:image/png;base64,' + buffer.toString('base64');
           }
         }
-        break;
       }
+    } else if (isQuilt) {
+      loader = 'quilt';
+      const file = zip.file('quilt.mod.json');
+      if (file) {
+        const content = await file.async('string');
+        const json = JSON.parse(content);
+        modId = json.id || fileName;
+        displayName = json.name || fileName;
+        description = json.description || '';
+        if (typeof json.environment === 'string') {
+          environment = json.environment.toLowerCase();
+        }
+        if (json.depends && typeof json.depends === 'object') {
+          depends = Object.keys(json.depends);
+        }
+      }
+    } else if (isForge) {
+      loader = 'forge';
+      modId = fileName;
+      displayName = fileName;
+      description = 'Модификация для загрузчика Forge.';
     }
   } catch (e) {
     // Silently fallback to filename defaults if parsing fails
@@ -90,6 +116,7 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
     categories_ru: [],
     downloads: 0,
     api_source: '',
+    mod_loader: loader,
   };
 
   applyLocalAnalysis(modInfo);

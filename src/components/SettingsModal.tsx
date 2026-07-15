@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder, Monitor, Settings2, ShieldCheck, Gamepad2, Info, CheckCircle2 } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -83,15 +84,16 @@ export default function SettingsModal({ onClose, gamePath, setGamePath }: Settin
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-zinc-400 font-medium">Язык интерфейса</label>
-              <select 
+              <label className="text-sm text-zinc-400 font-medium block">Язык интерфейса</label>
+              <CustomSelect 
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
-              >
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
-              </select>
+                onChange={setLanguage}
+                options={[
+                  { value: 'ru', label: 'Русский' },
+                  { value: 'en', label: 'English' }
+                ]}
+                className="w-full"
+              />
             </div>
           </div>
 

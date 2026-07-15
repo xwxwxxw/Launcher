@@ -22,6 +22,7 @@ export interface ModInfo {
   categories_ru: string[];
   downloads: number;
   api_source: string;
+  mod_loader?: string;
 }
 
 export interface Profile {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, FolderOpen, Shield, Sparkles } from 'lucide-react';
 import PlayerHead2D from './PlayerHead2D';
 import { openFolderInExplorer } from '../utils/explorer';
+import CustomSelect from './CustomSelect';
 
 export default function SettingsTab({ 
   userProfile, 
@@ -658,15 +659,16 @@ export default function SettingsTab({
                     <h4 className="text-sm font-semibold text-zinc-200">Действие лаунчера</h4>
                     <p className="text-[11px] text-zinc-500 mt-0.5 font-sans">Что делать с окном лаунчера после успешного старта игры.</p>
                   </div>
-                  <select 
+                  <CustomSelect 
                     value={launchBehavior}
-                    onChange={(e) => handleLaunchBehaviorChange(e.target.value)}
-                    className="bg-zinc-900 border border-zinc-700/60 rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-200 outline-none cursor-pointer hover:border-zinc-500 transition-colors"
-                  >
-                    <option value="close">Закрыть лаунчер</option>
-                    <option value="minimize">Свернуть лаунчер</option>
-                    <option value="keep_open">Оставить открытым</option>
-                  </select>
+                    onChange={handleLaunchBehaviorChange}
+                    options={[
+                      { value: 'close', label: 'Закрыть лаунчер' },
+                      { value: 'minimize', label: 'Свернуть лаунчер' },
+                      { value: 'keep_open', label: 'Оставить открытым' }
+                    ]}
+                    className="w-48"
+                  />
                 </div>
 
                 <div className="border-t border-zinc-800/60 pt-5 flex items-center justify-between">

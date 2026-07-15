@@ -57,12 +57,34 @@ ipcMain.handle('elyLogin', async (event, params) => {
       }
     });
 
+    const activePort = process.env.PORT || '3000';
+    const origin = `http://localhost:${activePort}`;
+
     const urlParams = new URLSearchParams();
-    urlParams.append('origin', 'http://localhost:3000');
+    urlParams.append('origin', origin);
     if (params?.customClientId) urlParams.append('client_id', params.customClientId);
     if (params?.customClientSecret) urlParams.append('client_secret', params.customClientSecret);
 
-    const loginUrl = `http://localhost:3000/api/auth/ely/url?${urlParams.toString()}`;
+    const loginUrl = `${origin}/api/auth/ely/url?${urlParams.toString()}`;
+
+    // Intercept redirect to localhost:3000 to route to the correct dynamic port
+    authWindow.webContents.on('will-redirect', (e, url) => {
+      const redirectPrefix = 'http://localhost:3000/api/auth/ely/callback';
+      if (url.startsWith(redirectPrefix)) {
+        e.preventDefault();
+        const targetUrl = url.replace('http://localhost:3000', `http://localhost:${activePort}`);
+        authWindow.loadURL(targetUrl);
+      }
+    });
+
+    authWindow.webContents.on('will-navigate', (e, url) => {
+      const redirectPrefix = 'http://localhost:3000/api/auth/ely/callback';
+      if (url.startsWith(redirectPrefix)) {
+        e.preventDefault();
+        const targetUrl = url.replace('http://localhost:3000', `http://localhost:${activePort}`);
+        authWindow.loadURL(targetUrl);
+      }
+    });
 
     authWindow.loadURL(loginUrl);
     authWindow.show();
@@ -345,16 +367,17 @@ ipcMain.handle('install-update', async (event, tempPath) => {
     const script = `@echo off
 chcp 65001 > NUL
 echo Updating...
+taskkill /f /im "${require('path').basename(targetPath)}" > NUL 2>&1
 timeout /t 2 /nobreak > NUL
 :retry
-if exist "\${targetPath}.old" del "\${targetPath}.old"
-ren "\${targetPath}" "\${require('path').basename(targetPath)}.old"
+if exist "${targetPath}.old" del /f /q "${targetPath}.old"
+ren "${targetPath}" "${require('path').basename(targetPath)}.old"
 if errorlevel 1 (
     timeout /t 1 /nobreak > NUL
     goto retry
 )
-copy /y "\${tempPath}" "\${targetPath}"
-start "" "\${targetPath}"
+copy /y "${tempPath}" "${targetPath}"
+start "" "${targetPath}"
 del "%~f0"
 `;
     

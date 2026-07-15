@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Download, Loader2, Star, DownloadCloud, Box, Globe, Palette, Sun, Layers, ShieldAlert } from 'lucide-react';
 import { Profile } from '../types';
+import CustomSelect from './CustomSelect';
 
 interface ModrinthProject {
   project_id: string;
@@ -21,9 +22,11 @@ interface ModrinthModalProps {
   activeProfileId: string;
   activeProfile?: Profile;
   globalGamePath?: string;
+  profiles?: Profile[];
 }
 
-export default function ModrinthModal({ onClose, onRefresh, activeProfileId, activeProfile, globalGamePath }: ModrinthModalProps) {
+export default function ModrinthModal({ onClose, onRefresh, activeProfileId, activeProfile, globalGamePath, profiles }: ModrinthModalProps) {
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(activeProfileId);
   const [query, setQuery] = useState('');
   const [contentType, setContentType] = useState<'mod' | 'resourcepack' | 'shader'>('mod');
   const installTarget = 'client' as 'client' | 'server';
@@ -50,12 +53,22 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
   const [modLoader, setModLoader] = useState<string>('');
 
   useEffect(() => {
-    if (activeProfile) {
+    if (selectedProfileId === 'global') {
+      setGameVersion('');
+      setModLoader('');
+    } else if (profiles) {
+      const prof = profiles.find(p => p.id === selectedProfileId);
+      if (prof) {
+        setGameVersion(prof.game_version || '');
+        const loader = prof.mod_loader?.toLowerCase() || '';
+        setModLoader(loader === 'vanilla' ? '' : loader);
+      }
+    } else if (activeProfile) {
       setGameVersion(activeProfile.game_version || '');
       const loader = activeProfile.mod_loader?.toLowerCase() || '';
       setModLoader(loader === 'vanilla' ? '' : loader);
     }
-  }, [activeProfile]);
+  }, [selectedProfileId, profiles, activeProfile]);
 
   useEffect(() => {
     handleSearch();
@@ -117,7 +130,7 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
           projectId, 
           versionId: 'latest', 
           folderPath: destPath, 
-          profileId: 'global', 
+          profileId: selectedProfileId, 
           contentType, 
           installTarget,
           minecraftPath: globalGamePath 
@@ -160,7 +173,7 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
             projectId: dep.projectId, 
             versionId: 'latest', 
             folderPath: destPath, 
-            profileId: 'global', 
+            profileId: selectedProfileId, 
             installTarget,
             minecraftPath: globalGamePath 
           })
@@ -245,40 +258,58 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
                 </button>
               </div>
 
-              <select
+              <CustomSelect
                 value={gameVersion}
-                onChange={(e) => setGameVersion(e.target.value)}
-                className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-              >
-                <option value="" className="bg-[#0b0b0c] text-zinc-300">Все версии Minecraft</option>
-                <option value="1.21" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.21</option>
-                <option value="1.20.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.4</option>
-                <option value="1.20.1" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.1</option>
-                <option value="1.19.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.4</option>
-                <option value="1.19.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.2</option>
-                <option value="1.18.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.18.2</option>
-                <option value="1.16.5" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.16.5</option>
-                <option value="1.12.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.12.2</option>
-              </select>
+                onChange={setGameVersion}
+                options={[
+                  { value: '', label: 'Все версии Minecraft' },
+                  { value: '1.21', label: 'Minecraft 1.21' },
+                  { value: '1.20.4', label: 'Minecraft 1.20.4' },
+                  { value: '1.20.1', label: 'Minecraft 1.20.1' },
+                  { value: '1.19.4', label: 'Minecraft 1.19.4' },
+                  { value: '1.19.2', label: 'Minecraft 1.19.2' },
+                  { value: '1.18.2', label: 'Minecraft 1.18.2' },
+                  { value: '1.16.5', label: 'Minecraft 1.16.5' },
+                  { value: '1.12.2', label: 'Minecraft 1.12.2' }
+                ]}
+                className="w-56"
+              />
 
               {contentType === 'mod' && (
-                <select
+                <CustomSelect
                   value={modLoader}
-                  onChange={(e) => setModLoader(e.target.value)}
-                  className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                >
-                  <option value="" className="bg-[#0b0b0c] text-zinc-300">Все загрузчики</option>
-                  <option value="fabric" className="bg-[#0b0b0c] text-zinc-300">Fabric</option>
-                  <option value="forge" className="bg-[#0b0b0c] text-zinc-300">Forge</option>
-                  <option value="neoforge" className="bg-[#0b0b0c] text-zinc-300">NeoForge</option>
-                  <option value="quilt" className="bg-[#0b0b0c] text-zinc-300">Quilt</option>
-                </select>
+                  onChange={setModLoader}
+                  options={[
+                    { value: '', label: 'Все загрузчики' },
+                    { value: 'fabric', label: 'Fabric' },
+                    { value: 'forge', label: 'Forge' },
+                    { value: 'neoforge', label: 'NeoForge' },
+                    { value: 'quilt', label: 'Quilt' }
+                  ]}
+                  className="w-48"
+                />
               )}
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 items-end">
-            <div className="relative w-80">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Установить в:</span>
+              <CustomSelect
+                value={selectedProfileId}
+                onChange={setSelectedProfileId}
+                options={[
+                  { value: 'global', label: 'Общая папка игры (Глобальные)' },
+                  ...(profiles || []).map(p => ({
+                    value: p.id,
+                    label: `Сборка: ${p.name} (${p.game_version})`
+                  }))
+                ]}
+                className="w-72"
+              />
+            </div>
+
+            <div className="relative w-72">
               <Search className="absolute left-3.5 top-3 text-zinc-500" size={16} />
               <input 
                 type="text" 

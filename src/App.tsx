@@ -216,6 +216,13 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
+  const [modsTabProfileId, setModsTabProfileId] = useState<string>('global');
+
+  useEffect(() => {
+    if (activeProfileId) {
+      setModsTabProfileId(activeProfileId);
+    }
+  }, [activeProfileId]);
   
   const [mods, setMods] = useState<ModInfo[]>([]);
   const [loadingMods, setLoadingMods] = useState(true);
@@ -404,6 +411,19 @@ export default function App() {
     }
   };
 
+  const activeProfile: any = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
+    id: '1',
+    name: 'Vanilla 1.20.1',
+    game_version: '1.20.1',
+    mod_loader: 'Vanilla',
+    mod_loader_version: '0.15.7',
+    description: 'Чистая сборка без модов.',
+    ram_mb: ram,
+    mod_path: './profiles/1/.minecraft/mods',
+    created_at: Date.now(),
+    is_active: true
+  };
+
   const getConflicts = () => {
     const list: any[] = [];
     
@@ -437,6 +457,66 @@ export default function App() {
         type: 'missing_dependency',
         title: 'Отсутствует зависимость: Fabric API',
         description: 'Для корректной работы Sodium в среде Fabric требуется установить официальный Fabric API.',
+        severity: 'high'
+      });
+    }
+
+    // 1. Loader Mismatch Check
+    mods.forEach(m => {
+      if (!m.enabled) return;
+      if (activeProfile.mod_loader === 'Fabric' && m.mod_loader === 'forge') {
+        list.push({
+          id: `loader-mismatch-${m.mod_id}`,
+          type: 'conflict',
+          title: `Несовместимый загрузчик: ${m.display_name || m.name}`,
+          description: `Мод "${m.display_name || m.name}" разработан для Forge, однако ваша текущая сборка использует Fabric. Этот мод не запустится и приведет к ошибке игры.`,
+          severity: 'critical'
+        });
+      } else if (activeProfile.mod_loader === 'Forge' && (m.mod_loader === 'fabric' || m.mod_loader === 'quilt')) {
+        list.push({
+          id: `loader-mismatch-${m.mod_id}`,
+          type: 'conflict',
+          title: `Несовместимый загрузчик: ${m.display_name || m.name}`,
+          description: `Мод "${m.display_name || m.name}" разработан для Fabric/Quilt, однако ваша текущая сборка использует Forge. Этот мод не запустится и приведет к ошибке игры.`,
+          severity: 'critical'
+        });
+      }
+    });
+
+    // 2. Minecraft Version Mismatch Check
+    const mcVersions = ['1.7.10', '1.8.9', '1.12.2', '1.16.5', '1.18.2', '1.19.2', '1.19.4', '1.20.1', '1.20.4', '1.21'];
+    mods.forEach(m => {
+      if (!m.enabled) return;
+      const filename = (m.name || m.path || '').toLowerCase();
+      const detected = mcVersions.filter(v => filename.includes(v));
+      if (detected.length > 0 && !detected.includes(activeProfile.game_version)) {
+        list.push({
+          id: `version-mismatch-${m.mod_id}`,
+          type: 'conflict',
+          title: `Несовместимая версия игры: ${m.display_name || m.name}`,
+          description: `Мод "${m.display_name || m.name}" судя по названию предназначен для версии Minecraft ${detected.join(', ')}, но ваша текущая сборка работает на ${activeProfile.game_version}. Это может вызвать критический сбой на запуске.`,
+          severity: 'critical'
+        });
+      }
+    });
+
+    // 3. Duplicate Minimaps Check
+    const minimapMods = mods.filter(m => 
+      m.enabled && (
+        m.mod_id?.toLowerCase().includes('xaero') || 
+        m.display_name?.toLowerCase().includes('xaero') ||
+        m.mod_id?.toLowerCase().includes('journeymap') || 
+        m.display_name?.toLowerCase().includes('journeymap') ||
+        m.mod_id?.toLowerCase().includes('voxelmap') || 
+        m.display_name?.toLowerCase().includes('voxelmap')
+      )
+    );
+    if (minimapMods.length > 1) {
+      list.push({
+        id: 'conflict-multiple-minimaps',
+        type: 'conflict',
+        title: 'Несколько миникарт активны одновременно',
+        description: `В вашей сборке включено несколько модов на миникарту: ${minimapMods.map(m => m.display_name || m.name).join(', ')}. Рекомендуется отключить или удалить лишние миникарты, чтобы избежать наложений интерфейса и снижения FPS.`,
         severity: 'high'
       });
     }
@@ -693,19 +773,6 @@ export default function App() {
     }
   };
 
-  const activeProfile: any = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
-    id: '1',
-    name: 'Vanilla 1.20.1',
-    game_version: '1.20.1',
-    mod_loader: 'Vanilla',
-    mod_loader_version: '0.15.7',
-    description: 'Чистая сборка без модов.',
-    ram_mb: ram,
-    mod_path: './profiles/1/.minecraft/mods',
-    created_at: Date.now(),
-    is_active: true
-  };
-
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30 relative">
       {/* Subtle ambient glows for glassmorphism backdrop */}
@@ -844,6 +911,9 @@ export default function App() {
               onRefresh={fetchMods}
               globalGamePath={globalGamePath}
               onOpenModrinth={() => setShowModrinthModal(true)}
+              profiles={profiles}
+              activeProfileId={modsTabProfileId}
+              onSelectProfile={setModsTabProfileId}
             />
           )}
 
@@ -865,9 +935,10 @@ export default function App() {
             <ModrinthModal 
               onClose={() => setShowModrinthModal(false)}
               onRefresh={fetchMods}
-              activeProfileId={activeProfileId}
-              activeProfile={activeProfile}
+              activeProfileId={modsTabProfileId}
+              activeProfile={profiles.find(p => p.id === modsTabProfileId) || activeProfile}
               globalGamePath={globalGamePath}
+              profiles={profiles}
             />
           )}
           {activeTab === 'conflicts' && (

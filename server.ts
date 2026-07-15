@@ -472,7 +472,8 @@ app.get('/api/auth/ely/url', (req, res) => {
     const clientId = customClientId || process.env.ELY_CLIENT_ID || 'layle-launcher3';
     const clientSecret = customClientSecret || process.env.ELY_CLIENT_SECRET || '21nUJW32uKxbQrLCx5qTWL3_Fk11ehEBw3S_xnNfuOFRHfygzerpbhp5T7uGLyKc';
 
-    const redirectUri = `${origin}/api/auth/ely/callback`;
+    const useOrigin = clientId === 'layle-launcher3' ? 'http://localhost:3000' : origin;
+    const redirectUri = `${useOrigin}/api/auth/ely/callback`;
     
     // Package credentials into state parameter to keep this server completely stateless and support localhost/multiple hosts dynamically
     const stateObj = {
@@ -569,7 +570,8 @@ const handleElyCallback = async (req, res) => {
     const stateObj = JSON.parse(Buffer.from(state as string, 'base64').toString('utf-8'));
     const { clientId, clientSecret, origin } = stateObj;
     
-    const redirectUri = `${origin}/api/auth/ely/callback`;
+    const useOrigin = clientId === 'layle-launcher3' ? 'http://localhost:3000' : origin;
+    const redirectUri = `${useOrigin}/api/auth/ely/callback`;
 
     // Exchange Code for Access Token
     const tokenRes = await fetch('https://oauth.ely.by/oauth/v2/token', {
