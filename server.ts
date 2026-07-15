@@ -23,6 +23,7 @@ import { Profile } from './src/types.js';
 // Load environment variables from .env
 dotenv.config();
 
+let pendingElyAuth: any = null;
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
@@ -87,6 +88,21 @@ if (fs.existsSync(localModsFile)) {
 }
 
 // Profiles In-Memory DB (or File backed)
+function normalizeProfilePath(inputPath: string, profileId: string, customMcPath?: string): string {
+  if (!inputPath) return '';
+  if (inputPath.startsWith('./profiles') || inputPath.includes('/profiles/')) {
+    const mcPath = customMcPath && customMcPath.trim() !== '' ? customMcPath : './.minecraft';
+    const resolvedMcPath = path.isAbsolute(mcPath) ? mcPath : path.resolve(process.cwd(), mcPath);
+    
+    // Extract subfolders after "./profiles/${id}/"
+    const regex = new RegExp(`\\.?\\/?profiles\\/${profileId}\\/?(.*)`);
+    const match = inputPath.match(regex);
+    const sub = match && match[1] ? match[1] : '';
+    return path.join(resolvedMcPath, 'profiles', profileId, sub);
+  }
+  return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
+}
+
 let profiles: Profile[] = [];
 
 function saveProfiles() {
@@ -100,7 +116,7 @@ if (fs.existsSync(PROFILES_FILE)) {
     let migrated = false;
     profiles.forEach(p => {
       if (!p.mod_path || p.mod_path.trim() === '') {
-        p.mod_path = `./profiles/${p.id}/.minecraft/mods`;
+        p.mod_path = `./profiles/${p.id}/mods`;
         migrated = true;
       }
     });
@@ -118,7 +134,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       description: 'Сборка на загрузчике Fabric с оптимизацией FPS (Sodium) и поддержкой современных модов.',
       game_version: '1.20.1',
       mod_loader: 'Fabric' as const,
-      mod_path: './profiles/1/.minecraft/mods',
+      mod_path: './profiles/1/mods',
       created_at: Date.now() - 100000,
       is_active: true,
       ram_mb: 4096
@@ -129,7 +145,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       description: 'Классическая сборка на загрузчике Forge для работы с масштабными индустриальными и магическими модификациями.',
       game_version: '1.20.1',
       mod_loader: 'Forge',
-      mod_path: './profiles/2/.minecraft/mods',
+      mod_path: './profiles/2/mods',
       created_at: Date.now() - 50000,
       is_active: false,
       ram_mb: 4096
@@ -188,7 +204,8 @@ app.get('/api/profiles/:id/export', async (req, res) => {
   
   if (!profile) return res.status(404).send('Profile not found');
   
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId}`);
+  const mcPath = req.query.minecraftPath || '';
+  const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, String(mcPath));
   if (!fs.existsSync(profileDir)) return res.status(404).send('Profile directory not found');
 
   res.attachment(`${profile.name || 'profile'}_export.zip`);
@@ -212,7 +229,8 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
   
   const tempPath = (req as any).file.path;
   const newId = Date.now().toString();
-  const profileDir = path.resolve(process.cwd(), `./profiles/${newId}`);
+  const mcPath = req.body.minecraftPath || req.query.minecraftPath || '';
+  const profileDir = normalizeProfilePath(`./profiles/${newId}`, newId, String(mcPath));
   fs.mkdirSync(profileDir, { recursive: true });
   
   try {
@@ -241,16 +259,16 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
     
     if (profileData) {
       profileData.id = newId;
-      profileData.mod_path = `./profiles/${newId}/.minecraft/mods`;
+      profileData.mod_path = `./profiles/${newId}/mods`;
       profiles.push(profileData);
       saveProfiles();
       
       // We also need to rescan mods!
-      if (fs.existsSync(path.join(profileDir, '.minecraft', 'mods'))) {
-        const jarFiles = fs.readdirSync(path.join(profileDir, '.minecraft', 'mods')).filter(f => f.endsWith('.jar'));
+      if (fs.existsSync(path.join(profileDir, 'mods'))) {
+        const jarFiles = fs.readdirSync(path.join(profileDir, 'mods')).filter(f => f.endsWith('.jar'));
         for (const jar of jarFiles) {
           modsList.push({
-            path: path.join(profileDir, '.minecraft', 'mods', jar),
+            path: path.join(profileDir, 'mods', jar),
             name: jar,
             mod_id: jar.replace('.jar', ''),
             display_name: jar,
@@ -270,7 +288,7 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
         game_version: '1.20.1',
         mod_loader: 'Fabric' as const,
         mod_loader_version: '0.15.7',
-        mod_path: `./profiles/${newId}/.minecraft/mods`,
+        mod_path: `./profiles/${newId}/mods`,
         created_at: Date.now(),
         is_active: false,
         ram_mb: 4096
@@ -290,7 +308,7 @@ app.put('/api/profiles/:id', (req, res) => {
   if (index !== -1) {
     const updated = { ...profiles[index], ...req.body };
     if (!updated.mod_path || updated.mod_path.trim() === '') {
-      updated.mod_path = `./profiles/${req.params.id}/.minecraft/mods`;
+      updated.mod_path = `./profiles/${req.params.id}/mods`;
     }
     profiles[index] = updated;
     saveProfiles();
@@ -668,6 +686,7 @@ const handleElyCallback = async (req, res) => {
           </div>
           <script>
             const profile = ${JSON.stringify(profile)};
+            fetch('/api/auth/ely/success', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(profile) }).catch(()=>{});
             let success = false;
             
             // 1. Force write to localStorage as a super stable fallback for iframe / popups / Electron
@@ -779,6 +798,21 @@ const handleElyCallback = async (req, res) => {
 app.get('/api/auth/ely/callback', handleElyCallback);
 app.get('/api/auth/ely/callback/', handleElyCallback);
 
+app.post('/api/auth/ely/success', express.json(), (req, res) => {
+  pendingElyAuth = req.body;
+  res.json({ success: true });
+});
+
+app.get('/api/auth/ely/status', (req, res) => {
+  if (pendingElyAuth) {
+    const profile = pendingElyAuth;
+    pendingElyAuth = null;
+    res.json({ success: true, profile });
+  } else {
+    res.json({ success: false });
+  }
+});
+
 app.post('/api/mods/install', async (req, res) => {
   const { projectId, versionId, folderPath, profileId, contentType } = req.body;
   
@@ -861,8 +895,17 @@ app.post('/api/mods/install', async (req, res) => {
       : (projectType === 'shader' ? 'shaderpacks' : 'mods');
 
     let targetPath = `/mock/${computedContentType}/${profileId || '1'}/${modId}${projectType === 'mod' ? '.jar' : '.zip'}`;
+    
     let destDir = folderPath;
-    if (profile && profile.mod_path) destDir = profile.mod_path;
+    if (profileId && profileId !== 'global') {
+      const pPath = profile && profile.mod_path ? profile.mod_path : `./profiles/${profileId}/mods`;
+      destDir = normalizeProfilePath(pPath, profileId, req.body.minecraftPath);
+    } else {
+      // Global installation (from Mods tab)
+      const mcPath = req.body.minecraftPath || './.minecraft';
+      const resolvedMcPath = path.isAbsolute(mcPath) ? mcPath : path.resolve(process.cwd(), mcPath);
+      destDir = path.join(resolvedMcPath, 'mods');
+    }
     
     if (destDir) {
       const installTarget = req.body.installTarget || 'client';
@@ -966,13 +1009,17 @@ app.post('/api/mods/delete', (req, res) => {
 });
 
 app.post('/api/mods/scan', async (req, res) => {
-  let { folderPath, profileId, contentType = 'mods' } = req.body;
+  let { folderPath, profileId, contentType = 'mods', minecraftPath } = req.body;
   
-  if (profileId) {
+  if (profileId && profileId !== 'global') {
     const profile = profiles.find(p => p.id === profileId);
-    if (profile && profile.mod_path) {
-      folderPath = profile.mod_path;
-    }
+    const pPath = profile && profile.mod_path ? profile.mod_path : `./profiles/${profileId}/mods`;
+    folderPath = normalizeProfilePath(pPath, profileId, minecraftPath);
+  } else {
+    // Global scan (Mods tab)
+    const mcPath = minecraftPath || './.minecraft';
+    const resolvedMcPath = path.isAbsolute(mcPath) ? mcPath : path.resolve(process.cwd(), mcPath);
+    folderPath = path.join(resolvedMcPath, 'mods');
   }
 
   const installTarget = req.body.installTarget || 'client';
@@ -1313,13 +1360,13 @@ app.get('/api/minecraft/launch', async (req, res) => {
     name: 'Сборка Fabric 1.20.1',
     game_version: '1.20.1',
     mod_loader: 'Fabric',
-    mod_path: './profiles/1/.minecraft/mods',
+    mod_path: './profiles/1/mods',
     description: ''
   };
 
   const selectedRam = ram || '4096';
   const baseDir = getStorageDir(); // Or process.cwd() ? Wait! It should probably go in the APPDATA folder now!
-  const selectedMinecraft = minecraftPath ? String(minecraftPath) : `./profiles/${activeProfile.id}/.minecraft`;
+  const selectedMinecraft = minecraftPath ? String(minecraftPath) : `./profiles/${activeProfile.id}`;
   const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(process.cwd(), selectedMinecraft);
   const jvmArguments = jvmArgs ? String(jvmArgs).split(' ') : [];
 
@@ -1339,8 +1386,8 @@ app.get('/api/minecraft/launch', async (req, res) => {
   }
   
   // Always use global root for assets and libraries to prevent redownloading
-  const globalRoot = path.resolve(process.cwd(), './.minecraft');
-  const isolatedDir = path.resolve(process.cwd(), `./profiles/${activeProfile.id}/.minecraft`);
+  const globalRoot = minecraftPathAbsolute;
+  const isolatedDir = normalizeProfilePath(`./profiles/${activeProfile.id}`, activeProfile.id, selectedMinecraft);
   
   if (!fs.existsSync(isolatedDir)) {
     fs.mkdirSync(isolatedDir, { recursive: true });
@@ -1500,8 +1547,17 @@ app.get('/api/minecraft/launch', async (req, res) => {
     opts.customArgs = jvmArguments;
   }
 
-  launcher.on('debug', (e: string) => sendEvent('log', { message: e, progress: 50 }));
-  launcher.on('data', (e: string) => sendEvent('log', { message: e, progress: 80 }));
+  let stdLog = '';
+  launcher.on('debug', (e: string) => {
+    stdLog += e + '\n';
+    if (stdLog.length > 50000) stdLog = stdLog.substring(stdLog.length - 50000);
+    sendEvent('log', { message: e, progress: 50 });
+  });
+  launcher.on('data', (e: string) => {
+    stdLog += e + '\n';
+    if (stdLog.length > 50000) stdLog = stdLog.substring(stdLog.length - 50000);
+    sendEvent('log', { message: e, progress: 80 });
+  });
   launcher.on('download-status', (e: any) => {
     const progress = Math.min(100, Math.round((e.current / e.total) * 100));
     sendEvent('log', { message: `Загрузка ${e.name}...`, progress });
@@ -1599,9 +1655,8 @@ app.get('/api/minecraft/launch', async (req, res) => {
 // ==================== LOGS & SCREENSHOTS ====================
 
 app.get('/api/minecraft/logs', (req, res) => {
-  const { profileId } = req.query;
-  const profile = profiles.find(p => p.id === profileId);
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const { profileId, minecraftPath } = req.query;
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
   
   const logPath = path.join(profileDir, 'logs', 'latest.log');
   
@@ -1624,8 +1679,8 @@ app.get('/api/minecraft/logs', (req, res) => {
 });
 
 app.post('/api/minecraft/open-logs-folder', async (req, res) => {
-  const { profileId } = req.query;
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const { profileId, minecraftPath } = req.query;
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
   const logsDir = path.join(profileDir, 'logs');
   
   if (!fs.existsSync(logsDir)) {
@@ -1644,8 +1699,7 @@ app.post('/api/minecraft/open-logs-folder', async (req, res) => {
 
 app.get('/api/minecraft/screenshots', (req, res) => {
   const { profileId, globalPath } = req.query;
-  // Minecraft usually saves screenshots in isolated dir or global if not isolated.
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(globalPath || ''));
   const screenshotsDir = path.join(profileDir, 'screenshots');
   
   if (!fs.existsSync(screenshotsDir)) {
@@ -1687,8 +1741,8 @@ app.post('/api/minecraft/screenshots/delete', (req, res) => {
 });
 
 app.post('/api/minecraft/open-screenshots-folder', async (req, res) => {
-  const { profileId } = req.query;
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const { profileId, globalPath } = req.query;
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(globalPath || ''));
   const dir = path.join(profileDir, 'screenshots');
   
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -1700,8 +1754,8 @@ app.post('/api/minecraft/open-screenshots-folder', async (req, res) => {
 });
 
 app.post('/api/minecraft/open-game-folder', async (req, res) => {
-  const { profileId } = req.query;
-  const profileDir = path.resolve(process.cwd(), `./profiles/${profileId || '1'}/.minecraft`);
+  const { profileId, minecraftPath } = req.query;
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
   if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
   try {
     const { shell } = require('electron');
@@ -1739,7 +1793,7 @@ app.get('/api/system/check-update', async (req, res) => {
     const currentVersion = require('./package.json').version || '1.0.0';
     let repo = process.env.GITHUB_REPO || '';
     if (repo) {
-      repo = repo.trim().replace(/\.git$/, '');
+      repo = repo.trim().replace(/\\.git$/, '');
       if (repo.includes('github.com/')) {
         const parts = repo.split('github.com/');
         if (parts.length > 1) repo = parts[1];

@@ -7,6 +7,14 @@ import {
   WORLDGEN_MODS, CLIENT_MODS, SERVER_MODS, HEAVY_MODS, OPTIMIZATION_MODS, WORLDGEN_KEYWORDS, TRANSLATIONS
 } from './constants.js';
 
+interface CacheEntry {
+  mtimeMs: number;
+  size: number;
+  info: ModInfo;
+}
+
+const modCache = new Map<string, CacheEntry>();
+
 export async function parseModJar(filePath: string): Promise<ModInfo> {
   const fileName = path.basename(filePath, '.jar');
   let modId = fileName;
@@ -15,6 +23,17 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
   let environment = '';
   let depends: string[] = [];
   let iconDataUrl = '';
+
+  let stats: fs.Stats | null = null;
+  try {
+    stats = await fs.promises.stat(filePath);
+    const cached = modCache.get(filePath);
+    if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+      return cached.info;
+    }
+  } catch (e) {
+    // If stats can't be read, continue without cache
+  }
 
   try {
     const data = await fs.promises.readFile(filePath);
@@ -74,6 +93,13 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
   };
 
   applyLocalAnalysis(modInfo);
+  if (stats) {
+    modCache.set(filePath, {
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+      info: modInfo
+    });
+  }
   return modInfo;
 }
 

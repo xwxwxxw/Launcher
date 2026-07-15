@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import HomeTab from './components/HomeTab';
 import ModsTab from './components/ModsTab';
 import ProfilesTab from './components/ProfilesTab';
@@ -16,10 +16,10 @@ import PlayerHead2D from './components/PlayerHead2D';
 import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X, Gamepad2, Home, DownloadCloud } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 import ModrinthModal from './components/ModrinthModal';
-
+import ModrinthTab from './components/ModrinthTab';
 
 export default function App() {
-  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts'>(() => {
+  const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
     return (localStorage.getItem('launcher_active_tab') as any) || 'home';
   });
 
@@ -27,7 +27,7 @@ export default function App() {
   const [highlightRam, setHighlightRam] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
-  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts') => {
+  const setActiveTab = (tab: 'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder') => {
     setActiveTabState(tab);
     localStorage.setItem('launcher_active_tab', tab);
     setShowModrinthModal(false); // Close mod installation modal on tab switch!
@@ -231,27 +231,27 @@ export default function App() {
     return localStorage.getItem('launcher_minecraft_path') || './.minecraft';
   });
 
-  const setRam = (val: number) => {
+  const setRam = useCallback((val: number) => {
     setRamState(val);
     localStorage.setItem('launcher_ram', val.toString());
     if (activeProfileId) {
       handleUpdateProfile(activeProfileId, { ram_mb: val });
     }
-  };
-  const setJavaPath = (val: string) => {
+  }, [activeProfileId]);
+  const setJavaPath = useCallback((val: string) => {
     setJavaPathState(val);
     localStorage.setItem('launcher_java_path', val);
     if (activeProfileId) {
       handleUpdateProfile(activeProfileId, { java_path: val });
     }
-  };
-  const setMinecraftPath = (val: string) => {
+  }, [activeProfileId]);
+  const setMinecraftPath = useCallback((val: string) => {
     setMinecraftPathState(val);
     localStorage.setItem('launcher_minecraft_path', val);
     if (activeProfileId) {
       handleUpdateProfile(activeProfileId, { minecraft_path: val });
     }
-  };
+  }, [activeProfileId]);
 
   const fetchProfiles = async () => {
     setLoadingProfiles(true);
@@ -573,7 +573,8 @@ export default function App() {
           setIsCheckingInstall(false);
         });
     }
-  }, [activeProfileId, profiles, minecraftPath]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfileId, profiles.length, minecraftPath, profiles.find(p => p.id === activeProfileId)?.game_version, profiles.find(p => p.id === activeProfileId)?.mod_loader]);
 
   useEffect(() => {
     // 1. Initial load of active session
@@ -738,6 +739,12 @@ export default function App() {
             icon={<FolderTree size={22} strokeWidth={activeTab === 'mods' ? 2.5 : 2} />} 
             label="Моды" 
           />
+          <TabButton 
+            active={activeTab === 'builder'} 
+            onClick={() => setActiveTab('builder')} 
+            icon={<DownloadCloud size={22} strokeWidth={activeTab === 'builder' ? 2.5 : 2} />} 
+            label="Сборщик" 
+          />
 
           <TabButton 
             active={activeTab === 'profiles'} 
@@ -835,8 +842,7 @@ export default function App() {
           {activeTab === 'mods' && (
             <ModsTab 
               onRefresh={fetchMods}
-              activeProfileId={activeProfileId}
-              activeProfile={activeProfile}
+              globalGamePath={globalGamePath}
               onOpenModrinth={() => setShowModrinthModal(true)}
             />
           )}
@@ -861,6 +867,7 @@ export default function App() {
               onRefresh={fetchMods}
               activeProfileId={activeProfileId}
               activeProfile={activeProfile}
+              globalGamePath={globalGamePath}
             />
           )}
           {activeTab === 'conflicts' && (
@@ -870,8 +877,15 @@ export default function App() {
               onDismissConflict={handleDismissConflict}
             />
           )}
+          {activeTab === 'builder' && (
+            <ModrinthTab 
+              onRefresh={fetchMods}
+              activeProfileId={activeProfileId}
+              activeProfile={activeProfile}
+            />
+          )}
           {(activeTab as any) === 'logs' && (
-            <LogsTab activeProfileId={activeProfileId} />
+            <LogsTab activeProfileId={activeProfileId} globalGamePath={globalGamePath} />
           )}
           {(activeTab as any) === 'screenshots' && (
             <ScreenshotsTab activeProfileId={activeProfileId} globalGamePath={globalGamePath} />

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, FolderOpen, RefreshCw, AlertTriangle } from 'lucide-react';
 import { openFolderInExplorer } from '../utils/explorer';
 
-export default function LogsTab({ activeProfileId }: { activeProfileId: string }) {
+export default function LogsTab({ activeProfileId, globalGamePath }: { activeProfileId: string, globalGamePath: string }) {
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -11,7 +11,7 @@ export default function LogsTab({ activeProfileId }: { activeProfileId: string }
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/minecraft/logs?profileId=${activeProfileId}`);
+      const res = await fetch(`/api/minecraft/logs?profileId=${activeProfileId}&minecraftPath=${encodeURIComponent(globalGamePath)}`);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.content || 'Логи пусты.');
@@ -28,14 +28,18 @@ export default function LogsTab({ activeProfileId }: { activeProfileId: string }
 
   useEffect(() => {
     fetchLogs();
-  }, [activeProfileId]);
+  }, [activeProfileId, globalGamePath]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
   const handleOpenFolder = async () => {
-    openFolderInExplorer(`./profiles/${activeProfileId}/.minecraft/logs`);
+    try {
+      await fetch(`/api/minecraft/open-logs-folder?profileId=${activeProfileId}&minecraftPath=${encodeURIComponent(globalGamePath)}`, { method: 'POST' });
+    } catch (e) {
+      console.error('Failed to open logs folder:', e);
+    }
   };
 
   return (

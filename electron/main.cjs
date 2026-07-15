@@ -6,32 +6,7 @@ const https = require('https');
 const crypto = require('crypto');
 const os = require('os');
 
-// Update mode
-if (process.argv.includes('--update-mode')) {
-  const tempPath = process.argv[process.argv.indexOf('--update-mode') + 1];
-  const targetPath = process.execPath;
-  
-  // Wait to ensure parent process exits
-  setTimeout(() => {
-    try {
-      if (process.platform === 'win32') {
-         const oldPath = targetPath + '.old';
-         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-         fs.renameSync(targetPath, oldPath);
-         fs.copyFileSync(tempPath, targetPath);
-         require('child_process').spawn(targetPath, [], { detached: true, stdio: 'ignore' }).unref();
-      } else {
-         fs.copyFileSync(tempPath, targetPath);
-         require('child_process').spawn(targetPath, [], { detached: true, stdio: 'ignore' }).unref();
-      }
-      process.exit(0);
-    } catch (e) {
-      console.error('Update failed:', e);
-      process.exit(1);
-    }
-  }, 2000);
-  return;
-}
+
 
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
 
@@ -361,7 +336,36 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
 
 ipcMain.handle('install-update', async (event, tempPath) => {
   try {
-    app.relaunch({ args: [...process.argv.slice(1), '--update-mode', tempPath] });
+    const targetPath = process.execPath;
+    const batPath = require('path').join(app.getPath('temp'), 'updater.bat');
+    
+    // As per user request: Installer shouldn't check if launcher is running.
+    // It should: download new files -> replace launcher files -> start updated launcher -> close itself.
+    // We will use ping or timeout to give launcher time to close, then force replace.
+    const script = `@echo off
+chcp 65001 > NUL
+echo Updating...
+timeout /t 2 /nobreak > NUL
+:retry
+if exist "\${targetPath}.old" del "\${targetPath}.old"
+ren "\${targetPath}" "\${require('path').basename(targetPath)}.old"
+if errorlevel 1 (
+    timeout /t 1 /nobreak > NUL
+    goto retry
+)
+copy /y "\${tempPath}" "\${targetPath}"
+start "" "\${targetPath}"
+del "%~f0"
+`;
+    
+    fs.writeFileSync(batPath, script);
+    
+    require('child_process').spawn('cmd.exe', ['/c', batPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }).unref();
+    
     app.isQuiting = true;
     app.quit();
     return { success: true };

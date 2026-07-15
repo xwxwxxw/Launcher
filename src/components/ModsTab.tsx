@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ModInfo, Profile } from '../types';
 import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe, Palette, Sun, Layers } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
@@ -6,12 +6,11 @@ import { openFolderInExplorer } from '../utils/explorer';
 
 interface ModsTabProps {
   onRefresh: () => void;
-  activeProfileId: string;
-  activeProfile?: Profile;
-  onOpenModrinth?: () => void;
+  globalGamePath: string;
+  onOpenModrinth: () => void;
 }
 
-export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onOpenModrinth }: ModsTabProps) {
+export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth }: ModsTabProps) {
   const [contentType, setContentType] = useState<'mods' | 'resourcepacks' | 'shaderpacks'>('mods');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,13 +28,12 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
   const [fOpt, setFOpt] = useState(false);
 
   const fetchItems = async () => {
-    if (!activeProfileId) return;
     setLoading(true);
     try {
       const res = await fetch('/api/mods/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileId: activeProfileId, contentType })
+        body: JSON.stringify({ folderPath: `${globalGamePath}/mods`, profileId: 'global', contentType, minecraftPath: globalGamePath })
       });
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
@@ -48,7 +46,7 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
 
   useEffect(() => {
     fetchItems();
-  }, [contentType, activeProfileId]);
+  }, [contentType, globalGamePath]);
 
   const handleUpdateMods = async () => {
     setUpdating(true);
@@ -77,7 +75,7 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
       const res = await fetch('/api/mods/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId: itemId, profileId: activeProfileId, enabled })
+        body: JSON.stringify({ modId: itemId, profileId: 'global', enabled, minecraftPath: globalGamePath })
       });
       const data = await res.json();
       if (data.success) {
@@ -97,7 +95,7 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
       const res = await fetch('/api/mods/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId: itemId, profileId: activeProfileId, filePath })
+        body: JSON.stringify({ modId: itemId, profileId: 'global', filePath, minecraftPath: globalGamePath })
       });
       const data = await res.json();
       if (data.success) {
@@ -112,28 +110,30 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
     }
   };
 
-  const clientPath = activeProfile?.mod_path || `./profiles/${activeProfileId}/mods`;
+  const clientPath = `${globalGamePath}/mods`;
   const destFolder = contentType === 'resourcepacks' ? 'resourcepacks' : (contentType === 'shaderpacks' ? 'shaderpacks' : 'mods');
   const currentFolderPath = clientPath.replace(/mods\/?$/, destFolder);
   const serverPath = clientPath.replace('/mods', '/server-mods').replace('\\mods', '\\server-mods');
 
-  const filteredItems = items.filter(m => {
-    // No environment filter anymore
+  const filteredItems = useMemo(() => {
+    return items.filter(m => {
+      // No environment filter anymore
 
-    if (search && !m.display_name.toLowerCase().includes(search.toLowerCase()) && !m.mod_id.toLowerCase().includes(search.toLowerCase())) return false;
-    
-    // Tag filters only for mods
-    if (contentType === 'mods') {
-      if (fWorldgen && !m.is_worldgen) return false;
-      if (fClient && !m.is_client) return false;
-      if (fServer && !m.is_server) return false;
-      if (fHeavy && !m.is_heavy) return false;
-      if (fLibrary && !m.is_library) return false;
-      if (fOpt && !m.is_optimization) return false;
-    }
+      if (search && !m.display_name.toLowerCase().includes(search.toLowerCase()) && !m.mod_id.toLowerCase().includes(search.toLowerCase())) return false;
+      
+      // Tag filters only for mods
+      if (contentType === 'mods') {
+        if (fWorldgen && !m.is_worldgen) return false;
+        if (fClient && !m.is_client) return false;
+        if (fServer && !m.is_server) return false;
+        if (fHeavy && !m.is_heavy) return false;
+        if (fLibrary && !m.is_library) return false;
+        if (fOpt && !m.is_optimization) return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [items, search, contentType, fWorldgen, fClient, fServer, fHeavy, fLibrary, fOpt]);
 
   const getTitle = () => {
     if (contentType === 'resourcepacks') return 'Локальные Ресурспаки';
@@ -195,14 +195,15 @@ export default function ModsTab({ onRefresh, activeProfileId, activeProfile, onO
           </div>
           
           <div className="flex gap-2 flex-wrap justify-end">
+
             <button 
               onClick={onOpenModrinth}
-              className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-emerald-400 transition-all shadow-sm"
-              title="Найти и установить моды онлайн"
+              className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-extrabold transition-all shadow-[0_4px_20px_rgba(16,185,129,0.15)] hover:shadow-[0_4px_20px_rgba(16,185,129,0.3)] hover:-translate-y-0.5 active:translate-y-0"
             >
-              <Globe size={14} />
-              <span>Установить моды</span>
+              <DownloadCloud size={14} className="text-zinc-950" />
+              <span>Установить</span>
             </button>
+
             <button 
               onClick={handleUpdateMods} 
               disabled={updating}

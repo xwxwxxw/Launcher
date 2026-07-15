@@ -116,6 +116,8 @@ export default function ProfilesTab({
               if (!file) return;
               const formData = new FormData();
               formData.append('file', file);
+              const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+              formData.append('minecraftPath', mcPath);
               const res = await fetch('/api/profiles/import', { method: 'POST', body: formData });
               if (res.ok) {
                 window.location.reload();
@@ -254,7 +256,11 @@ const ProfileCard: React.FC<{
         </div>
         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 items-center">
           <button 
-            onClick={(e) => { e.stopPropagation(); window.open(`/api/profiles/${profile.id}/export`, '_blank'); }} 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+              window.open(`/api/profiles/${profile.id}/export?minecraftPath=${encodeURIComponent(mcPath)}`, '_blank'); 
+            }} 
             className="p-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"
             title="Экспорт сборки (ZIP)"
           >

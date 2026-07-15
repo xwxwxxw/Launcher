@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Download, Loader2, Star, DownloadCloud, Box, Globe, Palette, Sun, Layers, ShieldAlert } from 'lucide-react';
 import { Profile } from '../types';
 
@@ -20,12 +20,13 @@ interface ModrinthModalProps {
   onRefresh: () => void;
   activeProfileId: string;
   activeProfile?: Profile;
+  globalGamePath?: string;
 }
 
-export default function ModrinthModal({ onClose, onRefresh, activeProfileId, activeProfile }: ModrinthModalProps) {
+export default function ModrinthModal({ onClose, onRefresh, activeProfileId, activeProfile, globalGamePath }: ModrinthModalProps) {
   const [query, setQuery] = useState('');
   const [contentType, setContentType] = useState<'mod' | 'resourcepack' | 'shader'>('mod');
-  const [installTarget, setInstallTarget] = useState<'client' | 'server'>('client');
+  const installTarget = 'client' as 'client' | 'server';
   const [results, setResults] = useState<ModrinthProject[]>([]);
   const [loading, setLoading] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
@@ -35,9 +36,30 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
   const [currentModName, setCurrentModName] = useState('');
   const [isInstallingDeps, setIsInstallingDeps] = useState(false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const [gameVersion, setGameVersion] = useState<string>('');
+  const [modLoader, setModLoader] = useState<string>('');
+
+  useEffect(() => {
+    if (activeProfile) {
+      setGameVersion(activeProfile.game_version || '');
+      const loader = activeProfile.mod_loader?.toLowerCase() || '';
+      setModLoader(loader === 'vanilla' ? '' : loader);
+    }
+  }, [activeProfile]);
+
   useEffect(() => {
     handleSearch();
-  }, [contentType]);
+  }, [contentType, gameVersion, modLoader]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -48,27 +70,58 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
   }, [query]);
 
   const handleSearch = async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     try {
-      const facets = encodeURIComponent(`[["project_type:${contentType}"]]`);
+      let facetsArr: string[] = [`["project_type:${contentType}"]`];
+      
+      if (contentType === 'mod' && modLoader) {
+        facetsArr.push(`["categories:${modLoader}"]`);
+      }
+      
+      if (gameVersion) {
+        facetsArr.push(`["versions:${gameVersion}"]`);
+      }
+
+      const facets = encodeURIComponent(`[${facetsArr.join(',')}]`);
       const searchUrl = `https://api.modrinth.com/v2/search?query=${encodeURIComponent(query)}&facets=${facets}&limit=16`;
-      const res = await fetch(searchUrl);
+      const res = await fetch(searchUrl, { signal: controller.signal });
       const data = await res.json();
       setResults(data.hits || []);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return; // Ignore aborts
+      }
       console.error('Error searching Modrinth:', err);
     } finally {
-      setLoading(false);
+      if (abortControllerRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
   const handleInstall = async (projectId: string) => {
     setInstallingId(projectId);
     try {
+      const destSub = contentType === 'mod' ? 'mods' : (contentType === 'resourcepack' ? 'resourcepacks' : 'shaderpacks');
+      const destPath = `${globalGamePath || './.minecraft'}/${destSub}`;
       const res = await fetch('/api/mods/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, versionId: 'latest', folderPath: '', profileId: activeProfileId, contentType, installTarget })
+        body: JSON.stringify({ 
+          projectId, 
+          versionId: 'latest', 
+          folderPath: destPath, 
+          profileId: 'global', 
+          contentType, 
+          installTarget,
+          minecraftPath: globalGamePath 
+        })
       });
       const data = await res.json();
       
@@ -98,10 +151,19 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
     setIsInstallingDeps(true);
     for (const dep of suggestedDeps) {
       try {
+        const destSub = contentType === 'mod' ? 'mods' : (contentType === 'resourcepack' ? 'resourcepacks' : 'shaderpacks');
+        const destPath = `${globalGamePath || './.minecraft'}/${destSub}`;
         await fetch('/api/mods/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: dep.projectId, versionId: 'latest', folderPath: '', profileId: activeProfileId, installTarget })
+          body: JSON.stringify({ 
+            projectId: dep.projectId, 
+            versionId: 'latest', 
+            folderPath: destPath, 
+            profileId: 'global', 
+            installTarget,
+            minecraftPath: globalGamePath 
+          })
         });
       } catch (e) {
         console.error('Failed to install dependency mod:', dep.title, e);
@@ -152,62 +214,70 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
             </div>
 
             {/* Content Switcher */}
-            <div className="flex bg-zinc-900/40 rounded-xl border border-zinc-800/50 p-1 mt-3 shadow-inner">
-              <button
-                onClick={() => setContentType('mod')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'mod' ? 'bg-zinc-800 text-emerald-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <div className="flex bg-zinc-900/40 rounded-xl border border-zinc-800/50 p-1 shadow-inner w-fit">
+                <button
+                  onClick={() => setContentType('mod')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'mod' ? 'bg-zinc-800 text-emerald-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Layers size={14} />
+                  <span>Найти Моды</span>
+                </button>
+                <button
+                  onClick={() => setContentType('resourcepack')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'resourcepack' ? 'bg-zinc-800 text-amber-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Palette size={14} />
+                  <span>Найти Ресурспаки</span>
+                </button>
+                <button
+                  onClick={() => setContentType('shader')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    contentType === 'shader' ? 'bg-zinc-800 text-cyan-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  <Sun size={14} />
+                  <span>Найти Шейдеры</span>
+                </button>
+              </div>
+
+              <select
+                value={gameVersion}
+                onChange={(e) => setGameVersion(e.target.value)}
+                className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
               >
-                <Layers size={14} />
-                <span>Найти Моды</span>
-              </button>
-              <button
-                onClick={() => setContentType('resourcepack')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'resourcepack' ? 'bg-zinc-800 text-amber-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Palette size={14} />
-                <span>Найти Ресурспаки</span>
-              </button>
-              <button
-                onClick={() => setContentType('shader')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                  contentType === 'shader' ? 'bg-zinc-800 text-cyan-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Sun size={14} />
-                <span>Найти Шейдеры</span>
-              </button>
+                <option value="" className="bg-[#0b0b0c] text-zinc-300">Все версии Minecraft</option>
+                <option value="1.21" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.21</option>
+                <option value="1.20.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.4</option>
+                <option value="1.20.1" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.20.1</option>
+                <option value="1.19.4" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.4</option>
+                <option value="1.19.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.19.2</option>
+                <option value="1.18.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.18.2</option>
+                <option value="1.16.5" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.16.5</option>
+                <option value="1.12.2" className="bg-[#0b0b0c] text-zinc-300">Minecraft 1.12.2</option>
+              </select>
+
+              {contentType === 'mod' && (
+                <select
+                  value={modLoader}
+                  onChange={(e) => setModLoader(e.target.value)}
+                  className="bg-zinc-900/60 border border-zinc-800/60 text-zinc-300 text-xs font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                >
+                  <option value="" className="bg-[#0b0b0c] text-zinc-300">Все загрузчики</option>
+                  <option value="fabric" className="bg-[#0b0b0c] text-zinc-300">Fabric</option>
+                  <option value="forge" className="bg-[#0b0b0c] text-zinc-300">Forge</option>
+                  <option value="neoforge" className="bg-[#0b0b0c] text-zinc-300">NeoForge</option>
+                  <option value="quilt" className="bg-[#0b0b0c] text-zinc-300">Quilt</option>
+                </select>
+              )}
             </div>
           </div>
 
           <div className="flex flex-col gap-3 items-end">
-            {contentType === 'mod' && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Установить в:</span>
-                <div className="flex bg-zinc-900/40 rounded-lg border border-zinc-800/50 p-1 shadow-inner">
-                  <button
-                    onClick={() => setInstallTarget('client')}
-                    className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${
-                      installTarget === 'client' ? 'bg-zinc-800 text-blue-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    Клиент (mods)
-                  </button>
-                  <button
-                    onClick={() => setInstallTarget('server')}
-                    className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${
-                      installTarget === 'server' ? 'bg-zinc-800 text-purple-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    Сервер (server-mods)
-                  </button>
-                </div>
-              </div>
-            )}
-            
             <div className="relative w-80">
               <Search className="absolute left-3.5 top-3 text-zinc-500" size={16} />
               <input 

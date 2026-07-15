@@ -108,27 +108,13 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
   const handleOAuthLogin = async () => {
     setLoading(true);
     setError('');
-    
+
     try {
       // Save custom settings
       localStorage.setItem('ely_use_custom_oauth', useCustomOAuth.toString());
       if (useCustomOAuth) {
         localStorage.setItem('ely_custom_client_id', customClientId);
         localStorage.setItem('ely_custom_client_secret', customClientSecret);
-      }
-
-      if ((window as any).require) {
-        const { ipcRenderer } = (window as any).require('electron');
-        const profile = await ipcRenderer.invoke('elyLogin', {
-          customClientId: useCustomOAuth ? customClientId : undefined,
-          customClientSecret: useCustomOAuth ? customClientSecret : undefined
-        });
-        
-        if (profile) {
-          onSuccess(profile);
-          onClose();
-        }
-        return;
       }
 
       // Build parameters
@@ -148,24 +134,34 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
         throw new Error(data.error || 'Не удалось получить ссылку авторизации.');
       }
 
-      // Open standard secure popup
-      const width = 600;
-      const height = 700;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-
-      const authWindow = window.open(
-        data.url,
-        'ely_oauth_popup',
-        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`
-      );
-
-      if (!authWindow) {
-        throw new Error('Окно авторизации заблокировано браузером. Пожалуйста, разрешите всплывающие окна для этого сайта.');
+      if (typeof window !== 'undefined' && (window as any).require) {
+        const { shell } = (window as any).require('electron');
+        shell.openExternal(data.url);
+      } else {
+        const width = 600;
+        const height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        window.open(data.url, 'ely_oauth_popup', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`);
       }
+      
+      // Poll the local server to check if the user completed auth in the system browser
+      const checkStatus = setInterval(async () => {
+        try {
+          const statusRes = await fetch('/api/auth/ely/status');
+          const statusData = await statusRes.json();
+          if (statusData.success && statusData.profile) {
+            clearInterval(checkStatus);
+            onSuccess(statusData.profile);
+            onClose();
+          }
+        } catch(e) {}
+      }, 1500);
+
+      setTimeout(() => clearInterval(checkStatus), 5 * 60 * 1000); // timeout 5 mins
+
     } catch (err: any) {
       setError(err.message || 'Ошибка запуска браузерной авторизации.');
-    } finally {
       setLoading(false);
     }
   };

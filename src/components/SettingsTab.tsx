@@ -179,7 +179,8 @@ export default function SettingsTab({
     if (isAutoRam && systemRamSpecs && systemRamSpecs.suggested) {
       setRam(systemRamSpecs.suggested);
     }
-  }, [isAutoRam, systemRamSpecs, setRam]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAutoRam, systemRamSpecs]);
 
   useEffect(() => {
     const savedAutoUpdate = localStorage.getItem('auto_update_mods');
