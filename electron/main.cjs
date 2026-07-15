@@ -344,37 +344,17 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
 
 ipcMain.handle('install-update', async (event, tempPath) => {
   try {
-    const targetPath = process.execPath;
-    const batPath = require('path').join(app.getPath('temp'), 'updater.bat');
+    const { spawn } = require('child_process');
     
-    // As per user request: Installer shouldn't check if launcher is running.
-    // It should: download new files -> replace launcher files -> start updated launcher -> close itself.
-    // We will use ping or timeout to give launcher time to close, then force replace.
-    const script = `@echo off
-chcp 65001 > NUL
-echo Updating...
-taskkill /f /im "${require('path').basename(targetPath)}" > NUL 2>&1
-timeout /t 2 /nobreak > NUL
-:retry
-if exist "${targetPath}.old" del /f /q "${targetPath}.old"
-ren "${targetPath}" "${require('path').basename(targetPath)}.old"
-if errorlevel 1 (
-    timeout /t 1 /nobreak > NUL
-    goto retry
-)
-copy /y "${tempPath}" "${targetPath}"
-start "" "${targetPath}"
-del "%~f0"
-`;
-    
-    fs.writeFileSync(batPath, script);
-    
-    require('child_process').spawn('cmd.exe', ['/c', batPath], {
+    // Launch the downloaded installer directly from the temp folder
+    // This allows the installer to run independently, overwrite the launcher files,
+    // and avoids Windows locking the installer executable itself inside the app folder.
+    spawn(tempPath, [], {
       detached: true,
-      stdio: 'ignore',
-      windowsHide: true
+      stdio: 'ignore'
     }).unref();
     
+    // Instantly close the launcher so that all launcher files are unlocked and ready to be overwritten by the installer
     app.isQuiting = true;
     app.quit();
     return { success: true };

@@ -17,6 +17,7 @@ import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDo
 import { ModInfo, Profile } from './types';
 import ModrinthModal from './components/ModrinthModal';
 import ModrinthTab from './components/ModrinthTab';
+import NotificationToast, { ToastMessage } from './components/NotificationToast';
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
@@ -54,6 +55,38 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [globalGamePath, setGlobalGamePath] = useState(localStorage.getItem('launcher_minecraft_path') || './.minecraft');
   const [launcherVersion, setLauncherVersion] = useState((import.meta as any).env.VITE_APP_VERSION || '0.0.11');
+
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showCustomToast = useCallback((message: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    let type: 'success' | 'error' | 'info' = 'info';
+    const lower = message.toLowerCase();
+    if (lower.includes('успеш') || lower.includes('заверш') || lower.includes('готов') || lower.includes('установлен') || lower.includes('скачан')) {
+      type = 'success';
+    } else if (lower.includes('ошибк') || lower.includes('не удалось') || lower.includes('сбой') || lower.includes('недостаточно') || lower.includes('внимание') || lower.includes('не найден') || lower.includes('предназначен') || lower.includes('попытка') || lower.includes('установка')) {
+      type = 'info';
+      if (lower.includes('ошибк') || lower.includes('не удалось') || lower.includes('сбой') || lower.includes('не найден')) {
+        type = 'error';
+      }
+    }
+
+    setToasts(prev => [...prev, { id, message, type }]);
+
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  useEffect(() => {
+    window.alert = (message: string) => {
+      showCustomToast(message);
+    };
+  }, [showCustomToast]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).require) {
@@ -1108,6 +1141,8 @@ export default function App() {
           onComplete={() => setShowSplashScreen(false)}
         />
       )}
+
+      <NotificationToast toasts={toasts} onClose={removeToast} />
     </div>
   );
 }
