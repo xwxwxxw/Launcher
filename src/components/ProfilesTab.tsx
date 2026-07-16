@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Profile } from '../types';
 import { Plus, Edit, Trash2, Box, Download, Upload } from 'lucide-react';
 import CreateProfileModal from './CreateProfileModal';

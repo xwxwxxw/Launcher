@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ModInfo, Profile } from '../types';
 import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe, Palette, Sun, Layers } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';

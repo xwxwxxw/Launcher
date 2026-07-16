@@ -11,9 +11,8 @@ import LauncherSplashScreen from './components/LauncherSplashScreen';
 import SettingsModal from './components/SettingsModal';
 import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
-import SkinViewer from './components/SkinViewer';
 import PlayerHead2D from './components/PlayerHead2D';
-import { Package, FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, FileText, Image as ImageIcon, Settings2, Minus, Square, X, Gamepad2, Home, DownloadCloud } from 'lucide-react';
+import { FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, Image as ImageIcon, Minus, Square, X, Gamepad2, Home, DownloadCloud } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 import ModrinthModal from './components/ModrinthModal';
 import ModrinthTab from './components/ModrinthTab';
@@ -114,7 +113,7 @@ export default function App() {
           .catch((err: any) => console.error('Failed to load auth via IPC:', err));
 
         // Listen for session-restore from Electron main process
-        ipcRenderer.on('session-restore', (event: any, authData: any) => {
+        ipcRenderer.on('session-restore', (e: any, authData: any) => {
           if (authData) {
             setUserProfile(authData);
             const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
@@ -425,24 +424,6 @@ export default function App() {
     }
   };
 
-  const handleToggleMod = async (modId: string, enabled: boolean) => {
-    try {
-      const res = await fetch('/api/mods/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modId, profileId: activeProfileId, enabled })
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetchMods();
-      } else {
-        alert('Ошибка при переключении мода: ' + (data.message || 'неизвестная ошибка'));
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Ошибка соединения при переключении мода.');
-    }
-  };
 
   const activeProfile: any = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
     id: '1',
@@ -615,7 +596,12 @@ export default function App() {
         const res = await fetch('/api/mods/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: 'P7dR8mSH', profileId: activeProfileId }) // Fabric API
+          body: JSON.stringify({ 
+            projectId: 'P7dR8mSH', 
+            profileId: activeProfileId,
+            gameVersion: activeProfile?.game_version,
+            loader: activeProfile?.mod_loader
+          }) // Fabric API
         });
         const data = await res.json();
         if (data.success) {
@@ -634,7 +620,14 @@ export default function App() {
         const res = await fetch('/api/mods/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: payload.dependencyId, versionId: 'latest', folderPath: '', profileId: activeProfileId })
+          body: JSON.stringify({ 
+            projectId: payload.dependencyId, 
+            versionId: 'latest', 
+            folderPath: '', 
+            profileId: activeProfileId,
+            gameVersion: activeProfile?.game_version,
+            loader: activeProfile?.mod_loader
+          })
         });
         const data = await res.json();
         if (data.success) {
@@ -851,6 +844,12 @@ export default function App() {
             onClick={() => setActiveTab('profiles')} 
             icon={<PlaySquare size={22} strokeWidth={activeTab === 'profiles' ? 2.5 : 2} />} 
             label="Сборки" 
+          />
+          <TabButton 
+            active={(activeTab as any) === 'screenshots'} 
+            onClick={() => setActiveTab('screenshots' as any)} 
+            icon={<ImageIcon size={22} strokeWidth={(activeTab as any) === 'screenshots' ? 2.5 : 2} />} 
+            label="Скриншоты" 
           />
           <TabButton 
             active={activeTab === 'conflicts'} 

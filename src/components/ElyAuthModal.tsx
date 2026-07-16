@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Lock, User as UserIcon, Globe, ShieldCheck } from 'lucide-react';
 
 interface ElyAuthModalProps {

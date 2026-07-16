@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 

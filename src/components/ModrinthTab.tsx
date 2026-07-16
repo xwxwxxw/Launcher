@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Download, Loader2, Star, DownloadCloud, Box, Globe, Palette, Sun, Layers, Folder, Server, History, X } from 'lucide-react';
 import { Profile } from '../types';
 import CustomSelect from './CustomSelect';
@@ -181,7 +181,9 @@ export default function ModrinthTab({ onRefresh, activeProfileId, activeProfile 
           versionId: 'latest', 
           folderPath: targetFolder, 
           installTarget,
-          contentType 
+          contentType,
+          gameVersion: activeProfile?.game_version,
+          loader: activeProfile?.mod_loader
         })
       });
       const data = await res.json();
@@ -220,7 +222,9 @@ export default function ModrinthTab({ onRefresh, activeProfileId, activeProfile 
             projectId: dep.projectId, 
             versionId: 'latest', 
             folderPath: targetFolder,
-            installTarget
+            installTarget,
+            gameVersion: activeProfile?.game_version,
+            loader: activeProfile?.mod_loader
           })
         });
         const data = await res.json();

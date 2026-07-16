@@ -524,7 +524,7 @@ app.get('/api/auth/ely/url', (req, res) => {
       state: state
     });
 
-    const authUrl = `https://oauth.ely.by/oauth/v2/auth?${params.toString()}`;
+    const authUrl = `https://account.ely.by/oauth2/v1?${params.toString()}`;
     res.json({ url: authUrl });
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -607,7 +607,7 @@ const handleElyCallback = async (req, res) => {
     const redirectUri = `${useOrigin}/api/auth/ely/callback`;
 
     // Exchange Code for Access Token
-    const tokenRes = await fetch('https://oauth.ely.by/oauth/v2/token', {
+    const tokenRes = await fetch('https://account.ely.by/api/oauth2/v1/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -854,60 +854,66 @@ app.get('/api/auth/ely/status', (req, res) => {
 });
 
 app.post('/api/mods/install', async (req, res) => {
-  const { projectId, versionId, folderPath, profileId, contentType } = req.body;
+    const { projectId, folderPath, profileId, contentType, gameVersion, loader } = req.body;
   
-  if (!projectId) {
-    return res.status(400).json({ error: 'Missing projectId' });
-  }
-
-  try {
-    const projectRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}`);
-    if (!projectRes.ok) {
-      throw new Error(`Failed to fetch project details from Modrinth: ${projectRes.statusText}`);
+    if (!projectId) {
+      return res.status(400).json({ error: 'Missing projectId' });
     }
-    const project = await projectRes.json();
-
-    const modId = project.slug || project.id;
-    const name = project.slug || project.id;
-    const displayName = project.title || project.name;
-    const description = project.description || '';
-    const descriptionRu = await translateText(description);
-
-    const categories = project.categories || [];
-    const categoriesRu = categories.map((c: string) => TRANSLATIONS[c.toLowerCase()] || c);
-
-    const clientSide = project.client_side || 'optional';
-    const serverSide = project.server_side || 'optional';
-    let environment = '*';
-    if (clientSide === 'required' && serverSide === 'unsupported') {
-      environment = 'client';
-    } else if (serverSide === 'required' && clientSide === 'unsupported') {
-      environment = 'server';
-    }
-
-    
-    let depends: string[] = [];
-    let dependenciesSuggested: any[] = [];
-    let downloadUrl = '';
-    let fileName = `${modId}.jar`;
-
+  
     try {
-      const versionsRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
-      if (versionsRes.ok) {
-        const versions = await versionsRes.json();
-        if (versions.length > 0) {
-          const latestVersion = versions[0];
-          
-          if (latestVersion.files && latestVersion.files.length > 0) {
-            downloadUrl = latestVersion.files[0].url;
-            fileName = latestVersion.files[0].filename;
-          }
+      const projectRes = await fetch(`https://api.modrinth.com/v2/project/${projectId}`);
+      if (!projectRes.ok) {
+        throw new Error(`Failed to fetch project details from Modrinth: ${projectRes.statusText}`);
+      }
+      const project = await projectRes.json();
+  
+      const modId = project.slug || project.id;
+      const name = project.slug || project.id;
+      const displayName = project.title || project.name;
+      const description = project.description || '';
+      const descriptionRu = await translateText(description);
+  
+      const categories = project.categories || [];
+      const categoriesRu = categories.map((c: string) => TRANSLATIONS[c.toLowerCase()] || c);
+  
+      const clientSide = project.client_side || 'optional';
+      const serverSide = project.server_side || 'optional';
+      let environment = '*';
+      if (clientSide === 'required' && serverSide === 'unsupported') {
+        environment = 'client';
+      } else if (serverSide === 'required' && clientSide === 'unsupported') {
+        environment = 'server';
+      }
+  
+      
+      let depends: string[] = [];
+      let dependenciesSuggested: any[] = [];
+      let downloadUrl = '';
+      let fileName = `${modId}.jar`;
+  
+      try {
+        let versionsUrl = `https://api.modrinth.com/v2/project/${projectId}/version`;
+        const queryParams = new URLSearchParams();
+        if (gameVersion) queryParams.append('game_versions', `["${gameVersion}"]`);
+        if (loader) queryParams.append('loaders', `["${loader.toLowerCase()}"]`);
+        if (queryParams.toString()) versionsUrl += `?${queryParams.toString()}`;
 
-          if (latestVersion.dependencies && Array.isArray(latestVersion.dependencies)) {
-            const requiredDeps = latestVersion.dependencies.filter((d: any) => d.dependency_type === 'required' && d.project_id);
-            for (const dep of requiredDeps) {
-              try {
-                const depProjectRes = await fetch(`https://api.modrinth.com/v2/project/${dep.project_id}`);
+        const versionsRes = await fetch(versionsUrl);
+        if (versionsRes.ok) {
+          const versions = await versionsRes.json();
+          if (versions.length > 0) {
+            const latestVersion = versions[0];
+            
+            if (latestVersion.files && latestVersion.files.length > 0) {
+              downloadUrl = latestVersion.files[0].url;
+              fileName = latestVersion.files[0].filename;
+            }
+  
+            if (latestVersion.dependencies && Array.isArray(latestVersion.dependencies)) {
+              const requiredDeps = latestVersion.dependencies.filter((d: any) => d.dependency_type === 'required' && d.project_id);
+              for (const dep of requiredDeps) {
+                try {
+                  const depProjectRes = await fetch(`https://api.modrinth.com/v2/project/${dep.project_id}`);
                 if (depProjectRes.ok) {
                   const depProj = await depProjectRes.json();
                   depends.push(depProj.slug || depProj.id);
@@ -1093,7 +1099,7 @@ app.post('/api/mods/scan', async (req, res) => {
         const parsedMods = await Promise.all(jarFiles.map(async (f) => {
           const parsed = await parseModJar(f);
           const isFileDisabled = f.endsWith('.disabled');
-          const modId = parsed.mod_id;
+          
           const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
           
           const mod: any = {
@@ -1303,7 +1309,7 @@ app.post('/api/mods/analyze', async (req, res) => {
 
 app.post('/api/mods/update', async (req, res) => {
   // Simulate an update process
-  const { autoUpdate } = req.body;
+  const {} = req.body;
   
   // Wait a bit to simulate network
   await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1371,6 +1377,10 @@ app.get('/api/java/find', async (req, res) => {
 });
 
 app.get('/api/minecraft/launch', async (req, res) => {
+  if (activeProcess) {
+    res.status(400).json({ error: 'Minecraft уже запущен' });
+    return;
+  }
   const { 
     profileId, 
     ram, 
@@ -1391,8 +1401,12 @@ app.get('/api/minecraft/launch', async (req, res) => {
     'Connection': 'keep-alive'
   });
 
+  let isClosed = false;
+  req.on('close', () => { isClosed = true; });
   const sendEvent = (type: string, data: any) => {
-    res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!isClosed && !res.writableEnded) {
+      res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
   };
 
   const activeProfile: any = profiles.find(p => p.id === profileId) || profiles[0] || {
@@ -1405,10 +1419,10 @@ app.get('/api/minecraft/launch', async (req, res) => {
   };
 
   const selectedRam = ram || '4096';
-  const baseDir = getStorageDir(); // Or process.cwd() ? Wait! It should probably go in the APPDATA folder now!
+  
   const selectedMinecraft = minecraftPath ? String(minecraftPath) : `./profiles/${activeProfile.id}`;
-  const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(process.cwd(), selectedMinecraft);
-  const jvmArguments = jvmArgs ? String(jvmArgs).split(' ') : [];
+  const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(DATA_DIR, selectedMinecraft);
+  const jvmArguments = jvmArgs ? String(jvmArgs).match(/(?:[^\s"]+|"[^"]*")+/g)?.map(arg => arg.replace(/^"|"$/g, '')) || [] : [];
 
   const launcher = new Client();
   
@@ -1466,7 +1480,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
     },
     memory: {
         max: `${selectedRam}M`,
-        min: "1024M"
+        min: `${Math.min(parseInt(String(selectedRam), 10), 1024)}M`
     },
     window: {
         width: parseInt(String(resWidth) || '1280', 10),
@@ -1479,9 +1493,9 @@ app.get('/api/minecraft/launch', async (req, res) => {
   let loaderVer = '';
   if (activeProfile.mod_loader === 'Fabric') {
     try {
-      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
-      if (res.ok) {
-        const data = await res.json();
+      const fetchRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
+      if (fetchRes && fetchRes.ok) {
+        const data = await fetchRes.json();
         if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
     } catch(e) {}
@@ -1498,21 +1512,26 @@ app.get('/api/minecraft/launch', async (req, res) => {
     if (!fs.existsSync(jsonPath)) {
         sendEvent('log', { message: 'Скачивание профиля Fabric...', progress: 5 });
         try {
-            const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-            if (res.ok) {
-                const data = await res.text();
+            const fetchRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (fetchRes && fetchRes.ok) {
+                const data = await fetchRes.text();
                 fs.writeFileSync(jsonPath, data);
                 sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
+            } else {
+                sendEvent('error', 'Не удалось скачать профиль Fabric.');
+                return res.end();
             }
         } catch (e) {
             console.error('Failed to download Fabric profile', e);
+            sendEvent('error', 'Ошибка сети при скачивании профиля Fabric.');
+            return res.end();
         }
     }
   } else if (activeProfile.mod_loader === 'Quilt') {
     try {
-      const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
-      if (res.ok) {
-        const data = await res.json();
+      const fetchRes = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
+      if (fetchRes && fetchRes.ok) {
+        const data = await fetchRes.json();
         if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
     } catch(e) {}
@@ -1529,21 +1548,26 @@ app.get('/api/minecraft/launch', async (req, res) => {
     if (!fs.existsSync(jsonPath)) {
         sendEvent('log', { message: 'Скачивание профиля Quilt...', progress: 5 });
         try {
-            const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-            if (res.ok) {
-                const data = await res.text();
+            const fetchRes = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (fetchRes && fetchRes.ok) {
+                const data = await fetchRes.text();
                 fs.writeFileSync(jsonPath, data);
                 sendEvent('log', { message: 'Профиль Quilt успешно загружен.', progress: 10 });
+            } else {
+                sendEvent('error', 'Не удалось скачать профиль Quilt.');
+                return res.end();
             }
         } catch (e) {
             console.error('Failed to download Quilt profile', e);
+            sendEvent('error', 'Ошибка сети при скачивании профиля Quilt.');
+            return res.end();
         }
     }
   } else if (activeProfile.mod_loader === 'Forge') {
     try {
-      const res = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
-      if (res.ok) {
-        const data = await res.json();
+      const fetchRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+      if (fetchRes && fetchRes.ok) {
+        const data = await fetchRes.json();
         loaderVer = data.promos[`${activeProfile.game_version}-recommended`] || data.promos[`${activeProfile.game_version}-latest`];
       }
     } catch(e) {}
@@ -1555,13 +1579,18 @@ app.get('/api/minecraft/launch', async (req, res) => {
       
       if (!fs.existsSync(tempPath)) {
         try {
-          const res = await fetch(forgeInstallerUrl);
-          if (res.ok) {
-             const buffer = await res.arrayBuffer();
+          const fetchRes = await fetch(forgeInstallerUrl);
+          if (fetchRes && fetchRes.ok) {
+             const buffer = await fetchRes.arrayBuffer();
              fs.writeFileSync(tempPath, Buffer.from(buffer));
+          } else {
+             sendEvent('error', 'Не удалось скачать установщик Forge.');
+             return res.end();
           }
         } catch(e) {
           console.error('Failed to download Forge installer', e);
+          sendEvent('error', 'Ошибка сети при скачивании установщика Forge.');
+          return res.end();
         }
       }
       if (fs.existsSync(tempPath)) {

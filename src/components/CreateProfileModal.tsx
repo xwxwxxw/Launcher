@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Folder, FolderOpen, Cpu, HelpCircle, ChevronDown } from 'lucide-react';
 import { Profile } from '../types';
 import { openFolderInExplorer } from '../utils/explorer';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ShieldAlert, AlertTriangle, AlertCircle, XCircle, X } from 'lucide-react';
 
 interface Conflict {

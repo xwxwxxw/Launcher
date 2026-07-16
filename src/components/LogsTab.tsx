@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Terminal, FolderOpen, RefreshCw, AlertTriangle } from 'lucide-react';
 import { openFolderInExplorer } from '../utils/explorer';
 

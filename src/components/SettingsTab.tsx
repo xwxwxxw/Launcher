@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, FolderOpen, Shield, Sparkles } from 'lucide-react';
 import PlayerHead2D from './PlayerHead2D';
 import { openFolderInExplorer } from '../utils/explorer';

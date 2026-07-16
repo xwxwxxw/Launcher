@@ -1,6 +1,4 @@
-import React from 'react';
 import { Package, ShieldAlert, Cpu, Layers, FolderTree, PlaySquare, Settings, ArrowRight, User } from 'lucide-react';
-import PlayerSkin2D from './PlayerSkin2D';
 import SkinViewer from './SkinViewer';
 
 export default function HomeTab({ 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ModInfo } from '../types';
 import { X, Network, AlertTriangle } from 'lucide-react';
 import * as d3 from 'd3';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Download, Loader2, Star, DownloadCloud, Box, Globe, Palette, Sun, Layers, ShieldAlert } from 'lucide-react';
 import { Profile } from '../types';
 import CustomSelect from './CustomSelect';
@@ -133,7 +133,9 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
           profileId: selectedProfileId, 
           contentType, 
           installTarget,
-          minecraftPath: globalGamePath 
+          minecraftPath: globalGamePath,
+          gameVersion: activeProfile?.game_version,
+          loader: activeProfile?.mod_loader
         })
       });
       const data = await res.json();
@@ -175,7 +177,9 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
             folderPath: destPath, 
             profileId: selectedProfileId, 
             installTarget,
-            minecraftPath: globalGamePath 
+            minecraftPath: globalGamePath,
+            gameVersion: activeProfile?.game_version,
+            loader: activeProfile?.mod_loader
           })
         });
       } catch (e) {

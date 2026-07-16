@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2, Loader2, Gamepad2 } from 'lucide-react';
 
 interface LaunchModalProps {

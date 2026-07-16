@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Folder, Monitor, Settings2, ShieldCheck, Gamepad2, Info, CheckCircle2 } from 'lucide-react';
 import CustomSelect from './CustomSelect';
 
