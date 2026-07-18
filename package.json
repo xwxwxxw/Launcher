@@ -1,7 +1,7 @@
 {
   "name": "layle-launcher",
   "private": true,
-  "version": "1.2.6",
+  "version": "1.2.7",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -34,8 +34,7 @@
     "win": {
       "verifyUpdateCodeSignature": false,
       "signAndEditExecutable": false,
-      
-      "icon": "public/icon.png",
+      "icon": "public/icon.ico",
       "target": "nsis"
     },
     "linux": {
