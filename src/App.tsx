@@ -12,11 +12,12 @@ import SettingsModal from './components/SettingsModal';
 import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
 import PlayerHead2D from './components/PlayerHead2D';
-import { FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, Image as ImageIcon, Minus, Square, X, Gamepad2, Home, DownloadCloud } from 'lucide-react';
+import { FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, Image as ImageIcon, Minus, Square, X, Gamepad2, Home, DownloadCloud, RefreshCw, Star } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 import ModrinthModal from './components/ModrinthModal';
 import ModrinthTab from './components/ModrinthTab';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
+import SyncModal from './components/SyncModal';
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
@@ -48,6 +49,8 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [showModrinthModal, setShowModrinthModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [gameStatus, setGameStatus] = useState<'idle' | 'installing' | 'running'>('idle');
   const [isInstalled, setIsInstalled] = useState(false);
   const [isCheckingInstall, setIsCheckingInstall] = useState(false);
@@ -204,33 +207,57 @@ export default function App() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const checkForUpdates = async (silent = true) => {
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      try {
-        const { ipcRenderer } = (window as any).electron;
-        const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
-        const data = await ipcRenderer.invoke('check-updates', repo);
-        if (data && data.updateAvailable) {
-          setUpdateInfo({
-            version: data.latestVersion,
-            notes: data.releaseNotes,
-            assets: data.assets
-          });
-          setShowUpdateModal(true);
-          return { success: true, updateAvailable: true, version: data.latestVersion };
-        } else if (data && data.error) {
-          return { success: false, error: data.error };
-        } else {
-          return { success: true, updateAvailable: false };
-        }
-      } catch (err: any) {
-        console.error('Update check failed:', err);
-        return { success: false, error: err.message };
+    try {
+      const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+      const res = await fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`);
+      if (!res.ok) {
+        throw new Error(`Ошибка сервера обновлений: HTTP ${res.status}`);
       }
+      const data = await res.json();
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+      const latestVersion = data.latestVersion;
+      const currentVersion = launcherVersion || '0.0.6';
+      
+      if (latestVersion !== currentVersion) {
+        setUpdateInfo({
+          version: latestVersion,
+          notes: data.releaseNotes,
+          assets: data.assets
+        });
+        setShowUpdateModal(true);
+        return { success: true, updateAvailable: true, version: latestVersion };
+      } else {
+        return { success: true, updateAvailable: false };
+      }
+    } catch (err: any) {
+      console.error('Update check failed:', err);
+      // Fallback to electron check if server is unreachable
+      if (typeof window !== 'undefined' && (window as any).electron) {
+        try {
+          const { ipcRenderer } = (window as any).electron;
+          const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+          const data = await ipcRenderer.invoke('check-updates', repo);
+          if (data && data.updateAvailable) {
+            setUpdateInfo({
+              version: data.latestVersion,
+              notes: data.releaseNotes,
+              assets: data.assets
+            });
+            setShowUpdateModal(true);
+            return { success: true, updateAvailable: true, version: data.latestVersion };
+          }
+        } catch (e: any) {
+          console.error('Electron update check fallback failed:', e);
+        }
+      }
+      return { success: false, error: err.message };
     }
-    return { success: false, error: 'Работает в веб-режиме (Electron не обнаружен)' };
   };
 
   useEffect(() => {
+    // Perform update check
     checkForUpdates(true);
   }, []);
 
@@ -298,14 +325,27 @@ export default function App() {
       const res = await fetch('/api/profiles');
       const data = await res.json();
       const profs = Array.isArray(data) ? data : [];
-      setProfiles(profs);
+      
+      const sortedProfs = [...profs].sort((a, b) => {
+        const aFav = a.is_favorite ? 1 : 0;
+        const bFav = b.is_favorite ? 1 : 0;
+        if (aFav !== bFav) return bFav - aFav;
+        return (b.created_at || 0) - (a.created_at || 0);
+      });
+      setProfiles(sortedProfs);
       
       const savedActiveId = localStorage.getItem('launcher_active_profile_id');
-      if (savedActiveId && profs.some((p: any) => p.id === savedActiveId)) {
+      if (savedActiveId && sortedProfs.some((p: any) => p.id === savedActiveId)) {
         setActiveProfileId(savedActiveId);
-      } else if (profs.length > 0) {
-        setActiveProfileId(profs[0].id);
-        localStorage.setItem('launcher_active_profile_id', profs[0].id);
+      } else {
+        const syncProfile = sortedProfs.find((p: any) => p.id === 'github_sync');
+        if (syncProfile) {
+          setActiveProfileId(syncProfile.id);
+          localStorage.setItem('launcher_active_profile_id', syncProfile.id);
+        } else if (sortedProfs.length > 0) {
+          setActiveProfileId(sortedProfs[0].id);
+          localStorage.setItem('launcher_active_profile_id', sortedProfs[0].id);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -418,7 +458,15 @@ export default function App() {
         body: JSON.stringify(updatedFields)
       });
       const updated = await res.json();
-      setProfiles(prev => prev.map(p => p.id === id ? updated : p));
+      setProfiles(prev => {
+        const mapped = prev.map(p => p.id === id ? updated : p);
+        return [...mapped].sort((a, b) => {
+          const aFav = a.is_favorite ? 1 : 0;
+          const bFav = b.is_favorite ? 1 : 0;
+          if (aFav !== bFav) return bFav - aFav;
+          return (b.created_at || 0) - (a.created_at || 0);
+        });
+      });
     } catch (e) {
       console.error(e);
     }
@@ -541,8 +589,13 @@ export default function App() {
       if (mod.depends && Array.isArray(mod.depends)) {
         mod.depends.forEach(depId => {
           const cleanDepId = depId.trim().toLowerCase();
-          // Skip known platform modules / system APIs
-          if (['minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'fabric-api-base'].includes(cleanDepId)) {
+          // Skip known platform modules / system APIs / transitively bundled libraries (JiJ)
+          const ignoredDeps = [
+            'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'fabric-api-base',
+            'cloth-config', 'cloth-config-2', 'cloth_config', 'architectury', 'yet-another-config-lib', 'yet_another_config_lib', 'yacl', 'cardinal-components', 'cardinal-components-base', 'cardinal-components-entity', 'kirin', 'kirin-api', 'modmenu', 'com_typesafe_config', 'typesafe-config', 'org_jetbrains_annotations', 'playerabilitylib', 'trinkets', 'geckolib', 'omega-config', 'fzzy_config', 'pehkui', 'bclib', 'spectrelib', 'completeconfig', 'libgui', 'libip', 'org_antlr_antlr4_runtime',
+            'fabric-rendering-v1', 'fabric-lifecycle-events-v1', 'fabric-keybindings-v0', 'fabric-screen-api-v1', 'fabric-resource-loader-v0', 'fabric-networking-api-v1', 'fabric-content-registries-v0', 'fabric-item-api-v1', 'fabric-models-v0', 'fabric-renderer-api-v1', 'fabric-mining-level-api-v1', 'fabric-object-builder-api-v1', 'fabric-transitive-access-wideners-v1', 'fabric-command-api-v1', 'fabric-command-api-v2', 'fabric-commands-v0', 'fabric-registry-sync-v0', 'fabric-loot-api-v2', 'fabric-loot-tables-v1', 'fabric-recipe-api-v1', 'fabric-sound-api-v1', 'fabric-dimensions-v1', 'fabric-biome-api-v1', 'fabric-game-rule-api-v1', 'fabric-particles-v1', 'fabric-events-interaction-v0', 'fabric-containers-v0', 'fabric-screen-handler-api-v1', 'fabric-transfer-api-v1', 'fabric-rendering-fluids-v1', 'fabric-rendering-data-attachment-v1', 'fabric-convention-tags-v1', 'fabric-message-api-v1', 'fabric-item-group-api-v1'
+          ];
+          if (ignoredDeps.includes(cleanDepId)) {
             return;
           }
           
@@ -889,17 +942,17 @@ export default function App() {
           className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80 select-none"
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
-          <div className="flex items-center space-x-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="no-drag flex items-center space-x-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
             <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
               v{launcherVersion || '0.0.6'}
             </span>
           </div>
-          <div className="flex items-center -mr-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="no-drag flex items-center -mr-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             {/* Minimize */}
             <button
               onClick={handleMinimize}
-              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              className="no-drag flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
               title="Свернуть"
             >
               <Minus size={16} />
@@ -907,7 +960,7 @@ export default function App() {
             {/* Maximize */}
             <button
               onClick={handleMaximize}
-              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              className="no-drag flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
               title="Развернуть"
             >
               <Square size={13} />
@@ -915,7 +968,7 @@ export default function App() {
             {/* Close */}
             <button
               onClick={handleClose}
-              className="flex items-center justify-center h-14 w-14 text-zinc-400 hover:text-white hover:bg-red-600 active:bg-red-700 transition-colors focus:outline-none cursor-pointer rounded-tr-none"
+              className="no-drag flex items-center justify-center h-14 w-14 text-zinc-400 hover:text-white hover:bg-red-600 active:bg-red-700 transition-colors focus:outline-none cursor-pointer rounded-tr-none"
               title="Закрыть"
             >
               <X size={18} />
@@ -1075,7 +1128,15 @@ export default function App() {
                                 : 'hover:bg-zinc-900 border border-transparent text-zinc-400 hover:text-zinc-100'
                             }`}
                           >
-                            <span className="text-xs font-bold truncate w-full">{p.name}</span>
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-xs font-bold truncate flex items-center gap-1.5">
+                                {p.is_favorite && <Star size={10} fill="#f59e0b" className="text-amber-500 shrink-0" />}
+                                <span className="truncate">{p.name}</span>
+                              </span>
+                              {p.is_github_sync && (
+                                <span className="bg-cyan-500/10 text-cyan-400 px-1 py-0.2 rounded border border-cyan-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">Sync</span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-mono">
                               <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40">Ver: {p.game_version}</span>
                               <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-cyan-500/80">{p.mod_loader}</span>
@@ -1087,6 +1148,18 @@ export default function App() {
                   </>
                 )}
               </div>
+
+              {activeProfile?.is_github_sync && (
+                <button
+                  onClick={() => setShowSyncModal(true)}
+                  disabled={gameStatus !== 'idle'}
+                  className="flex h-12 px-4 items-center justify-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/80 text-zinc-300 hover:text-cyan-400 hover:border-cyan-500/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest"
+                  title="Синхронизировать сборку с GitHub"
+                >
+                  <RefreshCw size={14} />
+                  Обновить
+                </button>
+              )}
 
               <button 
                 onClick={() => {
@@ -1116,6 +1189,28 @@ export default function App() {
           userProfile={userProfile}
           onGameStatusChange={(s) => setGameStatus(s)}
           onClose={() => setShowLaunchModal(false)}
+        />
+      )}
+
+      {showSyncModal && (
+        <SyncModal 
+          profileId={activeProfile.id}
+          onClose={(didSyncSucceed) => {
+            setShowSyncModal(false);
+            if (didSyncSucceed) {
+              const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+              fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`)
+                .then(r => r.json())
+                .then(data => {
+                  if (data && data.tag_name) {
+                    localStorage.setItem('last_synced_build_tag', data.tag_name);
+                  }
+                })
+                .catch(e => console.error(e));
+              
+              handleSelectProfile(activeProfile.id);
+            }
+          }}
         />
       )}
       

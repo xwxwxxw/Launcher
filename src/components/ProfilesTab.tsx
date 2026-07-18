@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Profile } from '../types';
-import { Plus, Edit, Trash2, Box, Download, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Box, Download, Upload, Star } from 'lucide-react';
 import CreateProfileModal from './CreateProfileModal';
 import PlayerHead2D from './PlayerHead2D';
 import { openFolderInExplorer } from '../utils/explorer';
@@ -167,6 +167,7 @@ export default function ProfilesTab({
                 onSelect={() => onSelectProfile(p.id)}
                 onDelete={() => onDeleteProfile(p.id)} 
                 onEdit={() => setEditingProfile(p)}
+                onToggleFavorite={() => onUpdateProfile(p.id, { is_favorite: !p.is_favorite })}
                 enabledCount={enabledCount}
                 disabledCount={disabledCount}
                 userProfile={userProfile}
@@ -198,10 +199,11 @@ const ProfileCard: React.FC<{
   onSelect: () => void, 
   onDelete: () => void,
   onEdit: () => void,
+  onToggleFavorite: () => void,
   enabledCount: number,
   disabledCount: number,
   userProfile: {name: string, id: string, accessToken: string} | null
-}> = ({ profile, isActive, onSelect, onDelete, onEdit, enabledCount, disabledCount, userProfile }) => {
+}> = ({ profile, isActive, onSelect, onDelete, onEdit, onToggleFavorite, enabledCount, disabledCount, userProfile }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -241,8 +243,13 @@ const ProfileCard: React.FC<{
             )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-bold text-zinc-100">{profile.name}</h3>
+              {profile.is_github_sync && (
+                <span className="text-[8px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                  GitHub Sync
+                </span>
+              )}
               {isActive && (
                 <span className="text-[8px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
                   Активен
@@ -254,43 +261,60 @@ const ProfileCard: React.FC<{
             </p>
           </div>
         </div>
-        <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 items-center">
+        <div className="flex gap-1.5 items-center relative z-20">
           <button 
             onClick={(e) => { 
               e.stopPropagation(); 
-              const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
-              window.open(`/api/profiles/${profile.id}/export?minecraftPath=${encodeURIComponent(mcPath)}`, '_blank'); 
+              onToggleFavorite();
             }} 
-            className="p-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"
-            title="Экспорт сборки (ZIP)"
+            className={`p-1.5 rounded-md transition-all cursor-pointer ${
+              profile.is_favorite 
+                ? 'text-amber-400 hover:text-amber-300 bg-amber-400/10' 
+                : 'text-zinc-500 hover:text-amber-400 hover:bg-amber-400/10 opacity-0 group-hover:opacity-100'
+            }`}
+            title={profile.is_favorite ? "Убрать из избранного" : "Добавить в избранное"}
           >
-            <Download size={14} />
+            <Star size={14} fill={profile.is_favorite ? "currentColor" : "none"} />
           </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onEdit(); }} 
-            className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"
-            title="Редактировать сборку"
-          >
-            <Edit size={14} />
-          </button>
-          
-          {confirmDelete ? (
+
+          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 items-center">
             <button 
-              onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }} 
-              className="px-2.5 py-1 bg-red-500/25 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/40 rounded-lg transition-all animate-pulse"
-              title="Нажмите еще раз для подтверждения"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+                window.open(`/api/profiles/${profile.id}/export?minecraftPath=${encodeURIComponent(mcPath)}`, '_blank'); 
+              }} 
+              className="p-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"
+              title="Экспорт сборки (ZIP)"
             >
-              Удалить?
+              <Download size={14} />
             </button>
-          ) : (
             <button 
-              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }} 
-              className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-              title="Удалить сборку"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }} 
+              className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"
+              title="Редактировать сборку"
             >
-              <Trash2 size={14} />
+              <Edit size={14} />
             </button>
-          )}
+            
+            {confirmDelete ? (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }} 
+                className="px-2.5 py-1 bg-red-500/25 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/40 rounded-lg transition-all animate-pulse"
+                title="Нажмите еще раз для подтверждения"
+              >
+                Удалить?
+              </button>
+            ) : (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }} 
+                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                title="Удалить сборку"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       

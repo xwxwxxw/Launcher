@@ -141,6 +141,31 @@ if (fs.existsSync(PROFILES_FILE)) {
         migrated = true;
       }
     });
+    // Ensure the default github_sync profile exists
+    const hasSyncProfile = profiles.some(p => p.id === 'github_sync');
+    if (!hasSyncProfile) {
+      profiles.push({
+        id: 'github_sync',
+        name: 'Сетевая сборка (GitHub Sync)',
+        description: 'Специальная сборка, автоматически синхронизируемая с репозиторием GitHub. Все моды и файлы конфигурации обновляются в один клик.',
+        game_version: '1.20.1',
+        mod_loader: 'Fabric',
+        mod_path: './profiles/github_sync/mods',
+        created_at: Date.now() - 25000,
+        is_active: false,
+        ram_mb: 4096,
+        is_github_sync: true,
+        is_favorite: true
+      } as any);
+      migrated = true;
+    } else {
+      // Force set is_favorite for existing sync profile
+      const syncProf = profiles.find(p => p.id === 'github_sync');
+      if (syncProf && !syncProf.is_favorite) {
+        syncProf.is_favorite = true;
+        migrated = true;
+      }
+    }
     if (migrated) {
       saveProfiles();
     }
@@ -170,7 +195,20 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       created_at: Date.now() - 50000,
       is_active: false,
       ram_mb: 4096
-    }
+    },
+    {
+      id: 'github_sync',
+      name: 'Сетевая сборка (GitHub Sync)',
+      description: 'Специальная сборка, автоматически синхронизируемая с репозиторием GitHub. Все моды и файлы конфигурации обновляются в один клик.',
+      game_version: '1.20.1',
+      mod_loader: 'Fabric',
+      mod_path: './profiles/github_sync/mods',
+      created_at: Date.now() - 25000,
+      is_active: false,
+      ram_mb: 4096,
+      is_github_sync: true,
+      is_favorite: true
+    } as any
   ];
   saveProfiles();
 }
@@ -333,6 +371,293 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
   } catch (err) {
     if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Update check endpoint available for both Web and Electron
+app.get('/api/updates/check', async (req, res) => {
+  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  try {
+    const gitRes = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+    });
+    if (!gitRes.ok) {
+      return res.status(gitRes.status).json({ error: `GitHub API returned ${gitRes.status}` });
+    }
+    const release: any = await gitRes.json();
+    const versionMatch = release.tag_name.match(/(\d+\.\d+\.\d+)/);
+    const latestVersion = versionMatch ? versionMatch[1] : release.tag_name.replace(/^v/, '');
+    
+    res.json({
+      latestVersion,
+      tag_name: release.tag_name,
+      releaseNotes: release.body,
+      assets: release.assets || []
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Advanced GitHub profile synchronization with user data preservation
+app.get('/api/sync-build', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendEvent = (type: string, data: any) => {
+    res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const profileId = String(req.query.profileId || '1');
+  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  const mcPath = String(req.query.minecraftPath || '');
+
+  sendEvent('status', { message: 'Проверка обновлений сборки на GitHub...', progress: 10 });
+
+  try {
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile) {
+      sendEvent('error', { message: 'Профиль не найден.' });
+      return res.end();
+    }
+
+    const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, mcPath);
+    if (!isPathSafe(profileDir, mcPath)) {
+      sendEvent('error', { message: 'Неразрешенный путь к профилю.' });
+      return res.end();
+    }
+
+    if (!fs.existsSync(profileDir)) {
+      fs.mkdirSync(profileDir, { recursive: true });
+    }
+
+    // Step 1: Query GitHub Release for a zip file, or download repo zipball
+    let zipUrl = '';
+    let tagName = 'latest';
+    try {
+      const gitRes = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+        headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+      });
+      
+      if (gitRes.ok) {
+        const release: any = await gitRes.json();
+        tagName = release.tag_name || 'latest';
+        // Look for .zip in assets
+        if (release.assets && Array.isArray(release.assets)) {
+          const zipAsset = release.assets.find((asset: any) => asset.name.endsWith('.zip'));
+          if (zipAsset) {
+            zipUrl = zipAsset.browser_download_url;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Failed to get latest GitHub release:', e);
+    }
+
+    if (!zipUrl) {
+      // Fallback: Use the main branch source zipball
+      zipUrl = `https://api.github.com/repos/${repo}/zipball/main`;
+      sendEvent('status', { message: 'Основной релиз не найден. Скачивание исходников сборки из ветки main...', progress: 20 });
+    } else {
+      sendEvent('status', { message: `Найдена сборка ${tagName}. Скачивание архива...`, progress: 20 });
+    }
+
+    // Step 2: Download ZIP to temp file
+    sendEvent('status', { message: 'Загрузка архива сборки...', progress: 30 });
+    const downloadRes = await fetch(zipUrl, {
+      headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+    });
+
+    if (!downloadRes.ok) {
+      throw new Error(`Ошибка скачивания: HTTP ${downloadRes.status}`);
+    }
+
+    const arrayBuffer = await downloadRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    sendEvent('status', { message: 'Сохранение архива во временную папку...', progress: 60 });
+    const tempZipPath = path.join(os.tmpdir(), `layle-sync-${Date.now()}.zip`);
+    fs.writeFileSync(tempZipPath, buffer);
+
+    sendEvent('status', { message: 'Резервное копирование настроек и очистка модов...', progress: 65 });
+
+    // Step 3: Clean up existing mods to prevent duplicates
+    const modsDir = path.join(profileDir, 'mods');
+    if (fs.existsSync(modsDir)) {
+      const files = fs.readdirSync(modsDir);
+      for (const file of files) {
+        if (file.endsWith('.jar') || file.endsWith('.jar.disabled')) {
+          fs.unlinkSync(path.join(modsDir, file));
+        }
+      }
+    } else {
+      fs.mkdirSync(modsDir, { recursive: true });
+    }
+
+    sendEvent('status', { message: 'Распаковка сборки...', progress: 75 });
+
+    // Step 4: Extract downloaded ZIP
+    const directory = await unzipper.Open.file(tempZipPath);
+    
+    // Check for nested GitHub source structure (all entries in a single directory folder)
+    let commonPrefix = '';
+    if (directory.files.length > 0) {
+      const firstPath = directory.files[0].path;
+      const topDirMatch = firstPath.match(/^([^/]+)\//);
+      if (topDirMatch) {
+        const testPrefix = topDirMatch[1] + '/';
+        const allStartWithPrefix = directory.files.every(f => f.path.startsWith(testPrefix));
+        if (allStartWithPrefix) {
+          commonPrefix = testPrefix;
+        }
+      }
+    }
+
+    let fileCount = 0;
+    const totalFiles = directory.files.length;
+
+    for (const file of directory.files) {
+      fileCount++;
+      // Strip common prefix if any
+      let relPath = file.path;
+      if (commonPrefix && relPath.startsWith(commonPrefix)) {
+        relPath = relPath.substring(commonPrefix.length);
+      }
+      
+      if (!relPath || relPath === '/' || relPath.trim() === '') continue;
+
+      // Handle CloudSync folder mapping (e.g. CloudSync/mods -> mods)
+      const cloudSyncMatch = relPath.match(/^(CloudSync|Cloud_Sync|Cloud\s+Sync)\//i);
+      if (cloudSyncMatch) {
+        relPath = relPath.substring(cloudSyncMatch[0].length);
+      }
+
+      // Normalize common typos or singular variants for resourcepacks
+      const resPackMatch = relPath.match(/^(resoursepacks?|resourcepack)\//i);
+      if (resPackMatch) {
+        relPath = 'resourcepacks/' + relPath.substring(resPackMatch[0].length);
+      }
+
+      const outPath = path.resolve(profileDir, relPath);
+      if (!isPathSafe(outPath, mcPath)) {
+        console.warn(`Unsafe path in ZIP skipped: ${outPath}`);
+        continue;
+      }
+
+      // Preserve user-specific files/folders
+      const preservedNames = ['options.txt', 'servers.dat', 'optionsof.txt'];
+      const preservedDirs = ['saves', 'screenshots', 'resourcepacks', 'shaderpacks'];
+      
+      const fileLower = relPath.toLowerCase();
+      const isPreservedFile = preservedNames.includes(relPath);
+      const isPreservedDir = preservedDirs.some(dir => fileLower.startsWith(dir + '/'));
+
+      if ((isPreservedFile || isPreservedDir) && fs.existsSync(outPath)) {
+        // Skip overwriting user's local version of this file/folder!
+        continue;
+      }
+
+      if (file.type === 'Directory') {
+        if (!fs.existsSync(outPath)) {
+          fs.mkdirSync(outPath, { recursive: true });
+        }
+      } else {
+        const content = await file.buffer();
+        if (!fs.existsSync(path.dirname(outPath))) {
+          fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        }
+        fs.writeFileSync(outPath, content);
+      }
+
+      if (fileCount % 10 === 0) {
+        const unpackProgress = 75 + Math.round((fileCount / totalFiles) * 20);
+        sendEvent('status', { message: `Распаковка файлов: ${fileCount} / ${totalFiles}...`, progress: unpackProgress });
+      }
+    }
+
+    // Clean up temp file
+    if (fs.existsSync(tempZipPath)) {
+      fs.unlinkSync(tempZipPath);
+    }
+
+    sendEvent('status', { message: 'Сканирование модификаций...', progress: 95 });
+
+    // Step 5: Automatically rescan mods for profile
+    const finalModsDir = path.join(profileDir, 'mods');
+    if (fs.existsSync(finalModsDir)) {
+      const jarFiles = fs.readdirSync(finalModsDir)
+        .filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled'))
+        .map(f => path.join(finalModsDir, f));
+
+      const parsedMods = await Promise.all(jarFiles.map(async (f) => {
+        const parsed = await parseModJar(f);
+        const isFileDisabled = f.endsWith('.disabled');
+        return {
+          ...parsed,
+          profile_id: profileId,
+          enabled: isFileDisabled ? false : true,
+          contentType: 'mods'
+        };
+      }));
+
+      // Replace mods list
+      modsList = modsList.filter(m => !(m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType)));
+      modsList.push(...parsedMods);
+      saveMods();
+    }
+
+    // Step 5b: Automatically rescan resourcepacks for profile
+    const finalPacksDir = path.join(profileDir, 'resourcepacks');
+    if (fs.existsSync(finalPacksDir)) {
+      const packFiles = fs.readdirSync(finalPacksDir)
+        .filter(f => !f.startsWith('.'));
+
+      const parsedPacks = packFiles.map(f => {
+        const fullPath = path.join(finalPacksDir, f);
+        const isFileDisabled = f.endsWith('.disabled');
+        const cleanName = f.replace('.disabled', '');
+        const extension = path.extname(cleanName);
+        const modId = cleanName.replace(extension, '');
+
+        const existing = modsList.find(m => 
+          m.profile_id === profileId && 
+          m.contentType === 'resourcepacks' && 
+          (m.mod_id === modId || m.name === cleanName)
+        );
+
+        return {
+          path: fullPath,
+          name: cleanName,
+          mod_id: modId,
+          display_name: existing?.display_name || modId,
+          description: existing?.description || 'Локальный пакет контента.',
+          description_ru: existing?.description_ru || 'Локальный пакет контента.',
+          icon_url: existing?.icon_url || '',
+          downloads: existing?.downloads || 0,
+          api_source: existing?.api_source || 'Локальный',
+          profile_id: profileId,
+          enabled: !isFileDisabled,
+          contentType: 'resourcepacks',
+          categories: existing?.categories || ['resource packs'],
+          categories_ru: existing?.categories_ru || ['Ресурспаки']
+        };
+      });
+
+      // Replace resourcepacks list
+      modsList = modsList.filter(m => !(m.profile_id === profileId && m.contentType === 'resourcepacks'));
+      modsList.push(...parsedPacks);
+      saveMods();
+    }
+
+    sendEvent('success', { message: 'Сборка успешно синхронизирована с GitHub!', tag: tagName });
+    res.end();
+
+  } catch (err: any) {
+    console.error('Error synchronizing build:', err);
+    sendEvent('error', { message: `Ошибка синхронизации: ${err.message}` });
+    res.end();
   }
 });
 

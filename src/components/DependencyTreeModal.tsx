@@ -39,7 +39,15 @@ export default function DependencyTreeModal({ mod, allMods, onClose }: { mod: Mo
 
     // Process dependencies
     if (mod.depends) {
+      const IGNORED_DEPS = [
+        'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'fabric-api-base',
+        'cloth-config', 'cloth-config-2', 'cloth_config', 'architectury', 'yet-another-config-lib', 'yet_another_config_lib', 'yacl', 'cardinal-components', 'cardinal-components-base', 'cardinal-components-entity', 'kirin', 'kirin-api', 'modmenu', 'com_typesafe_config', 'typesafe-config', 'org_jetbrains_annotations', 'playerabilitylib', 'trinkets', 'geckolib', 'omega-config', 'fzzy_config', 'pehkui', 'bclib', 'spectrelib', 'completeconfig', 'libgui', 'libip', 'org_antlr_antlr4_runtime',
+        'fabric-rendering-v1', 'fabric-lifecycle-events-v1', 'fabric-keybindings-v0', 'fabric-screen-api-v1', 'fabric-resource-loader-v0', 'fabric-networking-api-v1', 'fabric-content-registries-v0', 'fabric-item-api-v1', 'fabric-models-v0', 'fabric-renderer-api-v1', 'fabric-mining-level-api-v1', 'fabric-object-builder-api-v1', 'fabric-transitive-access-wideners-v1', 'fabric-command-api-v1', 'fabric-command-api-v2', 'fabric-commands-v0', 'fabric-registry-sync-v0', 'fabric-loot-api-v2', 'fabric-loot-tables-v1', 'fabric-recipe-api-v1', 'fabric-sound-api-v1', 'fabric-dimensions-v1', 'fabric-biome-api-v1', 'fabric-game-rule-api-v1', 'fabric-particles-v1', 'fabric-events-interaction-v0', 'fabric-containers-v0', 'fabric-screen-handler-api-v1', 'fabric-transfer-api-v1', 'fabric-rendering-fluids-v1', 'fabric-rendering-data-attachment-v1', 'fabric-convention-tags-v1', 'fabric-message-api-v1', 'fabric-item-group-api-v1'
+      ];
       mod.depends.forEach(depId => {
+        const cleanDepId = depId.trim().toLowerCase();
+        if (IGNORED_DEPS.includes(cleanDepId)) return;
+        
         const foundMod = allMods?.find(m => m.mod_id === depId || m.name === depId);
         let depNode = nodeMap.get(depId);
         

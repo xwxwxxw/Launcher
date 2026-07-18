@@ -38,3 +38,8 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+.no-drag {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+}

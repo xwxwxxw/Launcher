@@ -1,0 +1,204 @@
+import { useEffect, useState, useRef } from 'react';
+import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react';
+
+interface SyncModalProps {
+  onClose: (didSyncSucceed?: boolean) => void;
+  profileId: string;
+}
+
+export default function SyncModal({ onClose, profileId }: SyncModalProps) {
+  const [logs, setLogs] = useState<{ msg: string; time: string }[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<'syncing' | 'success' | 'error'>('syncing');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [tagName, setTagName] = useState('');
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  useEffect(() => {
+    const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+    const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+
+    const query = new URLSearchParams({
+      profileId,
+      repo,
+      minecraftPath
+    });
+
+    const eventSource = new EventSource(`/api/sync-build?${query.toString()}`);
+    const timeNow = () => new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    eventSource.addEventListener('status', (e: any) => {
+      const data = JSON.parse(e.data);
+      setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
+      if (data.progress !== undefined) {
+        setProgress(data.progress);
+      }
+    });
+
+    eventSource.addEventListener('success', (e: any) => {
+      const data = JSON.parse(e.data);
+      setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
+      setProgress(100);
+      setTagName(data.tag || 'latest');
+      setStatus('success');
+      eventSource.close();
+    });
+
+    eventSource.addEventListener('error', (e: any) => {
+      const data = JSON.parse(e.data);
+      setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.message}`, time: timeNow() }]);
+      setErrorMsg(data.message);
+      setStatus('error');
+      eventSource.close();
+    });
+
+    eventSource.onerror = () => {
+      setLogs(prev => [...prev, { msg: 'КРИТИЧЕСКАЯ ОШИБКА: Ошибка подключения к серверу синхронизации.', time: timeNow() }]);
+      setErrorMsg('Прервано соединение с сервером.');
+      setStatus('error');
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [profileId]);
+
+  const handleManualDownload = () => {
+    const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+    const url = `https://github.com/${repo}/releases`;
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      (window as any).electron.shell.openExternal(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#09090b]/85 backdrop-blur-md flex items-center justify-center z-50 p-6">
+      <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col max-h-[85vh]">
+        {/* Top Header */}
+        <div className="p-6 border-b border-zinc-900 flex justify-between items-center bg-zinc-900/10">
+          <div className="flex items-center gap-3">
+            <RefreshCw className={`text-cyan-400 ${status === 'syncing' ? 'animate-spin' : ''}`} size={20} />
+            <div>
+              <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-widest">Синхронизация Сборки</h3>
+              <p className="text-[10px] text-zinc-500 font-medium">Синхронизация игрового клиента с GitHub-релизом</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => onClose(status === 'success')}
+            className="text-zinc-500 hover:text-zinc-300 p-1.5 hover:bg-zinc-900 rounded-xl transition-all cursor-pointer"
+            title={status === 'syncing' ? "Принудительно остановить и закрыть" : "Закрыть"}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Dynamic Status Progress */}
+        <div className="p-8 flex flex-col items-center border-b border-zinc-900/50 bg-gradient-to-b from-cyan-950/5 to-transparent">
+          {status === 'syncing' && (
+            <>
+              <div className="relative w-20 h-20 flex items-center justify-center mb-6">
+                <Loader2 className="animate-spin text-cyan-400 absolute w-full h-full" size={48} strokeWidth={1.5} />
+                <span className="text-xs font-mono font-bold text-zinc-300">{progress}%</span>
+              </div>
+              <h4 className="text-zinc-100 font-semibold text-center mb-2 animate-pulse text-sm">
+                Выполняется синхронизация файлов...
+              </h4>
+              <p className="text-xs text-zinc-500 text-center max-w-md">
+                Пожалуйста, не закрывайте лаунчер. Идет загрузка необходимых модов, текстур и файлов конфигурации.
+              </p>
+            </>
+          )}
+
+          {status === 'success' && (
+            <>
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mb-5 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                <CheckCircle2 size={36} />
+              </div>
+              <h4 className="text-emerald-400 font-bold text-center mb-2">Синхронизация завершена успешно!</h4>
+              <p className="text-xs text-zinc-400 text-center max-w-md mb-1">
+                Все моды и настройки сборки были успешно обновлены до версии <span className="text-zinc-100 font-semibold">{tagName}</span>.
+              </p>
+              <p className="text-[10px] text-zinc-500 text-center">
+                Личные настройки (сервера, управление, синглплеерные миры) полностью сохранены.
+              </p>
+            </>
+          )}
+
+          {status === 'error' && (
+            <>
+              <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-400 mb-5 shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+                <AlertTriangle size={32} />
+              </div>
+              <h4 className="text-red-400 font-bold text-center mb-2">Сбой при обновлении сборки</h4>
+              <p className="text-xs text-zinc-400 text-center max-w-md mb-4 font-medium">
+                {errorMsg || 'Произошла непредвиденная ошибка.'}
+              </p>
+              
+              <button
+                onClick={handleManualDownload}
+                className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+              >
+                Скачать сборку вручную <ExternalLink size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Progress Bar */}
+          <div className="w-full mt-8">
+            <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
+              <div 
+                className={`h-full transition-all duration-300 rounded-full ${
+                  status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
+                }`}
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between items-center mt-2 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+              <span>ПРОГРЕСС</span>
+              <span>{progress}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Terminal Output Console */}
+        <div className="flex-1 bg-zinc-950 p-6 flex flex-col min-h-[160px] max-h-[250px] overflow-hidden border-b border-zinc-900">
+          <div className="flex justify-between items-center mb-2.5">
+            <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-500">Лог операции обновления</span>
+            <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-600 font-mono">UTC Terminal</span>
+          </div>
+          <div className="flex-1 overflow-y-auto scrollbar-none font-mono text-[11px] text-zinc-400 space-y-1.5 p-3 rounded-2xl bg-[#09090b] border border-zinc-900">
+            {logs.length === 0 ? (
+              <div className="text-zinc-600 italic">Инициализация логов обновления...</div>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className="flex gap-2.5 leading-relaxed">
+                  <span className="text-zinc-600 flex-shrink-0 select-none">[{log.time}]</span>
+                  <span className="break-all">{log.msg}</span>
+                </div>
+              ))
+            )}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div className="p-5 bg-zinc-900/10 flex justify-end">
+          <button
+            onClick={() => onClose(status === 'success')}
+            disabled={status === 'syncing'}
+            className="px-6 py-2.5 bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+          >
+            {status === 'syncing' ? 'Пожалуйста, подождите...' : 'Закрыть'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

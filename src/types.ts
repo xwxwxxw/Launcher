@@ -37,6 +37,8 @@ export interface Profile {
   ram_mb: number;
   java_path?: string;
   minecraft_path?: string;
+  is_github_sync?: boolean;
+  is_favorite?: boolean;
   stats?: {
     totalPlayTimeMs: number;
     lastLaunchTime: number;
