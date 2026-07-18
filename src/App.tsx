@@ -88,17 +88,17 @@ export default function App() {
   }, [showCustomToast]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('get-app-version')
           .then((v: string) => {
             if (v) setLauncherVersion(v);
           })
           .catch((err: any) => {
             console.error('Failed to get app version via IPC:', err);
-            const { app } = (window as any).require('electron').remote || {};
-            if (app) setLauncherVersion(app.getVersion());
+            const { app } = (window as any).electron.remote || {};
+            if (app) Promise.resolve(app.getVersion()).then(v => setLauncherVersion(v));
           });
 
         // Load auth from auth.json via get-auth
@@ -183,20 +183,20 @@ export default function App() {
   const [showSplashScreen, setShowSplashScreen] = useState(true);
 
   const handleMinimize = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      (window as any).require('electron').ipcRenderer.send('window-minimize');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      (window as any).electron.ipcRenderer.send('window-minimize');
     }
   };
 
   const handleMaximize = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      (window as any).require('electron').ipcRenderer.send('window-maximize');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      (window as any).electron.ipcRenderer.send('window-maximize');
     }
   };
 
   const handleClose = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      (window as any).require('electron').ipcRenderer.send('window-close');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      (window as any).electron.ipcRenderer.send('window-close');
     }
   };
 
@@ -204,9 +204,9 @@ export default function App() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const checkForUpdates = async (silent = true) => {
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
         const data = await ipcRenderer.invoke('check-updates', repo);
         if (data && data.updateAvailable) {
@@ -701,9 +701,9 @@ export default function App() {
           localStorage.setItem('ely_session', JSON.stringify(profile));
           setShowAuthModal(false);
           
-          if (typeof window !== 'undefined' && (window as any).require) {
+          if (typeof window !== 'undefined' && (window as any).electron) {
             try {
-              const { ipcRenderer } = (window as any).require('electron');
+              const { ipcRenderer } = (window as any).electron;
               ipcRenderer.invoke('save-auth', profile).catch(() => {});
             } catch (e) {}
           }
@@ -763,9 +763,9 @@ export default function App() {
     setUserProfile(profile);
     localStorage.setItem('ely_session', JSON.stringify(profile));
     setShowAuthModal(false);
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('save-auth', profile).catch(() => {});
       } catch (e) {}
     }
@@ -774,9 +774,9 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     localStorage.removeItem('ely_session');
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('save-auth', null).catch(() => {});
       } catch (e) {}
     }

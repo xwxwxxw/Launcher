@@ -387,8 +387,9 @@ async function createWindow() {
     frame: false,
     icon: winIcon,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.cjs")
     },
     titleBarStyle: 'hidden',
     backgroundColor: '#09090b',

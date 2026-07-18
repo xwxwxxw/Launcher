@@ -74,8 +74,8 @@ export default function HomeTab({
               <h3 className="text-xl font-bold tracking-wide text-zinc-100 mb-4">{userProfile.name}</h3>
               <button 
                 onClick={() => {
-                  if (typeof window !== 'undefined' && (window as any).require) {
-                    const { shell } = (window as any).require('electron');
+                  if (typeof window !== 'undefined' && (window as any).electron) {
+                    const { shell } = (window as any).electron;
                     shell.openExternal('https://ely.by');
                   } else {
                     window.open('https://ely.by', '_blank');

@@ -1,7 +1,7 @@
 export const openFolderInExplorer = async (folderPath: string) => {
-  if (typeof window !== 'undefined' && (window as any).require) {
+  if (typeof window !== 'undefined' && (window as any).electron) {
     try {
-      const { ipcRenderer } = (window as any).require('electron');
+      const { ipcRenderer } = (window as any).electron;
       await ipcRenderer.invoke('open-path', folderPath);
       return;
     } catch (e) {

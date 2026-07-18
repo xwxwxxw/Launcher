@@ -15,9 +15,9 @@ export default function SettingsModal({ onClose, gamePath, setGamePath }: Settin
   const [version, setVersion] = useState('');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      const { app } = (window as any).require('electron').remote || {};
-      if (app) setVersion(app.getVersion());
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      const { app } = (window as any).electron.remote || {};
+      if (app) Promise.resolve(app.getVersion()).then(v => setVersion(v));
     }
   }, []);
 
@@ -27,8 +27,8 @@ export default function SettingsModal({ onClose, gamePath, setGamePath }: Settin
     localStorage.setItem('launcher_language', language);
     localStorage.setItem('launcher_minecraft_path', gamePath);
 
-    if (typeof window !== 'undefined' && (window as any).require) {
-      const { ipcRenderer } = (window as any).require('electron');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      const { ipcRenderer } = (window as any).electron;
       ipcRenderer.invoke('set-autostart', autostart);
       ipcRenderer.invoke('set-minimize-to-tray', minimizeTray);
     }
@@ -37,8 +37,8 @@ export default function SettingsModal({ onClose, gamePath, setGamePath }: Settin
   };
 
   const handleSelectFolder = async () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      const { ipcRenderer } = (window as any).require('electron');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      const { ipcRenderer } = (window as any).electron;
       const result = await ipcRenderer.invoke('select-directory', gamePath);
       if (result) setGamePath(result);
     }

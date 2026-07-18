@@ -135,9 +135,9 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
       }
 
       // If running inside Electron, open the system browser via shell.openExternal
-      if (typeof window !== 'undefined' && (window as any).require) {
+      if (typeof window !== 'undefined' && (window as any).electron) {
         try {
-          const { shell } = (window as any).require('electron');
+          const { shell } = (window as any).electron;
           shell.openExternal(data.url);
         } catch (err) {
           console.error("Failed to open via Electron shell:", err);

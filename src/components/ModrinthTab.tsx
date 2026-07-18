@@ -90,7 +90,7 @@ export default function ModrinthTab({ onRefresh, activeProfileId, activeProfile 
   }, [query]);
 
   const handleSelectFolder = async (type: 'client' | 'server') => {
-    const { ipcRenderer } = (window as any).require('electron');
+    const { ipcRenderer } = (window as any).electron;
     const defaultPath = type === 'client' ? clientFolder : serverFolder;
     const selected = await ipcRenderer.invoke('select-directory', defaultPath);
     if (selected) {

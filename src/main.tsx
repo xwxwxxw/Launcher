@@ -59,9 +59,9 @@ if (typeof window !== 'undefined') {
     try {
       originalSetItem(key, value);
     } catch (e) {}
-    if ((window as any).require) {
+    if ((window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('save-settings', { [key]: value }).catch((e: any) => console.error(e));
       } catch (e) {}
     }
@@ -71,9 +71,9 @@ if (typeof window !== 'undefined') {
     try {
       originalRemoveItem(key);
     } catch (e) {}
-    if ((window as any).require) {
+    if ((window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('delete-setting', key).catch((e: any) => console.error(e));
       } catch (e) {}
     }

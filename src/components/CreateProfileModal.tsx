@@ -29,9 +29,9 @@ export default function CreateProfileModal({
   const customPathInputRef = useRef<HTMLInputElement>(null);
 
   const handleCustomPathBrowse = async () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         const selected = await ipcRenderer.invoke('select-directory', customPath);
         if (selected) {
           setCustomPath(selected);

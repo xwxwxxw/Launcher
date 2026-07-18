@@ -14,8 +14,8 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   if (!updateInfo) return null;
 
   const handleUpdate = async () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      const { ipcRenderer } = (window as any).require('electron');
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      const { ipcRenderer } = (window as any).electron;
       
       const exeAsset = updateInfo.assets.find(a => a.name.endsWith('.exe'));
       if (!exeAsset) {

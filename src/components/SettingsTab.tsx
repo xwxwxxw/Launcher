@@ -64,9 +64,9 @@ export default function SettingsTab({
   };
 
   const handleMinecraftBrowse = async () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         const selected = await ipcRenderer.invoke('select-directory', minecraftPath);
         if (selected) {
           setMinecraftPath(selected);
@@ -80,9 +80,9 @@ export default function SettingsTab({
   };
 
   const handleJavaBrowse = async () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
+    if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const { ipcRenderer } = (window as any).electron;
         const selected = await ipcRenderer.invoke('select-directory', javaPath);
         if (selected) {
           setJavaPath(selected);

@@ -1,14 +1,10 @@
-import { X, CheckCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-export type ToastType = 'success' | 'error' | 'info' | 'loading';
 
 export interface ToastMessage {
   id: string;
-  type: ToastType;
-  title?: string;
-  message?: string;
-  duration?: number;
+  message: string;
+  type: 'success' | 'error' | 'info';
 }
 
 interface NotificationToastProps {
@@ -18,42 +14,53 @@ interface NotificationToastProps {
 
 export default function NotificationToast({ toasts, onClose }: NotificationToastProps) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+    <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 pointer-events-none max-w-sm w-full">
       <AnimatePresence>
-        {toasts.map((toast) => (
-          <motion.div
-            key={toast.id}
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-            className={`
-              flex items-start gap-3 p-4 rounded-2xl border shadow-xl backdrop-blur-md
-              ${toast.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/30' : ''}
-              ${toast.type === 'error' ? 'bg-red-950/80 border-red-500/30' : ''}
-              ${toast.type === 'info' ? 'bg-blue-950/80 border-blue-500/30' : ''}
-              ${toast.type === 'loading' ? 'bg-zinc-900/90 border-zinc-700/50' : ''}
-            `}
-          >
-            <div className="shrink-0 mt-0.5">
-              {toast.type === 'success' && <CheckCircle size={18} className="text-emerald-500" />}
-              {toast.type === 'error' && <AlertTriangle size={18} className="text-red-500" />}
-              {toast.type === 'info' && <Info size={18} className="text-blue-500" />}
-              {toast.type === 'loading' && <Loader2 size={18} className="text-emerald-500 animate-spin" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-white truncate">{toast.title}</h4>
-              {toast.message && (
-                <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{toast.message}</p>
-              )}
-            </div>
-            <button
-              onClick={() => onClose(toast.id)}
-              className="shrink-0 p-1 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+        {toasts.map((toast) => {
+          let bgColor = 'bg-zinc-950/90 border-zinc-800 text-zinc-200';
+          let Icon = Info;
+          let iconColor = 'text-blue-400';
+          let borderGlow = 'shadow-[0_4px_20px_rgba(0,0,0,0.5)]';
+
+          if (toast.type === 'success') {
+            bgColor = 'bg-zinc-950/95 border-emerald-500/30 text-zinc-100';
+            Icon = CheckCircle2;
+            iconColor = 'text-emerald-400';
+            borderGlow = 'shadow-[0_0_20px_rgba(16,185,129,0.15)]';
+          } else if (toast.type === 'error') {
+            bgColor = 'bg-zinc-950/95 border-red-500/30 text-zinc-100';
+            Icon = AlertCircle;
+            iconColor = 'text-red-400';
+            borderGlow = 'shadow-[0_0_20px_rgba(239,68,68,0.15)]';
+          }
+
+          return (
+            <motion.div
+              key={toast.id}
+              layout
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10, transition: { duration: 0.15 } }}
+              className={`pointer-events-auto flex gap-3.5 items-start p-4 rounded-xl border backdrop-blur-xl ${bgColor} ${borderGlow} transition-all duration-300 w-full`}
             >
-              <X size={14} />
-            </button>
-          </motion.div>
-        ))}
+              <div className={`mt-0.5 p-1 rounded-lg bg-zinc-900/50 ${iconColor}`}>
+                <Icon size={16} />
+              </div>
+              <div className="flex-1 flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-500 font-mono">
+                  {toast.type === 'success' ? 'Успешно' : toast.type === 'error' ? 'Внимание' : 'Информация'}
+                </span>
+                <p className="text-xs font-bold leading-relaxed pr-2 font-sans select-text whitespace-pre-line">{toast.message}</p>
+              </div>
+              <button
+                onClick={() => onClose(toast.id)}
+                className="text-zinc-600 hover:text-zinc-300 transition-colors p-0.5 rounded-lg hover:bg-zinc-900 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   );

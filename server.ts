@@ -103,6 +103,27 @@ function normalizeProfilePath(inputPath: string, profileId: string, customMcPath
   return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
 }
 
+function isPathSafe(targetPath: string, customMcPath?: string): boolean {
+  if (!targetPath) return false;
+  
+  const resolvedTarget = path.resolve(targetPath);
+  
+  const allowedRoots: string[] = [
+    path.resolve(DATA_DIR),
+    path.resolve(process.cwd(), '.minecraft'),
+    path.resolve(os.tmpdir())
+  ];
+  
+  if (customMcPath && customMcPath.trim() !== '') {
+    allowedRoots.push(path.resolve(customMcPath));
+  }
+
+  return allowedRoots.some(allowed => {
+    const resolvedAllowed = path.resolve(allowed);
+    return resolvedTarget === resolvedAllowed || resolvedTarget.startsWith(resolvedAllowed + path.sep);
+  });
+}
+
 let profiles: Profile[] = [];
 
 function saveProfiles() {
@@ -206,6 +227,9 @@ app.get('/api/profiles/:id/export', async (req, res) => {
   
   const mcPath = req.query.minecraftPath || '';
   const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, String(mcPath));
+  if (!isPathSafe(profileDir, String(mcPath))) {
+    return res.status(403).json({ error: 'Access denied: Directory is outside allowed paths' });
+  }
   if (!fs.existsSync(profileDir)) return res.status(404).send('Profile directory not found');
 
   res.attachment(`${profile.name || 'profile'}_export.zip`);
@@ -231,6 +255,11 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
   const newId = Date.now().toString();
   const mcPath = req.body.minecraftPath || req.query.minecraftPath || '';
   const profileDir = normalizeProfilePath(`./profiles/${newId}`, newId, String(mcPath));
+  
+  if (!isPathSafe(profileDir, String(mcPath))) {
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    return res.status(403).json({ error: 'Access denied: Directory is outside allowed paths' });
+  }
   fs.mkdirSync(profileDir, { recursive: true });
   
   try {
@@ -244,7 +273,11 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
       } else if (file.path.startsWith('profile_data/')) {
         const relativePath = file.path.substring('profile_data/'.length);
         if (!relativePath) continue;
-        const outPath = path.join(profileDir, relativePath);
+        const outPath = path.resolve(profileDir, relativePath);
+        if (!isPathSafe(outPath, String(mcPath))) {
+          console.warn(`Unsafe path in archive skipped: ${outPath}`);
+          continue;
+        }
         if (file.type === 'Directory') {
           if (!fs.existsSync(outPath)) fs.mkdirSync(outPath, { recursive: true });
         } else {
@@ -960,6 +993,11 @@ app.post('/api/mods/install', async (req, res) => {
         : (computedContentType === 'shaderpacks' ? 'shaderpacks' : (installTarget === 'server' ? 'server-mods' : 'mods'));
       destDir = destDir.replace(/mods\/?$/, destFolder);
     }
+
+    const mcPathVal = req.body.minecraftPath || '';
+    if (destDir && !isPathSafe(destDir, String(mcPathVal))) {
+      return res.status(403).json({ error: 'Access denied: Destination directory is outside allowed paths' });
+    }
     
     if (destDir && downloadUrl) {
       const absDir = path.isAbsolute(destDir) ? destDir : path.resolve(process.cwd(), destDir);
@@ -967,6 +1005,9 @@ app.post('/api/mods/install', async (req, res) => {
         fs.mkdirSync(absDir, { recursive: true });
       }
       targetPath = path.join(absDir, fileName);
+      if (!isPathSafe(targetPath, String(mcPathVal))) {
+        return res.status(403).json({ error: 'Access denied: Target file path is outside allowed paths' });
+      }
       
       const fileRes = await fetch(downloadUrl);
       if (fileRes.ok && fileRes.body) {
@@ -1029,18 +1070,30 @@ app.post('/api/mods/delete', (req, res) => {
   }
   
   // Physically delete the jar or pack file/folder if filePath is passed and exists
-  if (filePath) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
-        if (stat.isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
+  if (filePath && typeof filePath === 'string') {
+    if (!isPathSafe(filePath)) {
+      return res.status(403).json({ error: 'Access denied: Unsafe file path' });
+    }
+    if (filePath.includes('..')) {
+      return res.status(403).json({ error: 'Path traversal not allowed' });
+    }
+    
+    const allowedFolders = ['mods', 'resourcepacks', 'shaderpacks', 'server-mods'];
+    const isSafe = allowedFolders.some(folder => filePath.includes(`/${folder}/`) || filePath.includes(`\\${folder}\\`));
+    
+    if (isSafe) {
+      try {
+        if (fs.existsSync(filePath)) {
+          const stat = fs.statSync(filePath);
+          if (stat.isDirectory()) {
+            fs.rmSync(filePath, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(filePath);
+          }
         }
+      } catch (e) {
+        console.error('Failed to physically delete content file:', e);
       }
-    } catch (e) {
-      console.error('Failed to physically delete content file:', e);
     }
   }
   
@@ -1075,6 +1128,9 @@ app.post('/api/mods/scan', async (req, res) => {
 
   if (folderPath && folderPath.trim() !== '') {
     folderPath = folderPath.replace(/mods\/?$/, destFolder);
+    if (!isPathSafe(folderPath, String(minecraftPath || ''))) {
+      return res.status(403).json({ error: 'Access denied: Folder path is outside allowed paths' });
+    }
     try {
       if (!fs.existsSync(folderPath)) {
         fs.mkdirSync(folderPath, { recursive: true });
@@ -1213,6 +1269,10 @@ app.post('/api/utils/open-folder', (req, res) => {
 
   const absolutePath = path.isAbsolute(folderPath) ? folderPath : path.resolve(process.cwd(), folderPath);
 
+  if (!isPathSafe(absolutePath)) {
+    return res.status(403).json({ error: 'Access denied: Folder path is outside allowed paths' });
+  }
+
   if (!fs.existsSync(absolutePath)) {
     try {
       fs.mkdirSync(absolutePath, { recursive: true });
@@ -1255,9 +1315,15 @@ app.post('/api/mods/toggle', (req, res) => {
     
     // Physically rename the file on disk if it exists
     if (fs.existsSync(mod.path)) {
+      if (!isPathSafe(mod.path)) {
+        return res.status(403).json({ error: 'Access denied: Unsafe mod path' });
+      }
       let newPath = mod.path;
       if (!enabled && !mod.path.endsWith('.disabled')) {
         newPath = mod.path + '.disabled';
+        if (!isPathSafe(newPath)) {
+          return res.status(403).json({ error: 'Access denied: Unsafe destination path' });
+        }
         try {
           fs.renameSync(mod.path, newPath);
           mod.path = newPath;
@@ -1266,6 +1332,9 @@ app.post('/api/mods/toggle', (req, res) => {
         }
       } else if (enabled && mod.path.endsWith('.disabled')) {
         newPath = mod.path.slice(0, -9); // remove '.disabled'
+        if (!isPathSafe(newPath)) {
+          return res.status(403).json({ error: 'Access denied: Unsafe destination path' });
+        }
         try {
           fs.renameSync(mod.path, newPath);
           mod.path = newPath;
@@ -1377,10 +1446,6 @@ app.get('/api/java/find', async (req, res) => {
 });
 
 app.get('/api/minecraft/launch', async (req, res) => {
-  if (activeProcess) {
-    res.status(400).json({ error: 'Minecraft уже запущен' });
-    return;
-  }
   const { 
     profileId, 
     ram, 
@@ -1401,12 +1466,8 @@ app.get('/api/minecraft/launch', async (req, res) => {
     'Connection': 'keep-alive'
   });
 
-  let isClosed = false;
-  req.on('close', () => { isClosed = true; });
   const sendEvent = (type: string, data: any) => {
-    if (!isClosed && !res.writableEnded) {
-      res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
-    }
+    res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
   const activeProfile: any = profiles.find(p => p.id === profileId) || profiles[0] || {
@@ -1421,8 +1482,14 @@ app.get('/api/minecraft/launch', async (req, res) => {
   const selectedRam = ram || '4096';
   
   const selectedMinecraft = minecraftPath ? String(minecraftPath) : `./profiles/${activeProfile.id}`;
-  const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(DATA_DIR, selectedMinecraft);
-  const jvmArguments = jvmArgs ? String(jvmArgs).match(/(?:[^\s"]+|"[^"]*")+/g)?.map(arg => arg.replace(/^"|"$/g, '')) || [] : [];
+  const minecraftPathAbsolute = path.isAbsolute(selectedMinecraft) ? selectedMinecraft : path.resolve(process.cwd(), selectedMinecraft);
+
+  if (!isPathSafe(minecraftPathAbsolute, String(minecraftPath || ''))) {
+    sendEvent('error', 'Доступ отклонен: Небезопасный путь к Minecraft.');
+    res.end();
+    return;
+  }
+  const jvmArguments = jvmArgs ? String(jvmArgs).split(' ') : [];
 
   const launcher = new Client();
   
@@ -1480,7 +1547,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
     },
     memory: {
         max: `${selectedRam}M`,
-        min: `${Math.min(parseInt(String(selectedRam), 10), 1024)}M`
+        min: "1024M"
     },
     window: {
         width: parseInt(String(resWidth) || '1280', 10),
@@ -1493,9 +1560,9 @@ app.get('/api/minecraft/launch', async (req, res) => {
   let loaderVer = '';
   if (activeProfile.mod_loader === 'Fabric') {
     try {
-      const fetchRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
-      if (fetchRes && fetchRes.ok) {
-        const data = await fetchRes.json();
+      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
+      if (res.ok) {
+        const data = await res.json();
         if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
     } catch(e) {}
@@ -1512,26 +1579,21 @@ app.get('/api/minecraft/launch', async (req, res) => {
     if (!fs.existsSync(jsonPath)) {
         sendEvent('log', { message: 'Скачивание профиля Fabric...', progress: 5 });
         try {
-            const fetchRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-            if (fetchRes && fetchRes.ok) {
-                const data = await fetchRes.text();
+            const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (res.ok) {
+                const data = await res.text();
                 fs.writeFileSync(jsonPath, data);
                 sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
-            } else {
-                sendEvent('error', 'Не удалось скачать профиль Fabric.');
-                return res.end();
             }
         } catch (e) {
             console.error('Failed to download Fabric profile', e);
-            sendEvent('error', 'Ошибка сети при скачивании профиля Fabric.');
-            return res.end();
         }
     }
   } else if (activeProfile.mod_loader === 'Quilt') {
     try {
-      const fetchRes = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
-      if (fetchRes && fetchRes.ok) {
-        const data = await fetchRes.json();
+      const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
+      if (res.ok) {
+        const data = await res.json();
         if (data && data.length > 0) loaderVer = data[0].loader.version;
       }
     } catch(e) {}
@@ -1548,26 +1610,21 @@ app.get('/api/minecraft/launch', async (req, res) => {
     if (!fs.existsSync(jsonPath)) {
         sendEvent('log', { message: 'Скачивание профиля Quilt...', progress: 5 });
         try {
-            const fetchRes = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-            if (fetchRes && fetchRes.ok) {
-                const data = await fetchRes.text();
+            const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
+            if (res.ok) {
+                const data = await res.text();
                 fs.writeFileSync(jsonPath, data);
                 sendEvent('log', { message: 'Профиль Quilt успешно загружен.', progress: 10 });
-            } else {
-                sendEvent('error', 'Не удалось скачать профиль Quilt.');
-                return res.end();
             }
         } catch (e) {
             console.error('Failed to download Quilt profile', e);
-            sendEvent('error', 'Ошибка сети при скачивании профиля Quilt.');
-            return res.end();
         }
     }
   } else if (activeProfile.mod_loader === 'Forge') {
     try {
-      const fetchRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
-      if (fetchRes && fetchRes.ok) {
-        const data = await fetchRes.json();
+      const res = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+      if (res.ok) {
+        const data = await res.json();
         loaderVer = data.promos[`${activeProfile.game_version}-recommended`] || data.promos[`${activeProfile.game_version}-latest`];
       }
     } catch(e) {}
@@ -1579,18 +1636,13 @@ app.get('/api/minecraft/launch', async (req, res) => {
       
       if (!fs.existsSync(tempPath)) {
         try {
-          const fetchRes = await fetch(forgeInstallerUrl);
-          if (fetchRes && fetchRes.ok) {
-             const buffer = await fetchRes.arrayBuffer();
+          const res = await fetch(forgeInstallerUrl);
+          if (res.ok) {
+             const buffer = await res.arrayBuffer();
              fs.writeFileSync(tempPath, Buffer.from(buffer));
-          } else {
-             sendEvent('error', 'Не удалось скачать установщик Forge.');
-             return res.end();
           }
         } catch(e) {
           console.error('Failed to download Forge installer', e);
-          sendEvent('error', 'Ошибка сети при скачивании установщика Forge.');
-          return res.end();
         }
       }
       if (fs.existsSync(tempPath)) {
@@ -1612,8 +1664,36 @@ app.get('/api/minecraft/launch', async (req, res) => {
     } catch (e) {}
   }
 
-  if (jvmArguments.length > 0) {
-    opts.customArgs = jvmArguments;
+  const customJvmArgs = [...jvmArguments];
+  if (authName && authUuid && authAccess) {
+    const injectorPath = path.join(DATA_DIR, 'authlib-injector.jar');
+    let injectorReady = false;
+    if (fs.existsSync(injectorPath)) {
+      injectorReady = true;
+    } else {
+      sendEvent('log', { message: 'Скачивание authlib-injector для авторизации Ely.by...', progress: 12 });
+      try {
+        const injectorRes = await fetch('https://authlib-injector.yushijinhun.com/artifact/latest/authlib-injector.jar');
+        if (injectorRes.ok) {
+          const buffer = await injectorRes.arrayBuffer();
+          fs.writeFileSync(injectorPath, Buffer.from(buffer));
+          injectorReady = true;
+          sendEvent('log', { message: 'authlib-injector успешно скачан.', progress: 15 });
+        } else {
+          sendEvent('log', { message: 'Предупреждение: не удалось скачать authlib-injector. Запуск без скинов и мультиплеера Ely.by.', progress: 15 });
+        }
+      } catch (err) {
+        console.error('Failed to download authlib-injector:', err);
+        sendEvent('log', { message: 'Предупреждение: ошибка при скачивании authlib-injector.', progress: 15 });
+      }
+    }
+    if (injectorReady) {
+      customJvmArgs.push(`-javaagent:${injectorPath}=https://authserver.ely.by/`);
+    }
+  }
+
+  if (customJvmArgs.length > 0) {
+    opts.customArgs = customJvmArgs;
   }
 
   let stdLog = '';
@@ -1726,6 +1806,9 @@ app.get('/api/minecraft/launch', async (req, res) => {
 app.get('/api/minecraft/logs', (req, res) => {
   const { profileId, minecraftPath } = req.query;
   const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
+  if (!isPathSafe(profileDir, String(minecraftPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
   
   const logPath = path.join(profileDir, 'logs', 'latest.log');
   
@@ -1751,6 +1834,9 @@ app.post('/api/minecraft/open-logs-folder', async (req, res) => {
   const { profileId, minecraftPath } = req.query;
   const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
   const logsDir = path.join(profileDir, 'logs');
+  if (!isPathSafe(logsDir, String(minecraftPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
   
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
@@ -1770,6 +1856,9 @@ app.get('/api/minecraft/screenshots', (req, res) => {
   const { profileId, globalPath } = req.query;
   const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(globalPath || ''));
   const screenshotsDir = path.join(profileDir, 'screenshots');
+  if (!isPathSafe(screenshotsDir, String(globalPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
   
   if (!fs.existsSync(screenshotsDir)) {
     return res.json({ screenshots: [] });
@@ -1798,11 +1887,20 @@ app.get('/api/minecraft/screenshots', (req, res) => {
 });
 
 app.post('/api/minecraft/screenshots/delete', (req, res) => {
-  const { paths } = req.body;
-  if (Array.isArray(paths)) {
-    for (const p of paths) {
-      if (fs.existsSync(p)) {
-        fs.unlinkSync(p);
+  const { filenames, profileId, globalPath } = req.body;
+  const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(globalPath || ''));
+  const screenshotsDir = path.join(profileDir, 'screenshots');
+  if (!isPathSafe(screenshotsDir, String(globalPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
+
+  if (Array.isArray(filenames)) {
+    for (const f of filenames) {
+      if (typeof f === 'string' && !f.includes('/') && !f.includes('\\') && !f.includes('..')) {
+        const p = path.join(screenshotsDir, f);
+        if (fs.existsSync(p)) {
+          fs.unlinkSync(p);
+        }
       }
     }
   }
@@ -1813,6 +1911,9 @@ app.post('/api/minecraft/open-screenshots-folder', async (req, res) => {
   const { profileId, globalPath } = req.query;
   const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(globalPath || ''));
   const dir = path.join(profileDir, 'screenshots');
+  if (!isPathSafe(dir, String(globalPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
   
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   try {
@@ -1825,6 +1926,10 @@ app.post('/api/minecraft/open-screenshots-folder', async (req, res) => {
 app.post('/api/minecraft/open-game-folder', async (req, res) => {
   const { profileId, minecraftPath } = req.query;
   const profileDir = normalizeProfilePath(`./profiles/${profileId || '1'}`, String(profileId || '1'), String(minecraftPath || ''));
+  if (!isPathSafe(profileDir, String(minecraftPath || ''))) {
+    return res.status(403).json({ error: 'Access denied: Path is outside allowed paths' });
+  }
+  
   if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
   try {
     const { shell } = require('electron');
