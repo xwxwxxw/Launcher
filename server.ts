@@ -432,6 +432,20 @@ app.get('/api/updates/check', async (req, res) => {
   }
 });
 
+const isApiKey = (str: string) => str && str.startsWith('AIzaSy');
+
+// GDrive auth status endpoint
+app.get('/api/gdrive/auth-status', (req, res) => {
+  const profileId = String(req.query.profileId || '');
+  const profile = profiles.find(p => p.id === profileId);
+  const hasServerToken = !!(
+    process.env.GDRIVE_ACCESS_TOKEN ||
+    process.env.GDRIVE_API_KEY ||
+    (profile && (profile as any).gdriveToken)
+  );
+  res.json({ hasServerToken });
+});
+
 // GDrive update check endpoint
 app.get('/api/gdrive/check-updates', async (req, res) => {
   const folderId = extractGDriveFolderId(String(req.query.folderId || ''));
@@ -439,19 +453,26 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
   const profileId = String(req.query.profileId || '');
   const mcPath = String(req.query.minecraftPath || '');
 
-  if (!folderId || !token || !profileId) {
-    return res.status(400).json({ error: 'Missing folderId, token, or profileId' });
+  const profile = profiles.find(p => p.id === profileId);
+  
+  let resolvedToken = token.trim();
+  if (!resolvedToken || resolvedToken === 'server_token' || resolvedToken === 'undefined') {
+    resolvedToken = process.env.GDRIVE_ACCESS_TOKEN || process.env.GDRIVE_API_KEY || (profile ? (profile as any).gdriveToken : '') || '';
+    resolvedToken = resolvedToken.trim();
+  }
+
+  if (!folderId || !resolvedToken || !profileId) {
+    return res.status(401).json({ error: 'Missing folderId, token, or profileId' });
   }
 
   try {
-    const files = await listGDriveFolder(folderId, token);
+    const files = await listGDriveFolder(folderId, resolvedToken);
     const binaryFiles = files.filter(f => !f.mimeType.startsWith('application/vnd.google-apps.'));
 
     if (binaryFiles.length === 0) {
       return res.json({ updateAvailable: false, reason: 'No binary files' });
     }
 
-    const profile = profiles.find(p => p.id === profileId);
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
@@ -497,8 +518,12 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
 
     res.json({ updateAvailable, details });
   } catch (err: any) {
-    console.error('GDrive update check error:', err);
-    res.status(500).json({ error: err.message });
+    if (err.status === 401 || err.status === 403) {
+      console.log('GDrive update check: Authentication required (401/403).');
+    } else {
+      console.error('GDrive update check error:', err);
+    }
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -516,15 +541,22 @@ async function listGDriveFolder(folderId: string, accessToken: string, currentPa
 
   do {
     const q = `'${folderId}' in parents and trashed = false`;
-    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=1000` + (pageToken ? `&pageToken=${pageToken}` : '');
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=1000` + (pageToken ? `&pageToken=${pageToken}` : '');
     
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const headers: any = {};
+    if (isApiKey(accessToken)) {
+      url += `&key=${accessToken}`;
+    } else {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const res = await fetch(url, { headers });
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Google Drive API error: ${res.status} - ${errText}`);
+      const error: any = new Error(`Google Drive API error: ${res.status} - ${errText}`);
+      error.status = res.status;
+      throw error;
     }
 
     const data: any = await res.json();
@@ -636,22 +668,33 @@ app.get('/api/sync-build', async (req, res) => {
     }
 
     if (syncSource === 'gdrive') {
+      let resolvedToken = gdriveToken.trim();
+      if (!resolvedToken || resolvedToken === 'server_token' || resolvedToken === 'undefined') {
+        resolvedToken = process.env.GDRIVE_ACCESS_TOKEN || process.env.GDRIVE_API_KEY || (profile ? (profile as any).gdriveToken : '') || '';
+        resolvedToken = resolvedToken.trim();
+      }
+
       if (!gdriveFolderId || gdriveFolderId.trim() === '' || gdriveFolderId === 'undefined') {
         sendEvent('error', { message: 'Идентификатор папки Google Диска не указан в настройках профиля.' });
         return res.end();
       }
-      if (!gdriveToken || gdriveToken.trim() === '' || gdriveToken === 'undefined') {
-        sendEvent('error', { message: 'Токен авторизации Google отсутствует. Пожалуйста, войдите в аккаунт Google в настройках профиля.' });
+      if (!resolvedToken) {
+        sendEvent('error', { message: 'Токен авторизации Google отсутствует. Пожалуйста, войдите в аккаунт Google в настройках профиля или настройте токен/API-ключ сервера.' });
         return res.end();
       }
 
       sendEvent('status', { message: 'Получение списка файлов с Google Диска...', progress: 15 });
       let files: GDriveFile[] = [];
       try {
-        files = await listGDriveFolder(gdriveFolderId, gdriveToken);
+        files = await listGDriveFolder(gdriveFolderId, resolvedToken);
       } catch (e: any) {
-        console.error('Failed to list GDrive files:', e);
-        sendEvent('error', { message: `Ошибка получения списка файлов: ${e.message}` });
+        if (e.status === 401 || e.status === 403) {
+          console.log('GDrive sync: Authentication required (401/403).');
+          sendEvent('error', { message: 'Требуется авторизация Google Диска. Пожалуйста, войдите или укажите верный ключ доступа/API-ключ в настройках профиля.' });
+        } else {
+          console.error('Failed to list GDrive files:', e);
+          sendEvent('error', { message: `Ошибка получения списка файлов: ${e.message}` });
+        }
         return res.end();
       }
 
@@ -720,10 +763,15 @@ app.get('/api/sync-build', async (req, res) => {
             fs.mkdirSync(parentDir, { recursive: true });
           }
 
-          const fileUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-          const fileRes = await fetch(fileUrl, {
-            headers: { Authorization: `Bearer ${gdriveToken}` }
-          });
+          let fileUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+          const headers: any = {};
+          if (isApiKey(resolvedToken)) {
+            fileUrl += `&key=${resolvedToken}`;
+          } else {
+            headers.Authorization = `Bearer ${resolvedToken}`;
+          }
+
+          const fileRes = await fetch(fileUrl, { headers });
 
           if (!fileRes.ok) {
             throw new Error(`Ошибка скачивания ${file.name}: HTTP ${fileRes.status}`);

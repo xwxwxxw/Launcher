@@ -37,10 +37,10 @@ export interface Profile {
   ram_mb: number;
   java_path?: string;
   minecraft_path?: string;
-  is_github_sync?: boolean;
-  syncSource?: 'github' | 'gdrive';
+  syncSource?: 'gdrive';
   gdriveFolderId?: string;
   gdriveFolderName?: string;
+  gdriveToken?: string;
   last_sync_tag?: string;
   is_favorite?: boolean;
   stats?: {

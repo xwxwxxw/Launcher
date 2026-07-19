@@ -245,7 +245,7 @@ const ProfileCard: React.FC<{
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-bold text-zinc-100">{profile.name}</h3>
-              {(profile.is_github_sync || profile.syncSource === 'gdrive' || profile.id === 'GDSync') && (
+              {(profile.syncSource === 'gdrive' || profile.id === 'GDSync') && (
                 <span className="text-[8px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
                   GDSync
                 </span>

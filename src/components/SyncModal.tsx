@@ -14,9 +14,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
   const [progress, setProgress] = useState(0);
   const [gdriveToken, setGdriveToken] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [status, setStatus] = useState<'auth_required' | 'syncing' | 'success' | 'error'>(
-    profile.syncSource === 'gdrive' ? 'auth_required' : 'syncing'
-  );
+  const [status, setStatus] = useState<'auth_required' | 'syncing' | 'success' | 'error'>('auth_required');
   const [errorMsg, setErrorMsg] = useState('');
   const [tagName, setTagName] = useState('');
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -27,31 +25,46 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
 
   // Check if already authenticated on mount/profile load
   useEffect(() => {
-    if (profile.syncSource === 'gdrive') {
-      getAccessToken().then(tok => {
-        if (tok) {
-          setGdriveToken(tok);
+    fetch(`/api/gdrive/auth-status?profileId=${profileId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.hasServerToken) {
+          setGdriveToken('server_token');
           setStatus('syncing');
         } else {
-          setStatus('auth_required');
+          getAccessToken().then(tok => {
+            if (tok) {
+              setGdriveToken(tok);
+              setStatus('syncing');
+            } else {
+              setStatus('auth_required');
+            }
+          });
         }
+      })
+      .catch(() => {
+        getAccessToken().then(tok => {
+          if (tok) {
+            setGdriveToken(tok);
+            setStatus('syncing');
+          } else {
+            setStatus('auth_required');
+          }
+        });
       });
-    }
-  }, [profile]);
+  }, [profileId, profile]);
 
   useEffect(() => {
-    if (profile.syncSource === 'gdrive' && !gdriveToken) {
+    if (!gdriveToken) {
       return;
     }
 
     const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
-    const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
 
     const query = new URLSearchParams({
       profileId,
-      repo,
       minecraftPath,
-      syncSource: profile.syncSource || 'github',
+      syncSource: 'gdrive',
       gdriveFolderId: profile.gdriveFolderId || '',
       gdriveToken: gdriveToken || ''
     });
@@ -117,16 +130,6 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     }
   };
 
-  const handleManualDownload = () => {
-    const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
-    const url = `https://github.com/${repo}/releases`;
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      (window as any).electron.shell.openExternal(url);
-    } else {
-      window.open(url, '_blank');
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-[#09090b]/85 backdrop-blur-md flex items-center justify-center z-50 p-6">
       <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col max-h-[85vh]">
@@ -137,9 +140,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
             <div>
               <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-widest">Синхронизация Сборки</h3>
               <p className="text-[10px] text-zinc-500 font-medium">
-                {profile.syncSource === 'gdrive' 
-                  ? 'Синхронизация игрового клиента с Google Диском' 
-                  : 'Синхронизация игрового клиента с GitHub-релизом'}
+                Синхронизация игрового клиента с Google Диском
               </p>
             </div>
           </div>
@@ -167,7 +168,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
               <button
                 onClick={handleGoogleLogin}
                 disabled={isLoggingIn}
-                className="flex items-center gap-3 bg-white hover:bg-zinc-200 text-black px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-3 bg-white hover:bg-zinc-200 text-black px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] disabled:opacity-50 cursor-pointer mb-6"
               >
                 {isLoggingIn ? (
                   <>
@@ -198,6 +199,20 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
                   </>
                 )}
               </button>
+
+              <div className="max-w-md w-full bg-blue-950/20 border border-blue-500/20 rounded-xl p-4 text-left animate-fade-in">
+                <h5 className="text-[10px] uppercase font-extrabold tracking-wider text-blue-400 mb-1">Вы администратор или создатель сборки?</h5>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Чтобы вашим игрокам <strong>не требовалось никуда входить</strong>, просто укажите созданный вами <strong>Google API Ключ</strong> (API Key) одним из способов:
+                </p>
+                <ul className="list-disc pl-4 text-[10px] text-zinc-500 mt-2 space-y-1">
+                  <li>В лаунчере: вкладка <strong>«Сборки»</strong> &rarr; кнопка <strong>«Редактировать»</strong> на вашей сборке &rarr; поле <strong>«API Ключ или Токен доступа»</strong>.</li>
+                  <li>Или пропишите его на сервере в файле <strong>.env</strong> в переменную <code className="text-zinc-300 font-mono">GDRIVE_API_KEY="ВАШ_КЛЮЧ"</code>.</li>
+                </ul>
+                <p className="text-[10px] text-amber-400/80 mt-2 leading-relaxed font-medium">
+                  Важно: папка на Google Диске должна быть открыта для чтения всем по ссылке («Доступен всем, у кого есть ссылка»).
+                </p>
+              </div>
             </div>
           )}
 
@@ -241,21 +256,12 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
                 {errorMsg || 'Произошла непредвиденная ошибка.'}
               </p>
               
-              {profile.syncSource !== 'gdrive' ? (
-                <button
-                  onClick={handleManualDownload}
-                  className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
-                >
-                  Скачать сборку вручную <ExternalLink size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={handleGoogleLogin}
-                  className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-                >
-                  Повторить авторизацию
-                </button>
-              )}
+              <button
+                onClick={handleGoogleLogin}
+                className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Повторить авторизацию
+              </button>
             </>
           )}
 

@@ -337,7 +337,7 @@ export default function App() {
   const [gdriveAuthRequired, setGdriveAuthRequired] = useState(false);
 
   const checkGDriveUpdates = async (profileToCheck: any) => {
-    if (!profileToCheck || profileToCheck.syncSource !== 'gdrive') {
+    if (!profileToCheck || (profileToCheck.syncSource !== 'gdrive' && profileToCheck.id !== 'GDSync')) {
       setGdriveUpdateAvailable(false);
       setGdriveAuthRequired(false);
       return;
@@ -347,16 +347,10 @@ export default function App() {
     setGdriveAuthRequired(false);
     try {
       const token = await getAccessToken();
-      if (!token) {
-        setGdriveAuthRequired(true);
-        setCheckingGDrive(false);
-        return;
-      }
-
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
       const folderId = profileToCheck.gdriveFolderId || '';
       
-      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token)}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}`);
+      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token || '')}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}`);
       
       if (res.ok) {
         const data = await res.json();
@@ -372,54 +366,18 @@ export default function App() {
         }
       } else {
         if (res.status === 401 || res.status === 403) {
-          setGdriveAuthRequired(true);
+          // Check if server-side auth is configured
+          const statusRes = await fetch(`/api/gdrive/auth-status?profileId=${encodeURIComponent(profileToCheck.id)}`);
+          const statusData = await statusRes.json().catch(() => ({}));
+          if (!statusData.hasServerToken) {
+            setGdriveAuthRequired(true);
+          }
         }
       }
     } catch (e) {
       console.error('Error checking GDrive updates:', e);
     } finally {
       setCheckingGDrive(false);
-    }
-  };
-
-  
-  const [githubUpdateAvailable, setGithubUpdateAvailable] = useState(false);
-  const [checkingGithub, setCheckingGithub] = useState(false);
-
-  const checkGithubUpdates = async (profileToCheck: any) => {
-    if (!profileToCheck || (profileToCheck.syncSource !== 'github' && !profileToCheck.is_github_sync && profileToCheck.id !== 'GDSync')) {
-      setGithubUpdateAvailable(false);
-      return;
-    }
-
-    // Skip if it's explicitly GDrive
-    if (profileToCheck.syncSource === 'gdrive') {
-      setGithubUpdateAvailable(false);
-      return;
-    }
-
-    setCheckingGithub(true);
-    try {
-      const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
-      const res = await fetch(`/api/github/check-updates?profileId=${encodeURIComponent(profileToCheck.id)}&repo=${encodeURIComponent(repo)}`);
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (data.updateAvailable) {
-          setGithubUpdateAvailable(true);
-          
-          const autoSync = localStorage.getItem('launcher_github_auto_sync') !== 'false';
-          if (autoSync) {
-            setShowSyncModal(true);
-          }
-        } else {
-          setGithubUpdateAvailable(false);
-        }
-      }
-    } catch (e) {
-      console.error('Error checking Github updates:', e);
-    } finally {
-      setCheckingGithub(false);
     }
   };
 
@@ -591,22 +549,16 @@ export default function App() {
   };
 
   const activeGdriveFolderId = activeProfile?.gdriveFolderId;
-  const isGithubSync = activeProfile?.is_github_sync || activeProfile?.syncSource === 'github' || activeProfile?.id === 'GDSync';
+  const isGdriveSync = activeProfile?.syncSource === 'gdrive' || activeProfile?.id === 'GDSync';
   
   useEffect(() => {
-    if (activeProfile && activeProfile.syncSource === 'gdrive') {
+    if (activeProfile && (activeProfile.syncSource === 'gdrive' || activeProfile.id === 'GDSync')) {
       checkGDriveUpdates(activeProfile);
-      setGithubUpdateAvailable(false);
-    } else if (activeProfile && (activeProfile.syncSource === 'github' || activeProfile.is_github_sync || activeProfile.id === 'GDSync')) {
-      checkGithubUpdates(activeProfile);
-      setGdriveUpdateAvailable(false);
-      setGdriveAuthRequired(false);
     } else {
       setGdriveUpdateAvailable(false);
       setGdriveAuthRequired(false);
-      setGithubUpdateAvailable(false);
     }
-  }, [activeProfileId, activeGdriveFolderId, isGithubSync]);
+  }, [activeProfileId, activeGdriveFolderId, isGdriveSync]);
 
   const getConflicts = () => {
     const list: any[] = [];
@@ -1099,29 +1051,7 @@ export default function App() {
         </header>
 
         
-        {/* Banner Alert for Github update */}
-        {githubUpdateAvailable && activeProfile && (activeProfile.syncSource === 'github' || activeProfile.is_github_sync || activeProfile.id === 'GDSync') && (
-          <div className="bg-gradient-to-r from-emerald-950/60 to-green-950/60 border-b border-emerald-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
-            <div className="flex items-center gap-3">
-              <span className="flex h-2.5 w-2.5 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <div>
-                <p className="text-xs font-bold text-zinc-100">Доступно обновление сборки "{activeProfile.name}" в GitHub!</p>
-                <p className="text-[10px] text-zinc-400">В репозитории обнаружены изменения. Обновите сборку, чтобы применить новые моды и настройки.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSyncModal(true)}
-                className="bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-              >
-                Обновить сейчас
-              </button>
-            </div>
-          </div>
-        )}
+
         {/* Banner Alert for GDrive update */}
         {gdriveUpdateAvailable && activeProfile && activeProfile.syncSource === 'gdrive' && (
           <div className="bg-gradient-to-r from-cyan-950/60 to-blue-950/60 border-b border-cyan-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
@@ -1326,7 +1256,7 @@ export default function App() {
                                 {p.is_favorite && <Star size={10} fill="#f59e0b" className="text-amber-500 shrink-0" />}
                                 <span className="truncate">{p.name}</span>
                               </span>
-                              {(p.is_github_sync || p.syncSource === 'gdrive' || p.id === 'GDSync') && (
+                              {(p.syncSource === 'gdrive' || p.id === 'GDSync') && (
                                 <span className="bg-cyan-500/10 text-cyan-400 px-1 py-0.2 rounded border border-cyan-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">
                                   GDSync
                                 </span>
@@ -1344,7 +1274,7 @@ export default function App() {
                 )}
               </div>
 
-              {(activeProfile?.id === 'GDSync' || activeProfile?.syncSource === 'gdrive' || activeProfile?.is_github_sync) && (
+              {(activeProfile?.id === 'GDSync' || activeProfile?.syncSource === 'gdrive') && (
                 <button
                   onClick={() => setShowSyncModal(true)}
                   disabled={gameStatus !== 'idle'}
@@ -1394,16 +1324,6 @@ export default function App() {
           onClose={(didSyncSucceed) => {
             setShowSyncModal(false);
             if (didSyncSucceed) {
-              const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
-              fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`)
-                .then(r => r.json())
-                .then(data => {
-                  if (data && data.tag_name) {
-                    localStorage.setItem('last_synced_build_tag', data.tag_name);
-                  }
-                })
-                .catch(e => console.error(e));
-              
               handleSelectProfile(activeProfile.id);
             }
           }}

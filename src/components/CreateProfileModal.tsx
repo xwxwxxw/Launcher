@@ -24,8 +24,7 @@ export default function CreateProfileModal({
   const [ramMb, setRamMb] = useState<number>(initialData?.ram_mb || 4096);
   
   // Sync states
-  const [isSyncEnabled, setIsSyncEnabled] = useState(!!initialData?.is_github_sync || initialData?.syncSource === 'gdrive');
-  const [syncSource, setSyncSource] = useState<'github' | 'gdrive'>(initialData?.syncSource || (initialData?.is_github_sync ? 'github' : 'github'));
+  const [isSyncEnabled, setIsSyncEnabled] = useState(initialData?.syncSource === 'gdrive');
   const [gdriveInput, setGdriveInput] = useState(initialData?.gdriveFolderId || '');
 
   const extractFolderId = (input: string) => {
@@ -101,16 +100,15 @@ export default function CreateProfileModal({
     onCreate({
       ...initialData,
       name,
-      description: `Пользовательская сборка ${version} на ${modLoader}`,
+      description: `Пользовательская сборка ${version} on ${modLoader}`,
       game_version: version,
       mod_loader: modLoader,
       mod_path: useSeparateFolder ? customPath : '',
       is_active: initialData?.is_active || false,
       ram_mb: ramMb,
-      is_github_sync: isSyncEnabled && syncSource === 'github',
-      syncSource: isSyncEnabled ? syncSource : undefined,
-      gdriveFolderId: isSyncEnabled && syncSource === 'gdrive' ? folderId : undefined,
-      gdriveFolderName: isSyncEnabled && syncSource === 'gdrive' ? 'Google Drive Folder' : undefined
+      syncSource: isSyncEnabled ? 'gdrive' : undefined,
+      gdriveFolderId: isSyncEnabled ? folderId : undefined,
+      gdriveFolderName: isSyncEnabled ? 'Google Drive Folder' : undefined
     });
   };
 
@@ -325,58 +323,20 @@ export default function CreateProfileModal({
 
             {isSyncEnabled && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div>
-                  <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">Источник синхронизации</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSyncSource('github')}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                        syncSource === 'github'
-                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
-                          : 'bg-zinc-950/50 border-zinc-800/80 text-zinc-400 hover:text-zinc-200'
-                      }`}
-                    >
-                      <Globe size={14} />
-                      GitHub Релиз
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSyncSource('gdrive')}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                        syncSource === 'gdrive'
-                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
-                          : 'bg-zinc-950/50 border-zinc-800/80 text-zinc-400 hover:text-zinc-200'
-                      }`}
-                    >
-                      <HardDrive size={14} />
-                      Google Диск
-                    </button>
-                  </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500">Ссылка на папку Google Диска или её ID</label>
+                  <input 
+                    type="text" 
+                    value={gdriveInput}
+                    onChange={e => setGdriveInput(e.target.value)}
+                    placeholder="Вставьте ссылку или ID папки..."
+                    className="w-full bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                    required={isSyncEnabled}
+                  />
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    Убедитесь, что папка на Google Диске доступна для чтения (доступ по ссылке: «Все, у кого есть ссылка»). При обновлении сборка скачает все файлы из указанной папки.
+                  </p>
                 </div>
-
-                {syncSource === 'github' ? (
-                  <div className="p-3 bg-zinc-950/40 rounded-xl border border-zinc-850/50">
-                    <p className="text-[10px] text-zinc-400 leading-relaxed">
-                      Сборка будет автоматически синхронизироваться со встроенным GitHub репозиторием. Все новые моды будут загружены во время обновления.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500">Ссылка на папку Google Диска или её ID</label>
-                    <input 
-                      type="text" 
-                      value={gdriveInput}
-                      onChange={e => setGdriveInput(e.target.value)}
-                      placeholder="Вставьте ссылку или ID папки..."
-                      className="w-full bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
-                      required={syncSource === 'gdrive'}
-                    />
-                    <p className="text-[10px] text-zinc-500 leading-relaxed">
-                      Убедитесь, что папка на Google Диске доступна для чтения (доступ по ссылке). При обновлении сборка скачает все jar-файлы из указанной папки.
-                    </p>
-                  </div>
-                )}
               </div>
             )}
           </div>
