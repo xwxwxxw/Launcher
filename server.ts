@@ -124,6 +124,15 @@ function isPathSafe(targetPath: string, customMcPath?: string): boolean {
   });
 }
 
+function extractGDriveFolderId(input: string): string {
+  if (!input) return '';
+  const match = input.match(/folders\/([a-zA-Z0-9-_]{25,50})/);
+  if (match) return match[1];
+  const matchIdParam = input.match(/[?&]id=([a-zA-Z0-9-_]{25,50})/);
+  if (matchIdParam) return matchIdParam[1];
+  return input.trim();
+}
+
 let profiles: Profile[] = [];
 
 function saveProfiles() {
@@ -141,26 +150,48 @@ if (fs.existsSync(PROFILES_FILE)) {
         migrated = true;
       }
     });
-    // Ensure the default github_sync profile exists
-    const hasSyncProfile = profiles.some(p => p.id === 'github_sync');
-    if (!hasSyncProfile) {
-      profiles.push({
-        id: 'github_sync',
-        name: 'Сетевая сборка (GitHub Sync)',
-        description: 'Специальная сборка, автоматически синхронизируемая с репозиторием GitHub. Все моды и файлы конфигурации обновляются в один клик.',
+    // Migrate any existing github_sync to GDSync
+    const githubSyncIndex = profiles.findIndex(p => p.id === 'github_sync');
+    if (githubSyncIndex !== -1) {
+      profiles[githubSyncIndex] = {
+        id: 'GDSync',
+        name: 'Сетевая сборка (GDSync)',
+        description: 'Специальная сборка, автоматически синхронизируемая с Google Диском. Все моды и файлы конфигурации обновляются автоматически или в один клик.',
         game_version: '1.20.1',
         mod_loader: 'Fabric',
-        mod_path: './profiles/github_sync/mods',
+        mod_path: './profiles/GDSync/mods',
+        created_at: profiles[githubSyncIndex].created_at || Date.now() - 25000,
+        is_active: profiles[githubSyncIndex].is_active || false,
+        ram_mb: profiles[githubSyncIndex].ram_mb || 4096,
+        syncSource: 'gdrive',
+        gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+        gdriveFolderName: 'Google Drive Folder',
+        is_favorite: true
+      } as any;
+      migrated = true;
+    }
+
+    const hasSyncProfile = profiles.some(p => p.id === 'GDSync');
+    if (!hasSyncProfile) {
+      profiles.push({
+        id: 'GDSync',
+        name: 'Сетевая сборка (GDSync)',
+        description: 'Специальная сборка, автоматически синхронизируемая с Google Диском. Все моды и файлы конфигурации обновляются автоматически или в один клик.',
+        game_version: '1.20.1',
+        mod_loader: 'Fabric',
+        mod_path: './profiles/GDSync/mods',
         created_at: Date.now() - 25000,
         is_active: false,
         ram_mb: 4096,
-        is_github_sync: true,
+        syncSource: 'gdrive',
+        gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+        gdriveFolderName: 'Google Drive Folder',
         is_favorite: true
       } as any);
       migrated = true;
     } else {
       // Force set is_favorite for existing sync profile
-      const syncProf = profiles.find(p => p.id === 'github_sync');
+      const syncProf = profiles.find(p => p.id === 'GDSync');
       if (syncProf && !syncProf.is_favorite) {
         syncProf.is_favorite = true;
         migrated = true;
@@ -197,16 +228,18 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       ram_mb: 4096
     },
     {
-      id: 'github_sync',
-      name: 'Сетевая сборка (GitHub Sync)',
-      description: 'Специальная сборка, автоматически синхронизируемая с репозиторием GitHub. Все моды и файлы конфигурации обновляются в один клик.',
+      id: 'GDSync',
+      name: 'Сетевая сборка (GDSync)',
+      description: 'Специальная сборка, автоматически синхронизируемая с Google Диском. Все моды и файлы конфигурации обновляются автоматически или в один клик.',
       game_version: '1.20.1',
       mod_loader: 'Fabric',
-      mod_path: './profiles/github_sync/mods',
+      mod_path: './profiles/GDSync/mods',
       created_at: Date.now() - 25000,
       is_active: false,
       ram_mb: 4096,
-      is_github_sync: true,
+      syncSource: 'gdrive',
+      gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+      gdriveFolderName: 'Google Drive Folder',
       is_favorite: true
     } as any
   ];
@@ -399,6 +432,168 @@ app.get('/api/updates/check', async (req, res) => {
   }
 });
 
+// GDrive update check endpoint
+app.get('/api/gdrive/check-updates', async (req, res) => {
+  const folderId = extractGDriveFolderId(String(req.query.folderId || ''));
+  const token = String(req.query.token || '');
+  const profileId = String(req.query.profileId || '');
+  const mcPath = String(req.query.minecraftPath || '');
+
+  if (!folderId || !token || !profileId) {
+    return res.status(400).json({ error: 'Missing folderId, token, or profileId' });
+  }
+
+  try {
+    const files = await listGDriveFolder(folderId, token);
+    const binaryFiles = files.filter(f => !f.mimeType.startsWith('application/vnd.google-apps.'));
+
+    if (binaryFiles.length === 0) {
+      return res.json({ updateAvailable: false, reason: 'No binary files' });
+    }
+
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, mcPath);
+
+    const rootHasJar = binaryFiles.some(f => !f.relativePath.includes('/') && f.name.endsWith('.jar'));
+
+    let updateAvailable = false;
+    const details: string[] = [];
+
+    for (const file of binaryFiles) {
+      let targetRelPath = file.relativePath;
+      if (rootHasJar) {
+        targetRelPath = 'mods/' + file.relativePath;
+      }
+
+      // Clean up CloudSync prefix if any
+      const cloudSyncMatch = targetRelPath.match(/^(CloudSync|Cloud_Sync|Cloud\s+Sync)\//i);
+      if (cloudSyncMatch) {
+        targetRelPath = targetRelPath.substring(cloudSyncMatch[0].length);
+      }
+
+      const resPackMatch = targetRelPath.match(/^(resoursepacks?|resourcepack)\//i);
+      if (resPackMatch) {
+        targetRelPath = 'resourcepacks/' + targetRelPath.substring(resPackMatch[0].length);
+      }
+
+      const outPath = path.resolve(profileDir, targetRelPath);
+      if (!fs.existsSync(outPath)) {
+        updateAvailable = true;
+        details.push(`Missing: ${targetRelPath}`);
+        break;
+      } else {
+        const stats = fs.statSync(outPath);
+        if (file.size && parseInt(file.size) !== stats.size) {
+          updateAvailable = true;
+          details.push(`Modified: ${targetRelPath}`);
+          break;
+        }
+      }
+    }
+
+    res.json({ updateAvailable, details });
+  } catch (err: any) {
+    console.error('GDrive update check error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+interface GDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  relativePath: string;
+}
+
+async function listGDriveFolder(folderId: string, accessToken: string, currentPath = ''): Promise<GDriveFile[]> {
+  const files: GDriveFile[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const q = `'${folderId}' in parents and trashed = false`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=1000` + (pageToken ? `&pageToken=${pageToken}` : '');
+    
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Google Drive API error: ${res.status} - ${errText}`);
+    }
+
+    const data: any = await res.json();
+    if (data.files) {
+      for (const file of data.files) {
+        const fileRelativePath = currentPath ? `${currentPath}/${file.name}` : file.name;
+        if (file.mimeType === 'application/vnd.google-apps.folder') {
+          const subFiles = await listGDriveFolder(file.id, accessToken, fileRelativePath);
+          files.push(...subFiles);
+        } else {
+          files.push({
+            id: file.id,
+            name: file.name,
+            mimeType: file.mimeType,
+            size: file.size,
+            relativePath: fileRelativePath
+          });
+        }
+      }
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return files;
+}
+
+
+app.get('/api/github/check-updates', async (req, res) => {
+  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  const profileId = String(req.query.profileId || '');
+
+  try {
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    const gitRes = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+    });
+
+    if (gitRes.ok) {
+      const release = await gitRes.json();
+      const tagName = release.tag_name || 'latest';
+      
+      if (profile.last_sync_tag && profile.last_sync_tag !== tagName) {
+        return res.json({ updateAvailable: true, tagName });
+      }
+      return res.json({ updateAvailable: false, tagName });
+    } else {
+      const commitRes = await fetch(`https://api.github.com/repos/${repo}/commits/main`, {
+        headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+      });
+      if (commitRes.ok) {
+        const commit = await commitRes.json();
+        const sha = commit.sha;
+        if (profile.last_sync_tag && profile.last_sync_tag !== sha) {
+          return res.json({ updateAvailable: true, tagName: sha });
+        }
+        return res.json({ updateAvailable: false, tagName: sha });
+      }
+    }
+    
+    res.json({ updateAvailable: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Advanced GitHub profile synchronization with user data preservation
 app.get('/api/sync-build', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -413,8 +608,15 @@ app.get('/api/sync-build', async (req, res) => {
   const profileId = String(req.query.profileId || '1');
   const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
   const mcPath = String(req.query.minecraftPath || '');
+  const syncSource = String(req.query.syncSource || 'github');
+  const gdriveFolderId = extractGDriveFolderId(String(req.query.gdriveFolderId || ''));
+  const gdriveToken = String(req.query.gdriveToken || '');
 
-  sendEvent('status', { message: 'Проверка обновлений сборки на GitHub...', progress: 10 });
+  if (syncSource === 'gdrive') {
+    sendEvent('status', { message: 'Проверка подключения к Google Диску...', progress: 10 });
+  } else {
+    sendEvent('status', { message: 'Проверка обновлений сборки на GitHub...', progress: 10 });
+  }
 
   try {
     const profile = profiles.find(p => p.id === profileId);
@@ -431,6 +633,113 @@ app.get('/api/sync-build', async (req, res) => {
 
     if (!fs.existsSync(profileDir)) {
       fs.mkdirSync(profileDir, { recursive: true });
+    }
+
+    if (syncSource === 'gdrive') {
+      if (!gdriveFolderId || gdriveFolderId.trim() === '' || gdriveFolderId === 'undefined') {
+        sendEvent('error', { message: 'Идентификатор папки Google Диска не указан в настройках профиля.' });
+        return res.end();
+      }
+      if (!gdriveToken || gdriveToken.trim() === '' || gdriveToken === 'undefined') {
+        sendEvent('error', { message: 'Токен авторизации Google отсутствует. Пожалуйста, войдите в аккаунт Google в настройках профиля.' });
+        return res.end();
+      }
+
+      sendEvent('status', { message: 'Получение списка файлов с Google Диска...', progress: 15 });
+      let files: GDriveFile[] = [];
+      try {
+        files = await listGDriveFolder(gdriveFolderId, gdriveToken);
+      } catch (e: any) {
+        console.error('Failed to list GDrive files:', e);
+        sendEvent('error', { message: `Ошибка получения списка файлов: ${e.message}` });
+        return res.end();
+      }
+
+      if (!files || files.length === 0) {
+        sendEvent('error', { message: 'В выбранной папке Google Диска не найдено файлов для синхронизации.' });
+        return res.end();
+      }
+
+      const rootHasJar = files.some(f => !f.relativePath.includes('/') && f.name.endsWith('.jar'));
+      const hasModsFolder = files.some(f => f.relativePath.startsWith('mods/'));
+
+      sendEvent('status', { message: 'Очистка папки модов перед синхронизацией...', progress: 20 });
+      
+      // Clean up local mods directory if syncing mods directly or via subfolder
+      if (rootHasJar || hasModsFolder) {
+        const modsDir = path.join(profileDir, 'mods');
+        if (fs.existsSync(modsDir)) {
+          const existingFiles = fs.readdirSync(modsDir);
+          for (const file of existingFiles) {
+            if (file.endsWith('.jar') || file.endsWith('.jar.disabled')) {
+              fs.unlinkSync(path.join(modsDir, file));
+            }
+          }
+        } else {
+          fs.mkdirSync(modsDir, { recursive: true });
+        }
+      }
+
+      let downloadedCount = 0;
+      const limit = 5; // Concurrency limit
+      const binaryFiles = files.filter(f => !f.mimeType.startsWith('application/vnd.google-apps.'));
+
+      if (binaryFiles.length === 0) {
+        sendEvent('error', { message: 'Не найдено подходящих файлов для скачивания (документы Google не поддерживаются).' });
+        return res.end();
+      }
+
+      sendEvent('status', { message: `Найдено ${binaryFiles.length} файлов. Начинается загрузка...`, progress: 25 });
+
+      for (let i = 0; i < binaryFiles.length; i += limit) {
+        const chunk = binaryFiles.slice(i, i + limit);
+        await Promise.all(chunk.map(async (file) => {
+          let targetRelPath = file.relativePath;
+          if (rootHasJar) {
+            targetRelPath = 'mods/' + file.relativePath;
+          }
+
+          // Clean up CloudSync prefix if any
+          const cloudSyncMatch = targetRelPath.match(/^(CloudSync|Cloud_Sync|Cloud\s+Sync)\//i);
+          if (cloudSyncMatch) {
+            targetRelPath = targetRelPath.substring(cloudSyncMatch[0].length);
+          }
+
+          const resPackMatch = targetRelPath.match(/^(resoursepacks?|resourcepack)\//i);
+          if (resPackMatch) {
+            targetRelPath = 'resourcepacks/' + targetRelPath.substring(resPackMatch[0].length);
+          }
+
+          const outPath = path.resolve(profileDir, targetRelPath);
+          if (!isPathSafe(outPath, mcPath)) {
+            return;
+          }
+
+          const parentDir = path.dirname(outPath);
+          if (!fs.existsSync(parentDir)) {
+            fs.mkdirSync(parentDir, { recursive: true });
+          }
+
+          const fileUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+          const fileRes = await fetch(fileUrl, {
+            headers: { Authorization: `Bearer ${gdriveToken}` }
+          });
+
+          if (!fileRes.ok) {
+            throw new Error(`Ошибка скачивания ${file.name}: HTTP ${fileRes.status}`);
+          }
+
+          const arrayBuffer = await fileRes.arrayBuffer();
+          fs.writeFileSync(outPath, Buffer.from(arrayBuffer));
+
+          downloadedCount++;
+          const progressPercent = Math.round(25 + 70 * (downloadedCount / binaryFiles.length));
+          sendEvent('status', { message: `Успешно загружен: ${targetRelPath}`, progress: progressPercent });
+        }));
+      }
+
+      sendEvent('success', { message: 'Сборка успешно синхронизирована с Google Диском!', tag: 'Google Drive' });
+      return res.end();
     }
 
     // Step 1: Query GitHub Release for a zip file, or download repo zipball
@@ -456,11 +765,28 @@ app.get('/api/sync-build', async (req, res) => {
       console.error('Failed to get latest GitHub release:', e);
     }
 
+
     if (!zipUrl) {
       // Fallback: Use the main branch source zipball
       zipUrl = `https://api.github.com/repos/${repo}/zipball/main`;
+      
+      try {
+        const commitRes = await fetch(`https://api.github.com/repos/${repo}/commits/main`, {
+          headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
+        });
+        if (commitRes.ok) {
+          const commit = await commitRes.json();
+          tagName = commit.sha;
+        } else {
+          tagName = 'main';
+        }
+      } catch (e) {
+        tagName = 'main';
+      }
+
       sendEvent('status', { message: 'Основной релиз не найден. Скачивание исходников сборки из ветки main...', progress: 20 });
     } else {
+
       sendEvent('status', { message: `Найдена сборка ${tagName}. Скачивание архива...`, progress: 20 });
     }
 
@@ -591,16 +917,22 @@ app.get('/api/sync-build', async (req, res) => {
         .filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled'))
         .map(f => path.join(finalModsDir, f));
 
-      const parsedMods = await Promise.all(jarFiles.map(async (f) => {
-        const parsed = await parseModJar(f);
-        const isFileDisabled = f.endsWith('.disabled');
-        return {
-          ...parsed,
-          profile_id: profileId,
-          enabled: isFileDisabled ? false : true,
-          contentType: 'mods'
-        };
-      }));
+      const limit = 5;
+      const parsedMods: any[] = [];
+      for (let i = 0; i < jarFiles.length; i += limit) {
+        const chunk = jarFiles.slice(i, i + limit);
+        const chunkResults = await Promise.all(chunk.map(async (f) => {
+          const parsed = await parseModJar(f);
+          const isFileDisabled = f.endsWith('.disabled');
+          return {
+            ...parsed,
+            profile_id: profileId,
+            enabled: isFileDisabled ? false : true,
+            contentType: 'mods'
+          };
+        }));
+        parsedMods.push(...chunkResults);
+      }
 
       // Replace mods list
       modsList = modsList.filter(m => !(m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType)));
@@ -649,6 +981,15 @@ app.get('/api/sync-build', async (req, res) => {
       modsList = modsList.filter(m => !(m.profile_id === profileId && m.contentType === 'resourcepacks'));
       modsList.push(...parsedPacks);
       saveMods();
+    }
+    
+    // Save last_sync_tag for github updates
+    if (profile) {
+      const pIndex = profiles.findIndex(p => p.id === profileId);
+      if (pIndex !== -1) {
+        profiles[pIndex].last_sync_tag = tagName;
+        saveProfiles();
+      }
     }
 
     sendEvent('success', { message: 'Сборка успешно синхронизирована с GitHub!', tag: tagName });
@@ -1477,20 +1818,26 @@ app.post('/api/mods/scan', async (req, res) => {
           return res.json(filtered);
         }
 
-        const parsedMods = await Promise.all(jarFiles.map(async (f) => {
-          const parsed = await parseModJar(f);
-          const isFileDisabled = f.endsWith('.disabled');
-          
-          const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
-          
-          const mod: any = {
-            ...parsed,
-            profile_id: profileId,
-            enabled: isFileDisabled ? false : (existing ? existing.enabled !== false : true),
-            contentType: 'mods'
-          };
-          return mod;
-        }));
+        const limit = 5;
+        const parsedMods: any[] = [];
+        for (let i = 0; i < jarFiles.length; i += limit) {
+          const chunk = jarFiles.slice(i, i + limit);
+          const chunkResults = await Promise.all(chunk.map(async (f) => {
+            const parsed = await parseModJar(f);
+            const isFileDisabled = f.endsWith('.disabled');
+            
+            const existing = modsList.find(m => m.path === f && m.profile_id === profileId);
+            
+            const mod: any = {
+              ...parsed,
+              profile_id: profileId,
+              enabled: isFileDisabled ? false : (existing ? existing.enabled !== false : true),
+              contentType: 'mods'
+            };
+            return mod;
+          }));
+          parsedMods.push(...chunkResults);
+        }
 
         if (profileId) {
           modsList = modsList.filter(m => !(m.profile_id === profileId && (m.contentType === 'mods' || !m.contentType)));
@@ -1689,14 +2036,20 @@ app.post('/api/mods/analyze', async (req, res) => {
   if (!Array.isArray(mods)) return res.status(400).json({ error: 'Invalid mods array' });
 
   // Analyze in parallel with limit
-  const results = await Promise.all(mods.map(async (mod) => {
-    await fetchModrinthData(mod);
-    if (mod.description) {
-      mod.description_ru = await translateText(mod.description);
-    }
-    generateWarningsRu(mod);
-    return mod;
-  }));
+  const limit = 5;
+  const results: any[] = [];
+  for (let i = 0; i < mods.length; i += limit) {
+    const chunk = mods.slice(i, i + limit);
+    const chunkResults = await Promise.all(chunk.map(async (mod) => {
+      await fetchModrinthData(mod);
+      if (mod.description) {
+        mod.description_ru = await translateText(mod.description);
+      }
+      generateWarningsRu(mod);
+      return mod;
+    }));
+    results.push(...chunkResults);
+  }
 
   res.json(results);
 });

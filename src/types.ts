@@ -38,6 +38,10 @@ export interface Profile {
   java_path?: string;
   minecraft_path?: string;
   is_github_sync?: boolean;
+  syncSource?: 'github' | 'gdrive';
+  gdriveFolderId?: string;
+  gdriveFolderName?: string;
+  last_sync_tag?: string;
   is_favorite?: boolean;
   stats?: {
     totalPlayTimeMs: number;

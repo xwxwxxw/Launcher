@@ -86,4 +86,3 @@ export function findJavaPaths(): string[] {
     return Array.from(paths);
 }
 
-console.log(findJavaPaths());

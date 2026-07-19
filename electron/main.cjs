@@ -271,7 +271,19 @@ ipcMain.handle('check-updates', async (event, repo) => {
           const latestVersion = versionMatch ? versionMatch[1] : release.tag_name.replace(/^v/, '');
           const currentVersion = app.getVersion();
           
-          if (latestVersion !== currentVersion) {
+          const isNewerVersion = (latest, current) => {
+            const lParts = latest.replace(/[^0-9.]/g, '').split('.').map(Number);
+            const cParts = current.replace(/[^0-9.]/g, '').split('.').map(Number);
+            for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
+              const l = lParts[i] || 0;
+              const c = cParts[i] || 0;
+              if (l > c) return true;
+              if (l < c) return false;
+            }
+            return false;
+          };
+
+          if (latestVersion !== currentVersion && isNewerVersion(latestVersion, currentVersion)) {
             resolve({ 
               updateAvailable: true, 
               latestVersion, 
