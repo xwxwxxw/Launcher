@@ -217,13 +217,17 @@ const ProfileCard: React.FC<{
     <div 
       onClick={onSelect}
       className={`flex flex-col rounded-3xl border p-6 transition-all duration-300 backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative group overflow-hidden cursor-pointer ${
-        isActive 
-          ? 'border-emerald-500/40 bg-zinc-900/70 hover:border-emerald-500/60 shadow-[0_4px_20px_rgba(16,185,129,0.05)]' 
-          : 'border-zinc-800/40 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/60'
+        profile.id === 'GDSync' 
+          ? isActive 
+            ? 'border-cyan-500/50 bg-cyan-900/20 shadow-[0_4px_30px_rgba(6,182,212,0.15)]' 
+            : 'border-cyan-500/30 bg-cyan-900/10 hover:border-cyan-500/50'
+          : isActive 
+            ? 'border-emerald-500/40 bg-zinc-900/70 hover:border-emerald-500/60 shadow-[0_4px_20px_rgba(16,185,129,0.05)]' 
+            : 'border-zinc-800/40 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/60'
       }`}
     >
       <div className={`absolute top-0 right-0 w-32 h-32 blur-[40px] rounded-full pointer-events-none transition-colors ${
-        isActive ? 'bg-emerald-500/5 group-hover:bg-emerald-500/10' : 'bg-blue-500/5 group-hover:bg-blue-500/10'
+        profile.id === 'GDSync' ? 'bg-cyan-500/10 group-hover:bg-cyan-500/20' : isActive ? 'bg-emerald-500/5 group-hover:bg-emerald-500/10' : 'bg-blue-500/5 group-hover:bg-blue-500/10'
       }`}></div>
       
       <div className="flex justify-between items-start mb-4 relative z-10">
@@ -297,22 +301,26 @@ const ProfileCard: React.FC<{
               <Edit size={14} />
             </button>
             
-            {confirmDelete ? (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }} 
-                className="px-2.5 py-1 bg-red-500/25 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/40 rounded-lg transition-all animate-pulse"
-                title="Нажмите еще раз для подтверждения"
-              >
-                Удалить?
-              </button>
-            ) : (
-              <button 
-                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }} 
-                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                title="Удалить сборку"
-              >
-                <Trash2 size={14} />
-              </button>
+            {profile.id !== 'GDSync' && (
+              <>
+                {confirmDelete ? (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(); setConfirmDelete(false); }} 
+                    className="px-2.5 py-1 bg-red-500/25 border border-red-500/30 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/40 rounded-lg transition-all animate-pulse"
+                    title="Нажмите еще раз для подтверждения"
+                  >
+                    Удалить?
+                  </button>
+                ) : (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }} 
+                    className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                    title="Удалить сборку"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

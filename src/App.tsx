@@ -451,7 +451,7 @@ export default function App() {
 
   const handleDeleteProfile = async (id: string) => {
     try {
-      await fetch(`/api/profiles/${id}`, { method: 'DELETE' });
+      await fetch(`/api/profiles/${id}?globalPath=${encodeURIComponent(globalGamePath)}`, { method: 'DELETE' });
       setProfiles(prev => prev.filter(p => p.id !== id));
       if (activeProfileId === id) {
         const remaining = profiles.filter(p => p.id !== id);
@@ -554,6 +554,8 @@ export default function App() {
   useEffect(() => {
     if (activeProfile && (activeProfile.syncSource === 'gdrive' || activeProfile.id === 'GDSync')) {
       checkGDriveUpdates(activeProfile);
+      const interval = setInterval(() => checkGDriveUpdates(activeProfile), 300000);
+      return () => clearInterval(interval);
     } else {
       setGdriveUpdateAvailable(false);
       setGdriveAuthRequired(false);
@@ -619,28 +621,11 @@ export default function App() {
       }
     });
 
-    // 2. Minecraft Version Mismatch Check
-    const mcVersions = ['1.7.10', '1.8.9', '1.12.2', '1.16.5', '1.18.2', '1.19.2', '1.19.4', '1.20.1', '1.20.4', '1.21'];
-    mods.forEach(m => {
-      if (!m.enabled) return;
-      const filename = (m.name || m.path || '').toLowerCase();
-      const detected = mcVersions.filter(v => filename.includes(v));
-      if (detected.length > 0 && !detected.includes(activeProfile.game_version)) {
-        list.push({
-          id: `version-mismatch-${m.mod_id}`,
-          type: 'conflict',
-          title: `Несовместимая версия игры: ${m.display_name || m.name}`,
-          description: `Мод "${m.display_name || m.name}" судя по названию предназначен для версии Minecraft ${detected.join(', ')}, но ваша текущая сборка работает на ${activeProfile.game_version}. Это может вызвать критический сбой на запуске.`,
-          severity: 'critical'
-        });
-      }
-    });
-
     // 3. Duplicate Minimaps Check
     const minimapMods = mods.filter(m => 
       m.enabled && (
-        m.mod_id?.toLowerCase().includes('xaero') || 
-        m.display_name?.toLowerCase().includes('xaero') ||
+        (m.mod_id?.toLowerCase().includes('xaero') && m.mod_id?.toLowerCase().includes('minimap')) || 
+        (m.display_name?.toLowerCase().includes('xaero') && m.display_name?.toLowerCase().includes('minimap')) ||
         m.mod_id?.toLowerCase().includes('journeymap') || 
         m.display_name?.toLowerCase().includes('journeymap') ||
         m.mod_id?.toLowerCase().includes('voxelmap') || 
@@ -657,30 +642,108 @@ export default function App() {
       });
     }
 
-    // Automatic check of ALL enabled mod dependencies
+    // Automatic check of ALL enabled mod dependencies with smart resolution & JiJ filters
     mods.forEach(mod => {
       if (!mod.enabled) return;
       if (mod.depends && Array.isArray(mod.depends)) {
         mod.depends.forEach(depId => {
           const cleanDepId = depId.trim().toLowerCase();
-          // Skip known platform modules / system APIs / transitively bundled libraries (JiJ)
-          const ignoredDeps = [
-            'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'fabric-api-base',
-            'cloth-config', 'cloth-config-2', 'cloth_config', 'architectury', 'yet-another-config-lib', 'yet_another_config_lib', 'yacl', 'cardinal-components', 'cardinal-components-base', 'cardinal-components-entity', 'kirin', 'kirin-api', 'modmenu', 'com_typesafe_config', 'typesafe-config', 'org_jetbrains_annotations', 'playerabilitylib', 'trinkets', 'geckolib', 'omega-config', 'fzzy_config', 'pehkui', 'bclib', 'spectrelib', 'completeconfig', 'libgui', 'libip', 'org_antlr_antlr4_runtime',
-            'fabric-rendering-v1', 'fabric-lifecycle-events-v1', 'fabric-keybindings-v0', 'fabric-screen-api-v1', 'fabric-resource-loader-v0', 'fabric-networking-api-v1', 'fabric-content-registries-v0', 'fabric-item-api-v1', 'fabric-models-v0', 'fabric-renderer-api-v1', 'fabric-mining-level-api-v1', 'fabric-object-builder-api-v1', 'fabric-transitive-access-wideners-v1', 'fabric-command-api-v1', 'fabric-command-api-v2', 'fabric-commands-v0', 'fabric-registry-sync-v0', 'fabric-loot-api-v2', 'fabric-loot-tables-v1', 'fabric-recipe-api-v1', 'fabric-sound-api-v1', 'fabric-dimensions-v1', 'fabric-biome-api-v1', 'fabric-game-rule-api-v1', 'fabric-particles-v1', 'fabric-events-interaction-v0', 'fabric-containers-v0', 'fabric-screen-handler-api-v1', 'fabric-transfer-api-v1', 'fabric-rendering-fluids-v1', 'fabric-rendering-data-attachment-v1', 'fabric-convention-tags-v1', 'fabric-message-api-v1', 'fabric-item-group-api-v1'
-          ];
-          if (ignoredDeps.includes(cleanDepId)) {
+          
+          // 1. Skip standard Minecraft, Java, Loader internals
+          if ([
+            'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'forge', 'neoforge'
+          ].includes(cleanDepId)) {
             return;
           }
-          
-          // Check if installed & enabled
-          const isInstalled = mods.some(m => 
-            m.enabled && (
-              m.mod_id?.toLowerCase() === cleanDepId || 
-              m.name?.toLowerCase() === cleanDepId ||
-              m.display_name?.toLowerCase().includes(cleanDepId)
-            )
-          );
+
+          // 2. Skip Java packages and Maven coordinates (almost always JiJ or system bundled)
+          if (
+            cleanDepId.startsWith('org_') || 
+            cleanDepId.startsWith('com_') || 
+            cleanDepId.startsWith('net_') || 
+            cleanDepId.startsWith('io_') ||
+            cleanDepId.includes('.') || 
+            cleanDepId.includes(':')
+          ) {
+            return;
+          }
+
+          // 3. Skip Fabric API sub-modules and general Fabric API dependencies (starting with fabric- or containing fabric_api)
+          if (
+            cleanDepId.startsWith('fabric-') || 
+            cleanDepId.includes('fabric-api') || 
+            cleanDepId.includes('fabric_api') ||
+            cleanDepId.startsWith('fabric_')
+          ) {
+            return;
+          }
+
+          // 4. Skip common library dependencies that are optional, system-wide, or heavily JiJ-bundled
+          const commonLibs = [
+            'cloth-config', 'cloth_config', 'clothconfig',
+            'architectury',
+            'yet-another-config-lib', 'yet_another_config_lib', 'yacl',
+            'cardinal-components',
+            'kirin',
+            'modmenu',
+            'playerabilitylib', 'pal',
+            'trinkets',
+            'geckolib',
+            'omega-config', 'omega_config',
+            'fzzy-config', 'fzzy_config',
+            'pehkui',
+            'bclib',
+            'spectrelib',
+            'completeconfig',
+            'libgui',
+            'libip',
+            'mixinextras', 'mixin-extras',
+            'porting_lib',
+            'viafabric',
+            'placeholder-api', 'placeholderapi',
+            'polymer',
+            'sgui',
+            'reborncore',
+            'expandedstorage',
+            'registrate',
+            'flywheel',
+            'patchouli',
+            'sodium-extra',
+            'indium',
+            'iris',
+            'kotlin', 'language-kotlin',
+            'org_antlr', 'antlr'
+          ];
+
+          if (commonLibs.some(lib => cleanDepId.includes(lib))) {
+            return;
+          }
+
+          // 5. Smart search in current mods list for match
+          const isInstalled = mods.some(m => {
+            if (!m.enabled) return false;
+            const mId = m.mod_id?.toLowerCase() || '';
+            const mName = m.name?.toLowerCase() || '';
+            const mDisp = m.display_name?.toLowerCase() || '';
+
+            // Exact match
+            if (mId === cleanDepId || mName === cleanDepId) return true;
+
+            // Normalized match (remove hyphens, underscores)
+            const cleanNorm = cleanDepId.replace(/[-_]/g, '');
+            const mIdNorm = mId.replace(/[-_]/g, '');
+            const mNameNorm = mName.replace(/[-_]/g, '');
+            if (mIdNorm === cleanNorm || mNameNorm === cleanNorm) return true;
+
+            // Display name contains clean dependency ID
+            if (mDisp.includes(cleanDepId)) return true;
+
+            // Clean dependency contains mod_id or vice versa
+            if (cleanDepId.includes(mId) && mId.length > 3) return true;
+            if (mId.includes(cleanDepId) && cleanDepId.length > 3) return true;
+
+            return false;
+          });
 
           if (!isInstalled) {
             list.push({

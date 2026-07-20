@@ -203,9 +203,24 @@ export function generateWarningsRu(mod: ModInfo) {
 }
 
 export async function fetchModrinthData(mod: ModInfo): Promise<void> {
-  const query = encodeURIComponent(mod.display_name);
+  let project_type = 'mod';
+  if ((mod as any).contentType === 'resourcepacks') project_type = 'resourcepack';
+  if ((mod as any).contentType === 'shaderpacks') project_type = 'shader';
+
+    // Clean up the query for better Modrinth matching
+  let cleanQuery = mod.display_name
+    .replace(/\.(jar|zip)$/i, '')
+    .replace(/[-_+]/g, ' ')
+    .replace(/\b(fabric|forge|quilt|mc|minecraft)\b/gi, '')
+    .replace(/\b(1\.\d+(\.\d+)?)\b/g, '') // remove versions like 1.20.1
+    .replace(/\b(v?\d+\.\d+(\.\d+)?)\b/gi, '') // remove generic versions
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  if (!cleanQuery) cleanQuery = mod.display_name.replace(/[-_+]/g, ' ').trim();
+  const query = encodeURIComponent(cleanQuery);
   try {
-    const searchRes = await fetch(`https://api.modrinth.com/v2/search?query=${query}&limit=1&facets=[["project_type:mod"]]`);
+    const searchRes = await fetch(`https://api.modrinth.com/v2/search?query=${query}&limit=1&facets=[["project_type:${project_type}"]]`);
     if (searchRes.ok) {
       const data = await searchRes.json();
       if (data.hits && data.hits.length > 0) {

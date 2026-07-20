@@ -52,7 +52,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
-    throw error;
+    if(error.code==="auth/popup-blocked"){alert("Всплывающие окна заблокированы. Откройте приложение в новой вкладке, чтобы войти.");}else{alert("Ошибка: "+error.message);}throw error;
   } finally {
     isSigningIn = false;
   }

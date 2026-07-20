@@ -25,13 +25,7 @@ export default function CreateProfileModal({
   
   // Sync states
   const [isSyncEnabled, setIsSyncEnabled] = useState(initialData?.syncSource === 'gdrive');
-  const [gdriveInput, setGdriveInput] = useState(initialData?.gdriveFolderId || '');
 
-  const extractFolderId = (input: string) => {
-    const match = input.match(/folders\/([a-zA-Z0-9-_]{25,50})/);
-    return match ? match[1] : input.trim();
-  };
-  
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
   const [showLoaderDropdown, setShowLoaderDropdown] = useState(false);
   
@@ -96,7 +90,6 @@ export default function CreateProfileModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const folderId = extractFolderId(gdriveInput);
     onCreate({
       ...initialData,
       name,
@@ -107,7 +100,7 @@ export default function CreateProfileModal({
       is_active: initialData?.is_active || false,
       ram_mb: ramMb,
       syncSource: isSyncEnabled ? 'gdrive' : undefined,
-      gdriveFolderId: isSyncEnabled ? folderId : undefined,
+      gdriveFolderId: isSyncEnabled ? '' : undefined,
       gdriveFolderName: isSyncEnabled ? 'Google Drive Folder' : undefined
     });
   };
@@ -321,24 +314,6 @@ export default function CreateProfileModal({
               </label>
             </div>
 
-            {isSyncEnabled && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500">Ссылка на папку Google Диска или её ID</label>
-                  <input 
-                    type="text" 
-                    value={gdriveInput}
-                    onChange={e => setGdriveInput(e.target.value)}
-                    placeholder="Вставьте ссылку или ID папки..."
-                    className="w-full bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
-                    required={isSyncEnabled}
-                  />
-                  <p className="text-[10px] text-zinc-500 leading-relaxed">
-                    Убедитесь, что папка на Google Диске доступна для чтения (доступ по ссылке: «Все, у кого есть ссылка»). При обновлении сборка скачает все файлы из указанной папки.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* RAM Allotment Slider */}

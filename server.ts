@@ -641,7 +641,12 @@ app.get('/api/sync-build', async (req, res) => {
   const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
   const mcPath = String(req.query.minecraftPath || '');
   const syncSource = String(req.query.syncSource || 'github');
-  const gdriveFolderId = extractGDriveFolderId(String(req.query.gdriveFolderId || ''));
+  let gdriveFolderId = String(req.query.gdriveFolderId || '');
+  if (!gdriveFolderId || gdriveFolderId === 'undefined') {
+    gdriveFolderId = extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || '');
+  } else {
+    gdriveFolderId = extractGDriveFolderId(gdriveFolderId);
+  }
   const gdriveToken = String(req.query.gdriveToken || '');
 
   if (syncSource === 'gdrive') {
@@ -724,7 +729,7 @@ app.get('/api/sync-build', async (req, res) => {
       }
 
       let downloadedCount = 0;
-      const limit = 5; // Concurrency limit
+      const limit = 15; // Concurrency limit
       const binaryFiles = files.filter(f => !f.mimeType.startsWith('application/vnd.google-apps.'));
 
       if (binaryFiles.length === 0) {
@@ -965,7 +970,7 @@ app.get('/api/sync-build', async (req, res) => {
         .filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled'))
         .map(f => path.join(finalModsDir, f));
 
-      const limit = 5;
+      const limit = 15;
       const parsedMods: any[] = [];
       for (let i = 0; i < jarFiles.length; i += limit) {
         const chunk = jarFiles.slice(i, i + limit);
@@ -1067,6 +1072,18 @@ app.put('/api/profiles/:id', (req, res) => {
 
 app.delete('/api/profiles/:id', (req, res) => {
   const profileId = req.params.id;
+  const globalPath = String(req.query.globalPath || '');
+  
+  // Physically delete the profile directory
+  try {
+    const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, globalPath);
+    if (isPathSafe(profileDir, globalPath) && fs.existsSync(profileDir)) {
+      fs.rmSync(profileDir, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.error('Failed to delete profile directory:', e);
+  }
+
   profiles = profiles.filter(p => p.id !== profileId);
   saveProfiles();
   
@@ -1866,7 +1883,7 @@ app.post('/api/mods/scan', async (req, res) => {
           return res.json(filtered);
         }
 
-        const limit = 5;
+        const limit = 15;
         const parsedMods: any[] = [];
         for (let i = 0; i < jarFiles.length; i += limit) {
           const chunk = jarFiles.slice(i, i + limit);
@@ -2084,7 +2101,7 @@ app.post('/api/mods/analyze', async (req, res) => {
   if (!Array.isArray(mods)) return res.status(400).json({ error: 'Invalid mods array' });
 
   // Analyze in parallel with limit
-  const limit = 5;
+  const limit = 15;
   const results: any[] = [];
   for (let i = 0; i < mods.length; i += limit) {
     const chunk = mods.slice(i, i + limit);
@@ -2099,6 +2116,14 @@ app.post('/api/mods/analyze', async (req, res) => {
     results.push(...chunkResults);
   }
 
+  // Save to modsList
+  results.forEach(analyzedMod => {
+    const idx = modsList.findIndex(m => m.profile_id === analyzedMod.profile_id && m.contentType === analyzedMod.contentType && (m.mod_id === analyzedMod.mod_id || m.path === analyzedMod.path));
+    if (idx !== -1) {
+      modsList[idx] = { ...modsList[idx], ...analyzedMod };
+    }
+  });
+  saveMods();
   res.json(results);
 });
 

@@ -240,10 +240,15 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   if (mainWindow) {
-    if (!app.isQuiting) {
-      mainWindow.hide();
+    if (global.minimizeToTray) {
+      if (!app.isQuiting) {
+        mainWindow.hide();
+      } else {
+        mainWindow.close();
+      }
     } else {
-      mainWindow.close();
+      app.isQuiting = true;
+      app.quit();
     }
   }
 });
@@ -306,15 +311,40 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
   try {
     const tempPath = path.join(os.tmpdir(), `launcher-update-${Date.now()}.exe`);
     
-    const downloadFile = async (url, dest) => {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Minecraft-Launcher' }
+    const downloadFile = (url, dest) => {
+      return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(dest);
+        const protocol = url.startsWith('https') ? https : require('http');
+        
+        const request = protocol.get(url, {
+          headers: { 'User-Agent': 'Minecraft-Launcher' }
+        }, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            // Handle redirects
+            file.close();
+            downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+            return;
+          }
+          
+          if (response.statusCode !== 200) {
+            file.close();
+            fs.unlink(dest, () => {});
+            return reject(new Error(`Не удалось скачать файл: HTTP ${response.statusCode}`));
+          }
+          
+          response.pipe(file);
+          
+          file.on('finish', () => {
+            file.close(resolve);
+          });
+        });
+        
+        request.on('error', (err) => {
+          file.close();
+          fs.unlink(dest, () => {});
+          reject(err);
+        });
       });
-      if (!response.ok) {
-        throw new Error(`Не удалось скачать файл: HTTP ${response.status} ${response.statusText}`);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      await fs.promises.writeFile(dest, Buffer.from(arrayBuffer));
     };
 
     const downloadText = async (url) => {

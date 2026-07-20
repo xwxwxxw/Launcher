@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive } from 'lucide-react';
+import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive, Minus, Maximize2 } from 'lucide-react';
 import { Profile } from '../types';
 import { googleSignIn, getAccessToken } from '../lib/googleAuth';
 
@@ -18,6 +18,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
   const [errorMsg, setErrorMsg] = useState('');
   const [tagName, setTagName] = useState('');
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -130,6 +131,44 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     }
   };
 
+  
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-6 right-6 w-80 bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 animate-in slide-in-from-bottom-5">
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2 text-cyan-400">
+            <Loader2 size={16} className={status === 'syncing' ? 'animate-spin' : ''} />
+            <span className="text-xs font-bold uppercase tracking-wider">
+              {status === 'syncing' ? 'Синхронизация...' : status === 'success' ? 'Завершено' : status === 'error' ? 'Ошибка' : 'Обновление'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setIsMinimized(false)} className="text-zinc-500 hover:text-white p-1 rounded-md transition-colors" title="Развернуть">
+              <Maximize2 size={14} />
+            </button>
+            <button onClick={() => onClose(status === 'success')}  className="text-zinc-500 hover:text-white p-1 rounded-md disabled:opacity-50 transition-colors cursor-pointer" title="Закрыть">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+        <div className="w-full mt-2">
+          <div className="flex justify-between items-center mb-1 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+            <span className="truncate pr-2">{status === 'error' ? errorMsg : (logs[logs.length-1]?.msg || 'Подключение...')}</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
+            <div 
+              className={`h-full transition-all duration-300 rounded-full ${
+                status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
+              }`}
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-[#09090b]/85 backdrop-blur-md flex items-center justify-center z-50 p-6">
       <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col max-h-[85vh]">
@@ -144,13 +183,22 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => onClose(status === 'success')}
-            className="text-zinc-500 hover:text-zinc-300 p-1.5 hover:bg-zinc-900 rounded-xl transition-all cursor-pointer"
-            title={status === 'syncing' ? "Принудительно остановить и закрыть" : "Закрыть"}
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setIsMinimized(true)} 
+              className="text-zinc-500 hover:text-white transition-colors p-1.5 hover:bg-zinc-800 rounded-lg cursor-pointer"
+              title="Свернуть"
+            >
+              <Minus size={18} />
+            </button>
+            <button 
+              onClick={() => onClose(status === 'success')}
+              className="text-zinc-500 hover:text-zinc-300 p-1.5 hover:bg-zinc-900 rounded-xl transition-all cursor-pointer"
+              title={status === 'syncing' ? "Принудительно остановить и закрыть" : "Закрыть"}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Dynamic Status Progress */}
@@ -311,7 +359,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
         <div className="p-5 bg-zinc-900/10 flex justify-end">
           <button
             onClick={() => onClose(status === 'success')}
-            disabled={status === 'syncing' || isLoggingIn}
+            
             className="px-6 py-2.5 bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-bold uppercase tracking-widest transition-all cursor-pointer"
           >
             {status === 'syncing' ? 'Пожалуйста, подождите...' : 'Закрыть'}

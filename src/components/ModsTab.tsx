@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ModInfo, Profile } from '../types';
-import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe, Palette, Sun, Layers } from 'lucide-react';
+import { RefreshCw, FolderOpen, CheckSquare, Trash2, Search, Package, DownloadCloud, Globe, Palette, Sun, Layers, Brush } from 'lucide-react';
 import DependencyTreeModal from './DependencyTreeModal';
 import { openFolderInExplorer } from '../utils/explorer';
 import CustomSelect from './CustomSelect';
@@ -45,7 +45,30 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
         })
       });
       const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
+      const loadedItems = Array.isArray(data) ? data : [];
+      setItems(loadedItems);
+      
+      const missingMeta = loadedItems.filter(i => 
+         !i.description || 
+         i.description === 'Метаданные отсутствуют.' || 
+         i.description === 'Локальный пакет контента.' ||
+         i.description === 'Модификация для загрузчика Forge.'
+      );
+      if (missingMeta.length > 0) {
+         fetch('/api/mods/analyze', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ mods: missingMeta })
+         }).then(r => r.json()).then(analyzed => {
+            if (Array.isArray(analyzed)) {
+              setItems(prev => prev.map(p => {
+                 const found = analyzed.find(a => a.mod_id === p.mod_id && a.contentType === p.contentType);
+                 return found ? { ...p, ...found } : p;
+              }));
+              onRefresh();
+            }
+         }).catch(console.error);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -145,7 +168,19 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
     return items.filter(m => {
       // No environment filter anymore
 
-      if (search && !m.display_name.toLowerCase().includes(search.toLowerCase()) && !m.mod_id.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const textToSearch = [
+          m.display_name,
+          m.mod_id,
+          m.name,
+          m.description,
+          m.description_ru,
+          m.categories?.join(' '),
+          m.categories_ru?.join(' ')
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!textToSearch.includes(q)) return false;
+      }
       
       // Tag filters only for mods
       if (contentType === 'mods') {
@@ -426,16 +461,17 @@ const ModCard: React.FC<{
             className="w-full h-full object-contain rounded-lg" 
             referrerPolicy="no-referrer" 
             onError={(e) => {
-              e.currentTarget.src = getFallbackIcon();
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.nextElementSibling) {
+                (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+              }
             }}
           />
-        ) : (
-          <img 
-            src={getFallbackIcon()} 
-            alt="fallback" 
-            className="w-full h-full object-contain rounded-lg" 
-          />
-        )}
+        ) : null}
+        
+        <div className="w-full h-full flex items-center justify-center opacity-40" style={{ display: mod.icon_url ? 'none' : 'flex' }}>
+          {contentType === 'resourcepacks' ? <Brush size={28} /> : contentType === 'shaderpacks' ? <Sun size={28} /> : <Package size={28} />}
+        </div>
       </div>
 
       <div className="flex-1 min-w-0 relative z-10">
@@ -477,7 +513,7 @@ const ModCard: React.FC<{
               {mod.is_optimization && <Badge label="Опт" color="border-cyan-500/30 bg-cyan-500/10 text-cyan-400" />}
             </>
           )}
-          {contentType === 'resourcepacks' && <Badge label="Ресурспак" color="border-palette-500/30 bg-amber-500/10 text-amber-400" />}
+          {contentType === 'resourcepacks' && <Badge label="Ресурспак" color="border-purple-500/30 bg-amber-500/10 text-amber-400" />}
           {contentType === 'shaderpacks' && <Badge label="Шейдер" color="border-cyan-500/30 bg-cyan-500/10 text-cyan-400" />}
         </div>
 
