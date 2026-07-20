@@ -186,21 +186,58 @@ export default function App() {
   }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
 
+  const [isMinimizedWeb, setIsMinimizedWeb] = useState(false);
+  const [isMaximizedWeb, setIsMaximizedWeb] = useState(false);
+  const [isClosedWeb, setIsClosedWeb] = useState(false);
+
   const handleMinimize = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
       (window as any).electron.ipcRenderer.send('window-minimize');
+    } else {
+      setIsMinimizedWeb(true);
+      showCustomToast("Лаунчер свернут в фоновый режим.");
     }
   };
 
   const handleMaximize = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
       (window as any).electron.ipcRenderer.send('window-maximize');
+    } else {
+      try {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen()
+            .then(() => {
+              setIsMaximizedWeb(true);
+              showCustomToast("Полноэкранный режим активирован.");
+            })
+            .catch(() => {
+              setIsMaximizedWeb(!isMaximizedWeb);
+              showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
+            });
+        } else {
+          document.exitFullscreen()
+            .then(() => {
+              setIsMaximizedWeb(false);
+              showCustomToast("Полноэкранный режим отключен.");
+            })
+            .catch(() => {
+              setIsMaximizedWeb(!isMaximizedWeb);
+              showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
+            });
+        }
+      } catch (e) {
+        setIsMaximizedWeb(!isMaximizedWeb);
+        showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
+      }
     }
   };
 
   const handleClose = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
       (window as any).electron.ipcRenderer.send('window-close');
+    } else {
+      setIsClosedWeb(true);
+      showCustomToast("Работа лаунчера завершена.");
     }
   };
 
@@ -332,12 +369,38 @@ export default function App() {
     }
   }, [activeProfileId]);
 
+  const [checkDependencies, setCheckDependenciesState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('launcher_check_dependencies');
+    return saved !== '0'; // default to true
+  });
+  const setCheckDependencies = useCallback((val: boolean) => {
+    setCheckDependenciesState(val);
+    localStorage.setItem('launcher_check_dependencies', val ? '1' : '0');
+  }, []);
+
+  const [checkGdriveUpdatesSetting, setCheckGdriveUpdatesSettingState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('launcher_check_gdrive_updates');
+    return saved !== '0'; // default to true
+  });
+  const setCheckGdriveUpdatesSetting = useCallback((val: boolean) => {
+    setCheckGdriveUpdatesSettingState(val);
+    localStorage.setItem('launcher_check_gdrive_updates', val ? '1' : '0');
+  }, []);
+
+  const [dismissedGdriveAuth, setDismissedGdriveAuthState] = useState<boolean>(() => {
+    return localStorage.getItem('launcher_gdrive_dismissed_auth') === '1';
+  });
+  const setDismissedGdriveAuth = useCallback((val: boolean) => {
+    setDismissedGdriveAuthState(val);
+    localStorage.setItem('launcher_gdrive_dismissed_auth', val ? '1' : '0');
+  }, []);
+
   const [gdriveUpdateAvailable, setGdriveUpdateAvailable] = useState(false);
   const [checkingGDrive, setCheckingGDrive] = useState(false);
   const [gdriveAuthRequired, setGdriveAuthRequired] = useState(false);
 
   const checkGDriveUpdates = async (profileToCheck: any) => {
-    if (!profileToCheck || (profileToCheck.syncSource !== 'gdrive' && profileToCheck.id !== 'GDSync')) {
+    if (!checkGdriveUpdatesSetting || !profileToCheck || (profileToCheck.syncSource !== 'gdrive' && profileToCheck.id !== 'GDSync')) {
       setGdriveUpdateAvailable(false);
       setGdriveAuthRequired(false);
       return;
@@ -643,125 +706,127 @@ export default function App() {
     }
 
     // Automatic check of ALL enabled mod dependencies with smart resolution & JiJ filters
-    mods.forEach(mod => {
-      if (!mod.enabled) return;
-      if (mod.depends && Array.isArray(mod.depends)) {
-        mod.depends.forEach(depId => {
-          const cleanDepId = depId.trim().toLowerCase();
-          
-          // 1. Skip standard Minecraft, Java, Loader internals
-          if ([
-            'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'forge', 'neoforge'
-          ].includes(cleanDepId)) {
-            return;
-          }
+    if (checkDependencies) {
+      mods.forEach(mod => {
+        if (!mod.enabled) return;
+        if (mod.depends && Array.isArray(mod.depends)) {
+          mod.depends.forEach(depId => {
+            const cleanDepId = depId.trim().toLowerCase();
+            
+            // 1. Skip standard Minecraft, Java, Loader internals
+            if ([
+              'minecraft', 'java', 'fabricloader', 'fabric', 'quiltloader', 'yarn', 'loom', 'forge', 'neoforge'
+            ].includes(cleanDepId)) {
+              return;
+            }
 
-          // 2. Skip Java packages and Maven coordinates (almost always JiJ or system bundled)
-          if (
-            cleanDepId.startsWith('org_') || 
-            cleanDepId.startsWith('com_') || 
-            cleanDepId.startsWith('net_') || 
-            cleanDepId.startsWith('io_') ||
-            cleanDepId.includes('.') || 
-            cleanDepId.includes(':')
-          ) {
-            return;
-          }
+            // 2. Skip Java packages and Maven coordinates (almost always JiJ or system bundled)
+            if (
+              cleanDepId.startsWith('org_') || 
+              cleanDepId.startsWith('com_') || 
+              cleanDepId.startsWith('net_') || 
+              cleanDepId.startsWith('io_') ||
+              cleanDepId.includes('.') || 
+              cleanDepId.includes(':')
+            ) {
+              return;
+            }
 
-          // 3. Skip Fabric API sub-modules and general Fabric API dependencies (starting with fabric- or containing fabric_api)
-          if (
-            cleanDepId.startsWith('fabric-') || 
-            cleanDepId.includes('fabric-api') || 
-            cleanDepId.includes('fabric_api') ||
-            cleanDepId.startsWith('fabric_')
-          ) {
-            return;
-          }
+            // 3. Skip Fabric API sub-modules and general Fabric API dependencies (starting with fabric- or containing fabric_api)
+            if (
+              cleanDepId.startsWith('fabric-') || 
+              cleanDepId.includes('fabric-api') || 
+              cleanDepId.includes('fabric_api') ||
+              cleanDepId.startsWith('fabric_')
+            ) {
+              return;
+            }
 
-          // 4. Skip common library dependencies that are optional, system-wide, or heavily JiJ-bundled
-          const commonLibs = [
-            'cloth-config', 'cloth_config', 'clothconfig',
-            'architectury',
-            'yet-another-config-lib', 'yet_another_config_lib', 'yacl',
-            'cardinal-components',
-            'kirin',
-            'modmenu',
-            'playerabilitylib', 'pal',
-            'trinkets',
-            'geckolib',
-            'omega-config', 'omega_config',
-            'fzzy-config', 'fzzy_config',
-            'pehkui',
-            'bclib',
-            'spectrelib',
-            'completeconfig',
-            'libgui',
-            'libip',
-            'mixinextras', 'mixin-extras',
-            'porting_lib',
-            'viafabric',
-            'placeholder-api', 'placeholderapi',
-            'polymer',
-            'sgui',
-            'reborncore',
-            'expandedstorage',
-            'registrate',
-            'flywheel',
-            'patchouli',
-            'sodium-extra',
-            'indium',
-            'iris',
-            'kotlin', 'language-kotlin',
-            'org_antlr', 'antlr'
-          ];
+            // 4. Skip common library dependencies that are optional, system-wide, or heavily JiJ-bundled
+            const commonLibs = [
+              'cloth-config', 'cloth_config', 'clothconfig',
+              'architectury',
+              'yet-another-config-lib', 'yet_another_config_lib', 'yacl',
+              'cardinal-components',
+              'kirin',
+              'modmenu',
+              'playerabilitylib', 'pal',
+              'trinkets',
+              'geckolib',
+              'omega-config', 'omega_config',
+              'fzzy-config', 'fzzy_config',
+              'pehkui',
+              'bclib',
+              'spectrelib',
+              'completeconfig',
+              'libgui',
+              'libip',
+              'mixinextras', 'mixin-extras',
+              'porting_lib',
+              'viafabric',
+              'placeholder-api', 'placeholderapi',
+              'polymer',
+              'sgui',
+              'reborncore',
+              'expandedstorage',
+              'registrate',
+              'flywheel',
+              'patchouli',
+              'sodium-extra',
+              'indium',
+              'iris',
+              'kotlin', 'language-kotlin',
+              'org_antlr', 'antlr'
+            ];
 
-          if (commonLibs.some(lib => cleanDepId.includes(lib))) {
-            return;
-          }
+            if (commonLibs.some(lib => cleanDepId.includes(lib))) {
+              return;
+            }
 
-          // 5. Smart search in current mods list for match
-          const isInstalled = mods.some(m => {
-            if (!m.enabled) return false;
-            const mId = m.mod_id?.toLowerCase() || '';
-            const mName = m.name?.toLowerCase() || '';
-            const mDisp = m.display_name?.toLowerCase() || '';
+            // 5. Smart search in current mods list for match
+            const isInstalled = mods.some(m => {
+              if (!m.enabled) return false;
+              const mId = m.mod_id?.toLowerCase() || '';
+              const mName = m.name?.toLowerCase() || '';
+              const mDisp = m.display_name?.toLowerCase() || '';
 
-            // Exact match
-            if (mId === cleanDepId || mName === cleanDepId) return true;
+              // Exact match
+              if (mId === cleanDepId || mName === cleanDepId) return true;
 
-            // Normalized match (remove hyphens, underscores)
-            const cleanNorm = cleanDepId.replace(/[-_]/g, '');
-            const mIdNorm = mId.replace(/[-_]/g, '');
-            const mNameNorm = mName.replace(/[-_]/g, '');
-            if (mIdNorm === cleanNorm || mNameNorm === cleanNorm) return true;
+              // Normalized match (remove hyphens, underscores)
+              const cleanNorm = cleanDepId.replace(/[-_]/g, '');
+              const mIdNorm = mId.replace(/[-_]/g, '');
+              const mNameNorm = mName.replace(/[-_]/g, '');
+              if (mIdNorm === cleanNorm || mNameNorm === cleanNorm) return true;
 
-            // Display name contains clean dependency ID
-            if (mDisp.includes(cleanDepId)) return true;
+              // Display name contains clean dependency ID
+              if (mDisp.includes(cleanDepId)) return true;
 
-            // Clean dependency contains mod_id or vice versa
-            if (cleanDepId.includes(mId) && mId.length > 3) return true;
-            if (mId.includes(cleanDepId) && cleanDepId.length > 3) return true;
+              // Clean dependency contains mod_id or vice versa
+              if (cleanDepId.includes(mId) && mId.length > 3) return true;
+              if (mId.includes(cleanDepId) && cleanDepId.length > 3) return true;
 
-            return false;
-          });
-
-          if (!isInstalled) {
-            list.push({
-              id: `missing-dep-${mod.mod_id}-${cleanDepId}`,
-              type: 'missing_dependency_auto',
-              title: `Отсутствует зависимость для ${mod.display_name || mod.name}`,
-              description: `Для корректной работы мода "${mod.display_name || mod.name}" требуется установить отсутствующий мод "${depId}".`,
-              severity: 'high',
-              payload: {
-                parentMod: mod.display_name || mod.name,
-                dependencyId: cleanDepId,
-                dependencyName: depId
-              }
+              return false;
             });
-          }
-        });
-      }
-    });
+
+            if (!isInstalled) {
+              list.push({
+                id: `missing-dep-${mod.mod_id}-${cleanDepId}`,
+                type: 'missing_dependency_auto',
+                title: `Отсутствует зависимость для ${mod.display_name || mod.name}`,
+                description: `Для корректной работы мода "${mod.display_name || mod.name}" требуется установить отсутствующий мод "${depId}".`,
+                severity: 'high',
+                payload: {
+                  parentMod: mod.display_name || mod.name,
+                  dependencyId: cleanDepId,
+                  dependencyName: depId
+                }
+              });
+            }
+          });
+        }
+      });
+    }
 
     if (mods.length > 0 && mods.length < 3) {
       list.push({
@@ -989,6 +1054,69 @@ export default function App() {
     }
   };
 
+  if (isClosedWeb) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-[#050507] text-zinc-100 relative overflow-hidden select-none font-sans">
+        {/* Glowing visual design */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/5 blur-[120px] pointer-events-none rounded-full"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 blur-[80px] pointer-events-none rounded-full"></div>
+        
+        <div className="flex flex-col items-center max-w-md text-center px-6 py-12 rounded-3xl border border-zinc-900 bg-zinc-950/80 backdrop-blur-xl shadow-2xl relative z-10 animate-fade-in">
+          <div className="h-16 w-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-6 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+            <Gamepad2 className="h-8 w-8 animate-pulse" strokeWidth={2} />
+          </div>
+          
+          <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Лаунчер закрыт</h2>
+          <p className="text-xs text-zinc-400 mt-2 max-w-xs leading-relaxed">
+            Процесс Layle Launcher завершил свою работу. В десктопной версии приложение закрылось бы полностью.
+          </p>
+          
+          <button
+            onClick={() => {
+              setIsClosedWeb(false);
+              showCustomToast("Добро пожаловать обратно!");
+            }}
+            className="mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <RefreshCw size={14} className="animate-spin-slow" />
+            Перезапустить лаунчер
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isMinimizedWeb) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-[#09090b] text-zinc-100 relative overflow-hidden select-none font-sans">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/5 blur-[120px] pointer-events-none rounded-full"></div>
+        
+        {/* Restored overlay / floating dock */}
+        <div className="flex flex-col items-center max-w-sm text-center px-6 py-10 rounded-3xl border border-zinc-900 bg-zinc-950/70 backdrop-blur-xl shadow-2xl relative z-10 animate-fade-in">
+          <div className="h-14 w-14 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-5 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+            <Minus size={24} />
+          </div>
+          
+          <h3 className="text-base font-bold text-zinc-100 tracking-tight">Лаунчер свернут</h3>
+          <p className="text-[11px] text-zinc-400 mt-2 max-w-xs leading-relaxed">
+            Layle Launcher работает в фоновом режиме. Нажмите кнопку ниже, чтобы восстановить окно.
+          </p>
+          
+          <button
+            onClick={() => {
+              setIsMinimizedWeb(false);
+              showCustomToast("Окно лаунчера успешно восстановлено!");
+            }}
+            className="mt-6 px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            Развернуть лаунчер
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30 relative">
       {/* Subtle ambient glows for glassmorphism backdrop */}
@@ -1140,7 +1268,7 @@ export default function App() {
         )}
 
         {/* Banner Alert for GDrive Auth Required */}
-        {gdriveAuthRequired && activeProfile && activeProfile.syncSource === 'gdrive' && (
+        {gdriveAuthRequired && !dismissedGdriveAuth && activeProfile && activeProfile.syncSource === 'gdrive' && (
           <div className="bg-gradient-to-r from-amber-950/60 to-yellow-950/60 border-b border-amber-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
             <div className="flex items-center gap-3">
               <span className="flex h-2.5 w-2.5 relative shrink-0">
@@ -1157,6 +1285,13 @@ export default function App() {
                 className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95"
               >
                 Войти и обновить
+              </button>
+              <button
+                onClick={() => setDismissedGdriveAuth(true)}
+                className="p-1.5 rounded-lg bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
+                title="Скрыть предупреждение"
+              >
+                <X size={14} />
               </button>
             </div>
           </div>
@@ -1247,6 +1382,10 @@ export default function App() {
               currentVersion={launcherVersion || '0.0.6'}
               initialSubTab={settingsSubTab}
               highlightRam={highlightRam}
+              checkDependencies={checkDependencies}
+              setCheckDependencies={setCheckDependencies}
+              checkGdriveUpdates={checkGdriveUpdatesSetting}
+              setCheckGdriveUpdates={setCheckGdriveUpdatesSetting}
             />
           )}
         </main>

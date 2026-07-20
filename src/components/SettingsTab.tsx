@@ -17,7 +17,11 @@ export default function SettingsTab({
   onCheckForUpdates,
   currentVersion,
   initialSubTab = 'account',
-  highlightRam = false
+  highlightRam = false,
+  checkDependencies = true,
+  setCheckDependencies = () => {},
+  checkGdriveUpdates = true,
+  setCheckGdriveUpdates = () => {}
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -31,7 +35,11 @@ export default function SettingsTab({
   onCheckForUpdates: (silent: boolean) => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>,
   currentVersion: string,
   initialSubTab?: 'account' | 'game' | 'graphics' | 'system',
-  highlightRam?: boolean
+  highlightRam?: boolean,
+  checkDependencies?: boolean,
+  setCheckDependencies?: (val: boolean) => void,
+  checkGdriveUpdates?: boolean,
+  setCheckGdriveUpdates?: (val: boolean) => void
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
@@ -747,6 +755,60 @@ export default function SettingsTab({
                       setAutoUpdate(e.target.checked);
                       localStorage.setItem('auto_update_mods', e.target.checked ? '1' : '0');
                     }}
+                  />
+                  <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Dependency Check Toggle */}
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div className="flex gap-4">
+                  <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400 h-fit">
+                    <Shield size={24} strokeWidth={1.5} />
+                  </div>
+                  <div className="max-w-md">
+                    <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Проверка зависимостей модов</h3>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed font-sans">
+                      Автоматически сканировать включенные моды на наличие отсутствующих необходимых библиотек и вспомогательных API. Отключите, если сборка стабильна, но лаунчер отображает ложные предупреждения.
+                    </p>
+                  </div>
+                </div>
+                
+                <label className="relative inline-flex items-center cursor-pointer mt-2">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={checkDependencies}
+                    onChange={(e) => setCheckDependencies(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Google Drive Update checking */}
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div className="flex gap-4">
+                  <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400 h-fit">
+                    <HardDrive size={24} strokeWidth={1.5} />
+                  </div>
+                  <div className="max-w-md">
+                    <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Проверять обновления на Google Диске</h3>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed font-sans">
+                      Автоматически проверять наличие обновлений для GDSync профиля на Google Диске. Отключите, если не хотите получать запросы на авторизацию в Google.
+                    </p>
+                  </div>
+                </div>
+                
+                <label className="relative inline-flex items-center cursor-pointer mt-2">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={checkGdriveUpdates}
+                    onChange={(e) => setCheckGdriveUpdates(e.target.checked)}
                   />
                   <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>

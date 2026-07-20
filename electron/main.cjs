@@ -10,6 +10,11 @@ const os = require('os');
 
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
 
+// Set App User Model ID for Windows taskbar grouping and icon mapping
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.layle.launcher');
+}
+
 // 6. Single instance
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -420,7 +425,15 @@ function getFreePort() {
 }
 
 async function createWindow() {
-  const windowIconPath = path.join(__dirname, '../public/icon.png');
+  const isWin = process.platform === 'win32';
+  const iconFileName = isWin ? 'icon.ico' : 'icon.png';
+  let windowIconPath = path.join(__dirname, `../public/${iconFileName}`);
+  if (!fs.existsSync(windowIconPath)) {
+    windowIconPath = path.join(__dirname, `../dist/${iconFileName}`);
+  }
+  if (!fs.existsSync(windowIconPath)) {
+    windowIconPath = path.join(__dirname, `../${iconFileName}`);
+  }
   const winIcon = fs.existsSync(windowIconPath) ? nativeImage.createFromPath(windowIconPath) : undefined;
 
   mainWindow = new BrowserWindow({
