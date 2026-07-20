@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, X, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
@@ -116,6 +116,13 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       }
     }
   };
+
+  useEffect(() => {
+    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    if (isElectron) {
+      handleUpdate();
+    }
+  }, [updateInfo]);
 
   return (
     <div className="fixed bottom-6 right-6 w-96 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl p-5 z-50 animate-in slide-in-from-bottom-5">
