@@ -195,7 +195,6 @@ export default function App() {
       (window as any).electron.ipcRenderer.send('window-minimize');
     } else {
       setIsMinimizedWeb(true);
-      showCustomToast("Лаунчер свернут в фоновый режим.");
     }
   };
 
@@ -208,26 +207,21 @@ export default function App() {
           document.documentElement.requestFullscreen()
             .then(() => {
               setIsMaximizedWeb(true);
-              showCustomToast("Полноэкранный режим активирован.");
             })
             .catch(() => {
               setIsMaximizedWeb(!isMaximizedWeb);
-              showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
             });
         } else {
           document.exitFullscreen()
             .then(() => {
               setIsMaximizedWeb(false);
-              showCustomToast("Полноэкранный режим отключен.");
             })
             .catch(() => {
               setIsMaximizedWeb(!isMaximizedWeb);
-              showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
             });
         }
       } catch (e) {
         setIsMaximizedWeb(!isMaximizedWeb);
-        showCustomToast(!isMaximizedWeb ? "Окно развернуто (симуляция)." : "Обычный размер восстановлен.");
       }
     }
   };
@@ -237,7 +231,6 @@ export default function App() {
       (window as any).electron.ipcRenderer.send('window-close');
     } else {
       setIsClosedWeb(true);
-      showCustomToast("Работа лаунчера завершена.");
     }
   };
 
@@ -413,7 +406,7 @@ export default function App() {
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
       const folderId = profileToCheck.gdriveFolderId || '';
       
-      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token || '')}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}`);
+      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token || '')}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
       
       if (res.ok) {
         const data = await res.json();
@@ -430,7 +423,7 @@ export default function App() {
       } else {
         if (res.status === 401 || res.status === 403) {
           // Check if server-side auth is configured
-          const statusRes = await fetch(`/api/gdrive/auth-status?profileId=${encodeURIComponent(profileToCheck.id)}`);
+          const statusRes = await fetch(`/api/gdrive/auth-status?profileId=${encodeURIComponent(profileToCheck.id)}&_t=${Date.now()}`);
           const statusData = await statusRes.json().catch(() => ({}));
           if (!statusData.hasServerToken) {
             setGdriveAuthRequired(true);
@@ -1078,7 +1071,6 @@ export default function App() {
           <button
             onClick={() => {
               setIsClosedWeb(false);
-              showCustomToast("Добро пожаловать обратно!");
             }}
             className="mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
           >
@@ -1092,29 +1084,30 @@ export default function App() {
 
   if (isMinimizedWeb) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-[#09090b] text-zinc-100 relative overflow-hidden select-none font-sans">
-        {/* Subtle background glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/5 blur-[120px] pointer-events-none rounded-full"></div>
-        
-        {/* Restored overlay / floating dock */}
-        <div className="flex flex-col items-center max-w-sm text-center px-6 py-10 rounded-3xl border border-zinc-900 bg-zinc-950/70 backdrop-blur-xl shadow-2xl relative z-10 animate-fade-in">
-          <div className="h-14 w-14 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-5 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
-            <Minus size={24} />
+      <div className="flex h-screen w-full items-end justify-end p-6 bg-[#030303]/10 text-zinc-100 relative select-none font-sans overflow-hidden">
+        {/* Subtle blur behind the tray icon */}
+        <div className="absolute inset-0 bg-zinc-950/20 backdrop-blur-[1px] pointer-events-none"></div>
+
+        {/* Small simulated taskbar/tray at the bottom-right */}
+        <div className="flex items-center gap-3 bg-zinc-950/90 border border-zinc-800/80 px-4 py-2 rounded-2xl shadow-2xl relative z-50 animate-fade-in no-drag">
+          <div className="flex items-center gap-1.5 border-r border-zinc-800/60 pr-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">GDSync Ready</span>
           </div>
-          
-          <h3 className="text-base font-bold text-zinc-100 tracking-tight">Лаунчер свернут</h3>
-          <p className="text-[11px] text-zinc-400 mt-2 max-w-xs leading-relaxed">
-            Layle Launcher работает в фоновом режиме. Нажмите кнопку ниже, чтобы восстановить окно.
-          </p>
-          
+
           <button
-            onClick={() => {
-              setIsMinimizedWeb(false);
-              showCustomToast("Окно лаунчера успешно восстановлено!");
-            }}
-            className="mt-6 px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            onClick={() => setIsMinimizedWeb(false)}
+            className="group flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer relative"
+            title="Развернуть"
           >
-            Развернуть лаунчер
+            <Gamepad2 className="h-4 w-4 text-white" strokeWidth={2.5} />
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-12 right-0 scale-0 group-hover:scale-100 transition-all duration-150 origin-bottom-right">
+              <div className="bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl">
+                Развернуть Layle Launcher
+              </div>
+            </div>
           </button>
         </div>
       </div>

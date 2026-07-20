@@ -32,7 +32,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
 
   // Check if already authenticated on mount/profile load
   useEffect(() => {
-    fetch(`/api/gdrive/auth-status?profileId=${profileId}`)
+    fetch(`/api/gdrive/auth-status?profileId=${profileId}&_t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
         if (data.hasServerToken) {
@@ -59,7 +59,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
           }
         });
       });
-  }, [profileId, profile]);
+  }, [profileId]);
 
   useEffect(() => {
     if (!gdriveToken) {

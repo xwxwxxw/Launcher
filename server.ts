@@ -28,6 +28,14 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
+// Disable caching for all API endpoints to prevent stale authentication or state checks in the browser
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // Define standard directory for storing profiles and mods data
 const getStorageDir = () => {
   let baseDir = process.cwd();
@@ -432,7 +440,7 @@ app.get('/api/updates/check', async (req, res) => {
   }
 });
 
-const isApiKey = (str: string) => str && str.startsWith('AIzaSy');
+const isApiKey = (str: string) => str && (str.startsWith('AIza') || str.length === 39);
 
 // GDrive auth status endpoint
 app.get('/api/gdrive/auth-status', (req, res) => {
