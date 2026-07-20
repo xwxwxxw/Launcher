@@ -24,6 +24,12 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  const [isIframe, setIsIframe] = useState(false);
+
+  useEffect(() => {
+    setIsIframe(window.self !== window.top);
+  }, []);
+
   // Check if already authenticated on mount/profile load
   useEffect(() => {
     fetch(`/api/gdrive/auth-status?profileId=${profileId}`)
@@ -212,6 +218,26 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
               <p className="text-xs text-zinc-400 text-center max-w-md mb-6 leading-relaxed">
                 Для скачивания модов с вашего Google Диска необходимо войти в аккаунт Google и предоставить доступ к чтению файлов.
               </p>
+
+              {isIframe && (
+                <div className="mb-6 w-full max-w-md bg-amber-950/20 border border-amber-500/20 rounded-xl p-4 flex flex-col gap-3">
+                  <div className="flex gap-2 text-amber-400">
+                    <AlertTriangle className="shrink-0 mt-0.5 animate-pulse" size={16} />
+                    <span className="text-xs font-bold font-sans">Ограничение песочницы AI Studio</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                    Браузер блокирует всплывающие окна авторизации Google внутри фреймов (iframe) AI Studio. 
+                    Пожалуйста, откройте приложение в отдельной вкладке для выполнения входа. После этого вы сможете продолжить работу здесь.
+                  </p>
+                  <button
+                    onClick={() => window.open(window.location.href, '_blank')}
+                    className="flex items-center justify-center gap-1.5 self-start bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border border-amber-500/20 transition-all cursor-pointer"
+                  >
+                    Открыть в новой вкладке
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
+              )}
               
               <button
                 onClick={handleGoogleLogin}

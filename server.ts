@@ -1074,10 +1074,13 @@ app.delete('/api/profiles/:id', (req, res) => {
   const profileId = req.params.id;
   const globalPath = String(req.query.globalPath || '');
   
+  const profile = profiles.find(p => p.id === profileId);
+  const resolvedMcPath = (profile && profile.minecraft_path) ? profile.minecraft_path : globalPath;
+  
   // Physically delete the profile directory
   try {
-    const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, globalPath);
-    if (isPathSafe(profileDir, globalPath) && fs.existsSync(profileDir)) {
+    const profileDir = normalizeProfilePath(`./profiles/${profileId}`, profileId, resolvedMcPath);
+    if (isPathSafe(profileDir, resolvedMcPath) && fs.existsSync(profileDir)) {
       fs.rmSync(profileDir, { recursive: true, force: true });
     }
   } catch (e) {
@@ -1662,9 +1665,22 @@ app.post('/api/mods/install', async (req, res) => {
         if (loader) queryParams.append('loaders', `["${loader.toLowerCase()}"]`);
         if (queryParams.toString()) versionsUrl += `?${queryParams.toString()}`;
 
-        const versionsRes = await fetch(versionsUrl);
+        let versionsRes = await fetch(versionsUrl);
         if (versionsRes.ok) {
-          const versions = await versionsRes.json();
+          let versions = await versionsRes.json();
+          
+          // Fallback: If no versions found for exact gameVersion, try querying with just the loader
+          if (versions.length === 0 && loader) {
+            const fallbackUrl = `https://api.modrinth.com/v2/project/${projectId}/version?loaders=["${loader.toLowerCase()}"]`;
+            const fallbackRes = await fetch(fallbackUrl);
+            if (fallbackRes.ok) {
+              const fallbackVersions = await fallbackRes.json();
+              if (fallbackVersions.length > 0) {
+                versions = fallbackVersions;
+              }
+            }
+          }
+
           if (versions.length > 0) {
             const latestVersion = versions[0];
             
@@ -1678,25 +1694,38 @@ app.post('/api/mods/install', async (req, res) => {
               for (const dep of requiredDeps) {
                 try {
                   const depProjectRes = await fetch(`https://api.modrinth.com/v2/project/${dep.project_id}`);
-                if (depProjectRes.ok) {
-                  const depProj = await depProjectRes.json();
-                  depends.push(depProj.slug || depProj.id);
-                  dependenciesSuggested.push({
-                    projectId: dep.project_id,
-                    slug: depProj.slug,
-                    title: depProj.title || depProj.name
-                  });
+                  if (depProjectRes.ok) {
+                    const depProj = await depProjectRes.json();
+                    const depSlug = (depProj.slug || depProj.id || '').toLowerCase();
+                    
+                    // Skip if it is a common bundled library, API, or submodule to prevent false-positives
+                    const isCommonLib = [
+                      'fabric-api', 'fabric_api', 'cloth-config', 'cloth_config', 'clothconfig',
+                      'architectury', 'architectury-api', 'yet-another-config-lib', 'yacl', 'modmenu',
+                      'mixin-extras', 'mixinextras', 'kotlin', 'language-kotlin'
+                    ].some(lib => depSlug.includes(lib));
+
+                    if (isCommonLib) {
+                      continue;
+                    }
+
+                    depends.push(depProj.slug || depProj.id);
+                    dependenciesSuggested.push({
+                      projectId: dep.project_id,
+                      slug: depProj.slug,
+                      title: depProj.title || depProj.name
+                    });
+                  }
+                } catch (e) {
+                  console.error('Error fetching dependency details:', e);
                 }
-              } catch (e) {
-                console.error('Error fetching dependency details:', e);
               }
             }
           }
         }
+      } catch (err) {
+        console.error('Failed to fetch dependencies from Modrinth:', err);
       }
-    } catch (err) {
-      console.error('Failed to fetch dependencies from Modrinth:', err);
-    }
 
     const profile = profiles.find(p => p.id === profileId);
     const projectType = project.project_type || 'mod';

@@ -14,22 +14,69 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   if (!updateInfo) return null;
 
   const handleUpdate = async () => {
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      const { ipcRenderer } = (window as any).electron;
+    const assets = updateInfo.assets || [];
+    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+
+    if (isElectron) {
+      const { ipcRenderer, shell } = (window as any).electron;
+      const electProcess = (window as any).electron.process;
+      const platform = electProcess?.platform || 'win32';
       
-      const exeAsset = updateInfo.assets.find(a => a.name.endsWith('.exe'));
-      if (!exeAsset) {
-        setErrorMsg('Не найден .exe файл для обновления');
+      let targetAsset = null;
+      if (platform === 'win32') {
+        targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe'));
+      } else if (platform === 'darwin') {
+        targetAsset = assets.find(a => a && a.name && (a.name.toLowerCase().endsWith('.dmg') || a.name.toLowerCase().endsWith('.zip')));
+      } else {
+        targetAsset = assets.find(a => a && a.name && (a.name.toLowerCase().endsWith('.appimage') || a.name.toLowerCase().endsWith('.deb') || a.name.toLowerCase().endsWith('.tar.gz')));
+      }
+
+      // If we couldn't find a platform-specific asset, just take the first one or .exe
+      if (!targetAsset) {
+        targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) || assets[0];
+      }
+
+      if (!targetAsset) {
+        setErrorMsg('Не найден файл для автоматического обновления. Открываем страницу релизов...');
         setStatus('error');
+        setTimeout(() => {
+          const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+          if (shell) {
+            shell.openExternal(`https://github.com/${repo}/releases/latest`);
+          } else {
+            window.open(`https://github.com/${repo}/releases/latest`, '_blank');
+          }
+        }, 2000);
         return;
       }
-      
+
+      // On non-Windows, we download via external browser
+      if (platform !== 'win32') {
+        setStatus('downloading');
+        try {
+          if (shell) {
+            shell.openExternal(targetAsset.browser_download_url);
+            setStatus('idle');
+            onClose();
+          } else {
+            window.open(targetAsset.browser_download_url, '_blank');
+            setStatus('idle');
+            onClose();
+          }
+        } catch (err: any) {
+          setErrorMsg(err.message || 'Ошибка открытия браузера');
+          setStatus('error');
+        }
+        return;
+      }
+
+      // Windows automatic install flow
       setStatus('downloading');
       
-      const shaAsset = updateInfo.assets.find(a => a.name.endsWith('.exe.sha256'));
+      const shaAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe.sha256'));
       
       try {
-        const result = await ipcRenderer.invoke('download-update', exeAsset.browser_download_url, shaAsset ? shaAsset.browser_download_url : null);
+        const result = await ipcRenderer.invoke('download-update', targetAsset.browser_download_url, shaAsset ? shaAsset.browser_download_url : null);
         if (result.success) {
           setStatus('installing');
           const installResult = await ipcRenderer.invoke('install-update', result.tempPath);
@@ -40,6 +87,28 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         } else {
           setErrorMsg(result.error || 'Ошибка скачивания');
           setStatus('error');
+        }
+      } catch (e: any) {
+        setErrorMsg(e.message);
+        setStatus('error');
+      }
+    } else {
+      // Fallback for Web/Browser environment (AI Studio preview, Web testing, etc.)
+      setStatus('downloading');
+      try {
+        const targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) ||
+                            assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.zip')) ||
+                            assets[0];
+        
+        if (targetAsset && targetAsset.browser_download_url) {
+          window.open(targetAsset.browser_download_url, '_blank');
+          setStatus('idle');
+          onClose();
+        } else {
+          const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+          window.open(`https://github.com/${repo}/releases/latest`, '_blank');
+          setStatus('idle');
+          onClose();
         }
       } catch (e: any) {
         setErrorMsg(e.message);

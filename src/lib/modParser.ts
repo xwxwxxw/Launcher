@@ -60,8 +60,20 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
         if (json.depends && typeof json.depends === 'object') {
           depends = Object.keys(json.depends);
         }
-        if (json.icon && typeof json.icon === 'string') {
-          const iconFile = zip.file(json.icon);
+        
+        let iconPath: string | null = null;
+        if (json.icon) {
+          if (typeof json.icon === 'string') {
+            iconPath = json.icon;
+          } else if (typeof json.icon === 'object') {
+            const keys = Object.keys(json.icon).sort((a, b) => parseInt(b) - parseInt(a));
+            if (keys.length > 0) {
+              iconPath = json.icon[keys[0]];
+            }
+          }
+        }
+        if (iconPath) {
+          const iconFile = zip.file(iconPath);
           if (iconFile) {
             const buffer = await iconFile.async('nodebuffer');
             iconDataUrl = 'data:image/png;base64,' + buffer.toString('base64');
@@ -83,12 +95,52 @@ export async function parseModJar(filePath: string): Promise<ModInfo> {
         if (json.depends && typeof json.depends === 'object') {
           depends = Object.keys(json.depends);
         }
+        
+        let iconPath: string | null = null;
+        if (json.icon) {
+          if (typeof json.icon === 'string') {
+            iconPath = json.icon;
+          } else if (typeof json.icon === 'object') {
+            const keys = Object.keys(json.icon).sort((a, b) => parseInt(b) - parseInt(a));
+            if (keys.length > 0) {
+              iconPath = json.icon[keys[0]];
+            }
+          }
+        }
+        if (iconPath) {
+          const iconFile = zip.file(iconPath);
+          if (iconFile) {
+            const buffer = await iconFile.async('nodebuffer');
+            iconDataUrl = 'data:image/png;base64,' + buffer.toString('base64');
+          }
+        }
       }
     } else if (isForge) {
       loader = 'forge';
       modId = fileName;
       displayName = fileName;
       description = 'Модификация для загрузчика Forge.';
+    }
+
+    // Generic fallback for any mod loader (Fabric, Quilt, Forge) if no icon was loaded yet
+    if (!iconDataUrl) {
+      const allFileNames = Object.keys(zip.files);
+      const iconCandidate = allFileNames.find(name => {
+        const lowerName = name.toLowerCase();
+        return (
+          (lowerName === 'icon.png' || lowerName.endsWith('/icon.png')) ||
+          (lowerName === 'logo.png' || lowerName.endsWith('/logo.png')) ||
+          (lowerName === 'pack.png' || lowerName.endsWith('/pack.png')) ||
+          (lowerName.includes('icon') && lowerName.endsWith('.png'))
+        );
+      });
+      if (iconCandidate) {
+        const iconFile = zip.file(iconCandidate);
+        if (iconFile) {
+          const buffer = await iconFile.async('nodebuffer');
+          iconDataUrl = 'data:image/png;base64,' + buffer.toString('base64');
+        }
+      }
     }
   } catch (e) {
     // Silently fallback to filename defaults if parsing fails

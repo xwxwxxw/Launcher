@@ -689,11 +689,15 @@ export default function App() {
       m.enabled && (
         (m.mod_id?.toLowerCase().includes('xaero') && m.mod_id?.toLowerCase().includes('minimap')) || 
         (m.display_name?.toLowerCase().includes('xaero') && m.display_name?.toLowerCase().includes('minimap')) ||
-        m.mod_id?.toLowerCase().includes('journeymap') || 
-        m.display_name?.toLowerCase().includes('journeymap') ||
+        (m.mod_id?.toLowerCase().includes('journeymap') && !m.mod_id?.toLowerCase().includes('worldmap')) || 
+        (m.display_name?.toLowerCase().includes('journeymap') && !m.display_name?.toLowerCase().includes('worldmap')) ||
         m.mod_id?.toLowerCase().includes('voxelmap') || 
         m.display_name?.toLowerCase().includes('voxelmap')
-      )
+      ) && 
+      !m.mod_id?.toLowerCase().includes('worldmap') && 
+      !m.display_name?.toLowerCase().includes('worldmap') &&
+      !m.mod_id?.toLowerCase().includes('world-map') && 
+      !m.display_name?.toLowerCase().includes('world map')
     );
     if (minimapMods.length > 1) {
       list.push({
@@ -744,10 +748,10 @@ export default function App() {
 
             // 4. Skip common library dependencies that are optional, system-wide, or heavily JiJ-bundled
             const commonLibs = [
-              'cloth-config', 'cloth_config', 'clothconfig',
-              'architectury',
+              'cloth-config', 'cloth_config', 'clothconfig', 'cloth-config-v2', 'cloth-config-v3', 'cloth_config_v2', 'cloth_config_v3',
+              'architectury', 'architectury-api',
               'yet-another-config-lib', 'yet_another_config_lib', 'yacl',
-              'cardinal-components',
+              'cardinal-components', 'cardinal-components-base', 'cardinal-components-block', 'cardinal-components-entity', 'cardinal-components-item',
               'kirin',
               'modmenu',
               'playerabilitylib', 'pal',
@@ -775,7 +779,7 @@ export default function App() {
               'sodium-extra',
               'indium',
               'iris',
-              'kotlin', 'language-kotlin',
+              'kotlin', 'language-kotlin', 'fabric-language-kotlin',
               'org_antlr', 'antlr'
             ];
 
