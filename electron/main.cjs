@@ -425,15 +425,23 @@ function getFreePort() {
 }
 
 async function createWindow() {
-  const isWin = process.platform === 'win32';
-  const iconFileName = isWin ? 'icon.ico' : 'icon.png';
-  let windowIconPath = path.join(__dirname, `../public/${iconFileName}`);
+  let windowIconPath = path.join(__dirname, '../public/icon.png');
   if (!fs.existsSync(windowIconPath)) {
-    windowIconPath = path.join(__dirname, `../dist/${iconFileName}`);
+    windowIconPath = path.join(__dirname, '../dist/icon.png');
   }
   if (!fs.existsSync(windowIconPath)) {
-    windowIconPath = path.join(__dirname, `../${iconFileName}`);
+    windowIconPath = path.join(__dirname, '../public/icon.ico');
   }
+  if (!fs.existsSync(windowIconPath)) {
+    windowIconPath = path.join(__dirname, '../dist/icon.ico');
+  }
+  if (!fs.existsSync(windowIconPath)) {
+    windowIconPath = path.join(__dirname, '../icon.png');
+  }
+  if (!fs.existsSync(windowIconPath)) {
+    windowIconPath = path.join(__dirname, '../icon.ico');
+  }
+
   const winIcon = fs.existsSync(windowIconPath) ? nativeImage.createFromPath(windowIconPath) : undefined;
 
   mainWindow = new BrowserWindow({

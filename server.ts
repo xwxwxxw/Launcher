@@ -1,7 +1,11 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { exec } from 'child_process';
 import mclc from 'minecraft-launcher-core';
 import multer from 'multer';
@@ -20,12 +24,45 @@ import { parseModJar, fetchModrinthData, translateText, generateWarningsRu } fro
 import { TRANSLATIONS } from './src/lib/constants.js';
 import { Profile } from './src/types.js';
 
-// Load environment variables from .env
-dotenv.config();
+// Load environment variables from .env from multiple potential locations
+const envFilename = '.env';
+const potentialEnvPaths = [
+  path.join(process.cwd(), envFilename),
+  path.join(__dirname, envFilename),
+  path.join(__dirname, '..', envFilename),
+  path.join(__dirname, '../..', envFilename),
+];
+
+if ((process as any).resourcesPath) {
+  potentialEnvPaths.push(path.join((process as any).resourcesPath, envFilename));
+  potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+}
+if (process.platform === 'win32' && process.execPath) {
+  potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+}
+
+let loadedEnv = false;
+for (const envPath of potentialEnvPaths) {
+  try {
+    const resolvedPath = path.resolve(envPath);
+    if (fs.existsSync(resolvedPath)) {
+      console.log(`[ENV] Loading environment variables from: ${resolvedPath}`);
+      dotenv.config({ path: resolvedPath });
+      loadedEnv = true;
+    }
+  } catch (e) {
+    console.error(`[ENV] Failed to check/load from path ${envPath}:`, e);
+  }
+}
+
+if (!loadedEnv) {
+  console.log('[ENV] No external .env file found in paths. Relying on default process.env.');
+  dotenv.config();
+}
 
 let pendingElyAuth: any = null;
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = 3000;
 app.use(express.json());
 
 // Disable caching for all API endpoints to prevent stale authentication or state checks in the browser

@@ -186,15 +186,13 @@ export default function App() {
   }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
 
-  const [isMinimizedWeb, setIsMinimizedWeb] = useState(false);
   const [isMaximizedWeb, setIsMaximizedWeb] = useState(false);
-  const [isClosedWeb, setIsClosedWeb] = useState(false);
 
   const handleMinimize = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
       (window as any).electron.ipcRenderer.send('window-minimize');
     } else {
-      setIsMinimizedWeb(true);
+      showCustomToast("Окно свернуто (эмуляция для браузера)");
     }
   };
 
@@ -230,7 +228,7 @@ export default function App() {
     if (typeof window !== 'undefined' && (window as any).electron) {
       (window as any).electron.ipcRenderer.send('window-close');
     } else {
-      setIsClosedWeb(true);
+      showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
     }
   };
 
@@ -1050,69 +1048,6 @@ export default function App() {
       }
     }
   };
-
-  if (isClosedWeb) {
-    return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-[#050507] text-zinc-100 relative overflow-hidden select-none font-sans">
-        {/* Glowing visual design */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/5 blur-[120px] pointer-events-none rounded-full"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 blur-[80px] pointer-events-none rounded-full"></div>
-        
-        <div className="flex flex-col items-center max-w-md text-center px-6 py-12 rounded-3xl border border-zinc-900 bg-zinc-950/80 backdrop-blur-xl shadow-2xl relative z-10 animate-fade-in">
-          <div className="h-16 w-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-6 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
-            <Gamepad2 className="h-8 w-8 animate-pulse" strokeWidth={2} />
-          </div>
-          
-          <h2 className="text-xl font-bold text-zinc-100 tracking-tight">Лаунчер закрыт</h2>
-          <p className="text-xs text-zinc-400 mt-2 max-w-xs leading-relaxed">
-            Процесс Layle Launcher завершил свою работу. В десктопной версии приложение закрылось бы полностью.
-          </p>
-          
-          <button
-            onClick={() => {
-              setIsClosedWeb(false);
-            }}
-            className="mt-8 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-          >
-            <RefreshCw size={14} className="animate-spin-slow" />
-            Перезапустить лаунчер
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isMinimizedWeb) {
-    return (
-      <div className="flex h-screen w-full items-end justify-end p-6 bg-[#030303]/10 text-zinc-100 relative select-none font-sans overflow-hidden">
-        {/* Subtle blur behind the tray icon */}
-        <div className="absolute inset-0 bg-zinc-950/20 backdrop-blur-[1px] pointer-events-none"></div>
-
-        {/* Small simulated taskbar/tray at the bottom-right */}
-        <div className="flex items-center gap-3 bg-zinc-950/90 border border-zinc-800/80 px-4 py-2 rounded-2xl shadow-2xl relative z-50 animate-fade-in no-drag">
-          <div className="flex items-center gap-1.5 border-r border-zinc-800/60 pr-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">GDSync Ready</span>
-          </div>
-
-          <button
-            onClick={() => setIsMinimizedWeb(false)}
-            className="group flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer relative"
-            title="Развернуть"
-          >
-            <Gamepad2 className="h-4 w-4 text-white" strokeWidth={2.5} />
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-12 right-0 scale-0 group-hover:scale-100 transition-all duration-150 origin-bottom-right">
-              <div className="bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl">
-                Развернуть Layle Launcher
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30 relative">
