@@ -41,12 +41,14 @@ const potentialEnvPaths = [
   path.join(_dirname, '../..', envFilename),
 ];
 
-if ((process as any).resourcesPath) {
-  potentialEnvPaths.push(path.join((process as any).resourcesPath, envFilename));
-  potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
-}
-if (process.platform === 'win32' && process.execPath) {
-  potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+if (process.execPath && typeof process.execPath === 'string') {
+  if ((process as any).resourcesPath) {
+    potentialEnvPaths.push(path.join((process as any).resourcesPath, envFilename));
+    potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+  }
+  if (process.platform === 'win32') {
+    potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+  }
 }
 
 let loadedEnv = false;
@@ -70,7 +72,7 @@ if (!loadedEnv) {
 
 let pendingElyAuth: any = null;
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json());
 
 // Disable caching for all API endpoints to prevent stale authentication or state checks in the browser
@@ -2889,7 +2891,24 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    let distPath = _dirname;
+    if (!distPath || !fs.existsSync(path.join(distPath, 'index.html'))) {
+      distPath = path.join(process.cwd(), 'dist');
+    }
+    if (!fs.existsSync(path.join(distPath, 'index.html'))) {
+      const resourcesPath = (process as any).resourcesPath;
+      if (resourcesPath) {
+        const potentialDist = path.join(resourcesPath, 'app', 'dist');
+        if (fs.existsSync(path.join(potentialDist, 'index.html'))) {
+          distPath = potentialDist;
+        } else {
+          const potentialDistAsar = path.join(resourcesPath, 'app.asar', 'dist');
+          if (fs.existsSync(path.join(potentialDistAsar, 'index.html'))) {
+            distPath = potentialDistAsar;
+          }
+        }
+      }
+    }
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
