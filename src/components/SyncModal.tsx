@@ -29,7 +29,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       minecraftPath,
       syncSource: 'gdrive',
       gdriveFolderId: profile.gdriveFolderId || '',
-      gdriveToken: ''
+      gdriveToken: (import.meta as any).env.VITE_GDRIVE_API_KEY || ''
     });
 
     setStatus('syncing');

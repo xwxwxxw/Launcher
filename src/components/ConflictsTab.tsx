@@ -36,7 +36,7 @@ export default function ConflictsTab({ conflicts, onResolveConflict, onDismissCo
 
   return (
     <div className="flex-1 px-10 py-12 overflow-y-auto w-full h-full relative">
-      <div className="space-y-4 max-w-4xl">
+      <div className="space-y-4 w-full">
         {conflicts.map(conflict => (
           <div key={conflict.id} className={`p-6 rounded-3xl border flex gap-5 items-start transition-all hover:scale-[1.01] relative group ${getSeverityClass(conflict.severity)}`}>
             

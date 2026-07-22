@@ -37,7 +37,17 @@ app.on('second-instance', () => {
 Menu.setApplicationMenu(null);
 
 // 1. Session saving
-const authPath = path.join(app.getPath('userData'), 'auth.json');
+const sessionDir = path.join(app.getPath('userData'), 'session');
+if (!fs.existsSync(sessionDir)) {
+  fs.mkdirSync(sessionDir, { recursive: true });
+}
+const authPath = path.join(sessionDir, 'auth.json');
+const oldAuthPath = path.join(app.getPath('userData'), 'auth.json');
+if (fs.existsSync(oldAuthPath) && !fs.existsSync(authPath)) {
+  try {
+    fs.renameSync(oldAuthPath, authPath);
+  } catch (e) {}
+}
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
 try {

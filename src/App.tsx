@@ -186,6 +186,13 @@ export default function App() {
                 } catch (e) {}
               }
               
+              if (settings.launcher_check_dependencies !== undefined) {
+                setCheckDependenciesState(settings.launcher_check_dependencies !== '0');
+              }
+              if (settings.launcher_check_gdrive_updates !== undefined) {
+                setCheckGdriveUpdatesSettingState(settings.launcher_check_gdrive_updates !== '0');
+              }
+
               if (settings.launcher_minimize_tray !== undefined) {
                 ipcRenderer.invoke('set-minimize-to-tray', settings.launcher_minimize_tray === '1');
               }
@@ -413,7 +420,8 @@ export default function App() {
     try {
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
       
-      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
+      const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
+      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(clientToken)}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
       
       const text = await res.text();
       let data: any = {};

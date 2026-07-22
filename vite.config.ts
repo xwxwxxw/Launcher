@@ -36,6 +36,7 @@ export default defineConfig(() => {
     define: {
       'import.meta.env.VITE_GITHUB_REPO': JSON.stringify(parsedRepo),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
+      'import.meta.env.VITE_GDRIVE_API_KEY': JSON.stringify(process.env.GDRIVE_API_KEY || ''),
     },
     resolve: {
       alias: {

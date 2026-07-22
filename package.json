@@ -1,7 +1,7 @@
 {
   "name": "layle-launcher",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.2.2",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -41,14 +41,16 @@
       "target": "AppImage"
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Layle Launcher",
       "perMachine": false,
       "runAfterFinish": true,
-      "language": 1049
+      "language": 1049,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     }
   },
   "dependencies": {
