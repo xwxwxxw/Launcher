@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive, Minus, Maximize2 } from 'lucide-react';
 import { Profile } from '../types';
-import { googleSignIn, getAccessToken } from '../lib/googleAuth';
 
 interface SyncModalProps {
   onClose: (didSyncSucceed?: boolean) => void;
@@ -12,9 +11,7 @@ interface SyncModalProps {
 export default function SyncModal({ onClose, profileId, profile }: SyncModalProps) {
   const [logs, setLogs] = useState<{ msg: string; time: string }[]>([]);
   const [progress, setProgress] = useState(0);
-  const [gdriveToken, setGdriveToken] = useState<string | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [status, setStatus] = useState<'auth_required' | 'syncing' | 'success' | 'error'>('auth_required');
+  const [status, setStatus] = useState<'syncing' | 'success' | 'error'>('syncing');
   const [errorMsg, setErrorMsg] = useState('');
   const [tagName, setTagName] = useState('');
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -24,48 +21,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  const [isIframe, setIsIframe] = useState(false);
-
   useEffect(() => {
-    setIsIframe(window.self !== window.top);
-  }, []);
-
-  // Check if already authenticated on mount/profile load
-  useEffect(() => {
-    fetch(`/api/gdrive/auth-status?profileId=${profileId}&_t=${Date.now()}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.hasServerToken) {
-          setGdriveToken('server_token');
-          setStatus('syncing');
-        } else {
-          getAccessToken().then(tok => {
-            if (tok) {
-              setGdriveToken(tok);
-              setStatus('syncing');
-            } else {
-              setStatus('auth_required');
-            }
-          });
-        }
-      })
-      .catch(() => {
-        getAccessToken().then(tok => {
-          if (tok) {
-            setGdriveToken(tok);
-            setStatus('syncing');
-          } else {
-            setStatus('auth_required');
-          }
-        });
-      });
-  }, [profileId]);
-
-  useEffect(() => {
-    if (!gdriveToken) {
-      return;
-    }
-
     const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
 
     const query = new URLSearchParams({
@@ -73,7 +29,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       minecraftPath,
       syncSource: 'gdrive',
       gdriveFolderId: profile.gdriveFolderId || '',
-      gdriveToken: gdriveToken || ''
+      gdriveToken: ''
     });
 
     setStatus('syncing');
@@ -115,27 +71,8 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     return () => {
       eventSource.close();
     };
-  }, [profileId, gdriveToken, profile]);
+  }, [profileId, profile]);
 
-  const handleGoogleLogin = async () => {
-    setIsLoggingIn(true);
-    setErrorMsg('');
-    try {
-      const result = await googleSignIn();
-      if (result?.accessToken) {
-        setGdriveToken(result.accessToken);
-        setStatus('syncing');
-      } else {
-        throw new Error('Failed to obtain Google token.');
-      }
-    } catch (e: any) {
-      console.error(e);
-      setErrorMsg(e.message || 'Ошибка авторизации Google');
-      setStatus('error');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
 
   
   if (isMinimized) {
@@ -209,87 +146,6 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
 
         {/* Dynamic Status Progress */}
         <div className="p-8 flex flex-col items-center border-b border-zinc-900/50 bg-gradient-to-b from-cyan-950/5 to-transparent">
-          {status === 'auth_required' && (
-            <div className="flex flex-col items-center py-4">
-              <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center justify-center text-blue-400 mb-5 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
-                <HardDrive size={32} />
-              </div>
-              <h4 className="text-zinc-100 font-bold text-center mb-2">Требуется авторизация Google</h4>
-              <p className="text-xs text-zinc-400 text-center max-w-md mb-6 leading-relaxed">
-                Для скачивания модов с вашего Google Диска необходимо войти в аккаунт Google и предоставить доступ к чтению файлов.
-              </p>
-
-              {isIframe && (
-                <div className="mb-6 w-full max-w-md bg-amber-950/20 border border-amber-500/20 rounded-xl p-4 flex flex-col gap-3">
-                  <div className="flex gap-2 text-amber-400">
-                    <AlertTriangle className="shrink-0 mt-0.5 animate-pulse" size={16} />
-                    <span className="text-xs font-bold font-sans">Ограничение песочницы AI Studio</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
-                    Браузер блокирует всплывающие окна авторизации Google внутри фреймов (iframe) AI Studio. 
-                    Пожалуйста, откройте приложение в отдельной вкладке для выполнения входа. После этого вы сможете продолжить работу здесь.
-                  </p>
-                  <button
-                    onClick={() => window.open(window.location.href, '_blank')}
-                    className="flex items-center justify-center gap-1.5 self-start bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border border-amber-500/20 transition-all cursor-pointer"
-                  >
-                    Открыть в новой вкладке
-                    <ExternalLink size={12} />
-                  </button>
-                </div>
-              )}
-              
-              <button
-                onClick={handleGoogleLogin}
-                disabled={isLoggingIn}
-                className="flex items-center gap-3 bg-white hover:bg-zinc-200 text-black px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] disabled:opacity-50 cursor-pointer mb-6"
-              >
-                {isLoggingIn ? (
-                  <>
-                    <Loader2 className="animate-spin text-black" size={16} />
-                    Подключение...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 shrink-0 text-black" viewBox="0 0 24 24">
-                      <path
-                        fill="currentColor"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="currentColor"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="currentColor"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="currentColor"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    Войти через Google
-                  </>
-                )}
-              </button>
-
-              <div className="max-w-md w-full bg-blue-950/20 border border-blue-500/20 rounded-xl p-4 text-left animate-fade-in">
-                <h5 className="text-[10px] uppercase font-extrabold tracking-wider text-blue-400 mb-1">Вы администратор или создатель сборки?</h5>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Чтобы вашим игрокам <strong>не требовалось никуда входить</strong>, просто укажите созданный вами <strong>Google API Ключ</strong> (API Key) одним из способов:
-                </p>
-                <ul className="list-disc pl-4 text-[10px] text-zinc-500 mt-2 space-y-1">
-                  <li>В лаунчере: вкладка <strong>«Сборки»</strong> &rarr; кнопка <strong>«Редактировать»</strong> на вашей сборке &rarr; поле <strong>«API Ключ или Токен доступа»</strong>.</li>
-                  <li>Или пропишите его на сервере в файле <strong>.env</strong> в переменную <code className="text-zinc-300 font-mono">GDRIVE_API_KEY="ВАШ_КЛЮЧ"</code>.</li>
-                </ul>
-                <p className="text-[10px] text-amber-400/80 mt-2 leading-relaxed font-medium">
-                  Важно: папка на Google Диске должна быть открыта для чтения всем по ссылке («Доступен всем, у кого есть ссылка»).
-                </p>
-              </div>
-            </div>
-          )}
-
           {status === 'syncing' && (
             <>
               <div className="relative w-20 h-20 flex items-center justify-center mb-6">
@@ -329,33 +185,24 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
               <p className="text-xs text-zinc-400 text-center max-w-md mb-4 font-medium">
                 {errorMsg || 'Произошла непредвиденная ошибка.'}
               </p>
-              
-              <button
-                onClick={handleGoogleLogin}
-                className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-              >
-                Повторить авторизацию
-              </button>
             </>
           )}
 
-          {/* Progress Bar (only show if not waiting for auth) */}
-          {status !== 'auth_required' && (
-            <div className="w-full mt-8">
-              <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
-                <div 
-                  className={`h-full transition-all duration-300 rounded-full ${
-                    status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
-                  }`}
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-              <div className="flex justify-between items-center mt-2 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
-                <span>ПРОГРЕСС</span>
-                <span>{progress}%</span>
-              </div>
+          {/* Progress Bar */}
+          <div className="w-full mt-8">
+            <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
+              <div 
+                className={`h-full transition-all duration-300 rounded-full ${
+                  status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
+                }`}
+                style={{ width: `${progress}%` }}
+              ></div>
             </div>
-          )}
+            <div className="flex justify-between items-center mt-2 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+              <span>ПРОГРЕСС</span>
+              <span>{progress}%</span>
+            </div>
+          </div>
         </div>
 
         {/* Live Terminal Output Console */}
@@ -365,9 +212,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
             <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-600 font-mono">UTC Terminal</span>
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-none font-mono text-[11px] text-zinc-400 space-y-1.5 p-3 rounded-2xl bg-[#09090b] border border-zinc-900">
-            {status === 'auth_required' ? (
-              <div className="text-zinc-600 italic">Ожидание авторизации пользователя...</div>
-            ) : logs.length === 0 ? (
+            {logs.length === 0 ? (
               <div className="text-zinc-600 italic">Инициализация логов обновления...</div>
             ) : (
               logs.map((log, i) => (

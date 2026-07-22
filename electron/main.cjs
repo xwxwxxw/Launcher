@@ -336,6 +336,17 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
             fs.unlink(dest, () => {});
             return reject(new Error(`Не удалось скачать файл: HTTP ${response.statusCode}`));
           }
+
+          const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+          let downloaded = 0;
+          
+          response.on('data', (chunk) => {
+            downloaded += chunk.length;
+            if (totalBytes > 0) {
+              const progress = Math.round((downloaded / totalBytes) * 100);
+              event.sender.send('update-progress', progress);
+            }
+          });
           
           response.pipe(file);
           
@@ -394,9 +405,8 @@ ipcMain.handle('install-update', async (event, tempPath) => {
     const { spawn } = require('child_process');
     
     // Launch the downloaded installer directly from the temp folder
-    // This allows the installer to run independently, overwrite the launcher files,
-    // and avoids Windows locking the installer executable itself inside the app folder.
-    spawn(tempPath, [], {
+    // We pass /S for silent install, --updated and /force-run for auto-start.
+    spawn(tempPath, ['/S', '--updated', '/force-run'], {
       detached: true,
       stdio: 'ignore'
     }).unref();
@@ -407,6 +417,17 @@ ipcMain.handle('install-update', async (event, tempPath) => {
     return { success: true };
   } catch (e) {
     console.error('Update install failed:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('delete-file', async (event, targetPath) => {
+  try {
+    if (fs.existsSync(targetPath)) {
+      fs.unlinkSync(targetPath);
+    }
+    return { success: true };
+  } catch (e) {
     return { success: false, error: e.message };
   }
 });

@@ -95,6 +95,22 @@ export default function App() {
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
         const { ipcRenderer } = (window as any).electron;
+        
+        // Handle successful update
+        const pendingInstaller = localStorage.getItem('pending_update_installer');
+        if (pendingInstaller) {
+          localStorage.removeItem('pending_update_installer');
+          
+          // Delete the temporary installer file
+          ipcRenderer.invoke('delete-file', pendingInstaller).catch((err: any) => {
+            console.error('Failed to delete installer:', err);
+          });
+          
+          setTimeout(() => {
+            showCustomToast('Успешное обновление: Новая версия лаунчера установлена.');
+          }, 1000);
+        }
+
         ipcRenderer.invoke('get-app-version')
           .then((v: string) => {
             if (v) setLauncherVersion(v);
@@ -378,39 +394,26 @@ export default function App() {
     localStorage.setItem('launcher_check_gdrive_updates', val ? '1' : '0');
   }, []);
 
-  const [dismissedGdriveAuth, setDismissedGdriveAuthState] = useState<boolean>(() => {
-    return localStorage.getItem('launcher_gdrive_dismissed_auth') === '1';
-  });
-  const setDismissedGdriveAuth = useCallback((val: boolean) => {
-    setDismissedGdriveAuthState(val);
-    localStorage.setItem('launcher_gdrive_dismissed_auth', val ? '1' : '0');
-  }, []);
-
   const [gdriveUpdateAvailable, setGdriveUpdateAvailable] = useState(false);
   const [checkingGDrive, setCheckingGDrive] = useState(false);
-  const [gdriveAuthRequired, setGdriveAuthRequired] = useState(false);
 
   const checkGDriveUpdates = async (profileToCheck: any) => {
     if (!checkGdriveUpdatesSetting || !profileToCheck || (profileToCheck.syncSource !== 'gdrive' && profileToCheck.id !== 'GDSync')) {
       setGdriveUpdateAvailable(false);
-      setGdriveAuthRequired(false);
       return;
     }
 
     const folderId = profileToCheck.gdriveFolderId || '';
     if (!folderId || folderId.trim() === '') {
       setGdriveUpdateAvailable(false);
-      setGdriveAuthRequired(false);
       return;
     }
 
     setCheckingGDrive(true);
-    setGdriveAuthRequired(false);
     try {
-      const token = await getAccessToken();
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
       
-      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token || '')}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
+      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
       
       const text = await res.text();
       let data: any = {};
@@ -430,19 +433,6 @@ export default function App() {
           }
         } else {
           setGdriveUpdateAvailable(false);
-        }
-      } else {
-        if (res.status === 401 || res.status === 403) {
-          // Check if server-side auth is configured
-          const statusRes = await fetch(`/api/gdrive/auth-status?profileId=${encodeURIComponent(profileToCheck.id)}&_t=${Date.now()}`);
-          const statusText = await statusRes.text();
-          let statusData: any = {};
-          try {
-            statusData = JSON.parse(statusText);
-          } catch {}
-          if (!statusData.hasServerToken) {
-            setGdriveAuthRequired(true);
-          }
         }
       }
     } catch (e) {
@@ -629,7 +619,6 @@ export default function App() {
       return () => clearInterval(interval);
     } else {
       setGdriveUpdateAvailable(false);
-      setGdriveAuthRequired(false);
     }
   }, [activeProfileId, activeGdriveFolderId, isGdriveSync]);
 
@@ -1211,36 +1200,6 @@ export default function App() {
                 className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
               >
                 Обновить сейчас
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Banner Alert for GDrive Auth Required */}
-        {gdriveAuthRequired && !dismissedGdriveAuth && activeProfile && activeProfile.syncSource === 'gdrive' && (
-          <div className="bg-gradient-to-r from-amber-950/60 to-yellow-950/60 border-b border-amber-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
-            <div className="flex items-center gap-3">
-              <span className="flex h-2.5 w-2.5 relative shrink-0">
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-              </span>
-              <div>
-                <p className="text-xs font-bold text-zinc-100">Требуется авторизация Google</p>
-                <p className="text-[10px] text-zinc-400">Для проверки обновлений GDSync и автоматического скачивания модов с Google Диска.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSyncModal(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95"
-              >
-                Войти и обновить
-              </button>
-              <button
-                onClick={() => setDismissedGdriveAuth(true)}
-                className="p-1.5 rounded-lg bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
-                title="Скрыть предупреждение"
-              >
-                <X size={14} />
               </button>
             </div>
           </div>

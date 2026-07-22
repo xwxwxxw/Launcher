@@ -9,7 +9,20 @@ interface UpdateModalProps {
 
 export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [status, setStatus] = useState<'idle' | 'downloading' | 'installing' | 'error'>('idle');
+  const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    if (isElectron) {
+      const { ipcRenderer } = (window as any).electron;
+      const handleProgress = (_: any, p: number) => setProgress(p);
+      ipcRenderer.on('update-progress', handleProgress);
+      return () => {
+        ipcRenderer.removeAllListeners('update-progress');
+      };
+    }
+  }, []);
 
   if (!updateInfo) return null;
 
@@ -79,10 +92,12 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         const result = await ipcRenderer.invoke('download-update', targetAsset.browser_download_url, shaAsset ? shaAsset.browser_download_url : null);
         if (result.success) {
           setStatus('installing');
+          localStorage.setItem('pending_update_installer', result.tempPath);
           const installResult = await ipcRenderer.invoke('install-update', result.tempPath);
           if (!installResult.success) {
             setErrorMsg(installResult.error || 'Ошибка установки');
             setStatus('error');
+            localStorage.removeItem('pending_update_installer');
           }
         } else {
           setErrorMsg(result.error || 'Ошибка скачивания');
@@ -117,12 +132,8 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     }
   };
 
-  useEffect(() => {
-    const isElectron = typeof window !== 'undefined' && (window as any).electron;
-    if (isElectron) {
-      handleUpdate();
-    }
-  }, [updateInfo]);
+  // Automatic update download removed so user can click the button
+  // as per requirement "Пользователь нажимает кнопку..."
 
   return (
     <div className="fixed bottom-6 right-6 w-96 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl p-5 z-50 animate-in slide-in-from-bottom-5">
@@ -169,6 +180,21 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           >
             Позже
           </button>
+        </div>
+      )}
+
+      {(status === 'downloading' || status === 'installing') && (
+        <div className="w-full mt-4">
+          <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
+            <div 
+              className="h-full transition-all duration-300 rounded-full bg-emerald-500"
+              style={{ width: `${status === 'installing' ? 100 : progress}%` }}
+            ></div>
+          </div>
+          <div className="flex justify-between items-center mt-2 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+            <span>{status === 'installing' ? 'Установка...' : 'Скачивание...'}</span>
+            <span>{status === 'installing' ? '' : `${progress}%`}</span>
+          </div>
         </div>
       )}
     </div>

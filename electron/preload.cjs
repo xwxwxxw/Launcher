@@ -9,26 +9,26 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     invoke: (channel, ...args) => {
-      let validChannels = ['check-updates', 'download-update', 'install-update', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray'];
+      let validChannels = ['check-updates', 'download-update', 'install-update', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
       }
     },
     on: (channel, func) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success'];
+      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress'];
       if (validChannels.includes(channel)) {
         // Deliberately strip event as it includes `sender` 
-        ipcRenderer.on(channel, (event, ...args) => func(...args));
+        ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
       }
     },
     once: (channel, func) => {
-        let validChannels = ['auth-success'];
+        let validChannels = ['auth-success', 'update-progress'];
         if (validChannels.includes(channel)) {
-            ipcRenderer.once(channel, (event, ...args) => func(...args));
+            ipcRenderer.once(channel, (event, ...args) => func(event, ...args));
         }
     },
     removeAllListeners: (channel) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success'];
+      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress'];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }
