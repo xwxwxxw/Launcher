@@ -1,7 +1,7 @@
 {
   "name": "layle-launcher",
   "private": true,
-  "version": "2.2.2",
+  "version": "2.2.3",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -50,7 +50,7 @@
       "runAfterFinish": true,
       "language": 1049,
       "deleteAppDataOnUninstall": false,
-      "include": "build/installer.nsh"
+      "include": "electron/installer.nsh"
     }
   },
   "dependencies": {

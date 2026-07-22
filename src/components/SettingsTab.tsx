@@ -21,7 +21,9 @@ export default function SettingsTab({
   checkDependencies = true,
   setCheckDependencies = () => {},
   checkGdriveUpdates = true,
-  setCheckGdriveUpdates = () => {}
+  setCheckGdriveUpdates = () => {},
+  gdriveAutoSync = false,
+  setGdriveAutoSync = () => {}
 }: { 
   userProfile: {name: string, id: string, accessToken: string} | null, 
   onLoginClick: () => void, 
@@ -39,7 +41,9 @@ export default function SettingsTab({
   checkDependencies?: boolean,
   setCheckDependencies?: (val: boolean) => void,
   checkGdriveUpdates?: boolean,
-  setCheckGdriveUpdates?: (val: boolean) => void
+  setCheckGdriveUpdates?: (val: boolean) => void,
+  gdriveAutoSync?: boolean,
+  setGdriveAutoSync?: (val: boolean) => void
 }) {
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
@@ -789,7 +793,7 @@ export default function SettingsTab({
             </div>
 
             {/* Google Drive Update checking */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden space-y-6">
               <div className="flex items-start justify-between relative z-10">
                 <div className="flex gap-4">
                   <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400 h-fit">
@@ -813,6 +817,32 @@ export default function SettingsTab({
                   <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
+
+              {checkGdriveUpdates && (
+                <div className="pt-6 border-t border-zinc-800/40 flex items-start justify-between relative z-10">
+                  <div className="flex gap-4">
+                    <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 h-fit">
+                      <RefreshCw size={24} strokeWidth={1.5} />
+                    </div>
+                    <div className="max-w-md">
+                      <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Автоматическая синхронизация сборки</h3>
+                      <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed font-sans">
+                        Автоматически запускавать синхронизацию при обнаружении обновлений на Google Диске при запуске лаунчера. Если отключено, лаунчер только покажет уведомление.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <label className="relative inline-flex items-center cursor-pointer mt-2">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={gdriveAutoSync}
+                      onChange={(e) => setGdriveAutoSync(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Launcher Updates */}

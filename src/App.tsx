@@ -192,6 +192,9 @@ export default function App() {
               if (settings.launcher_check_gdrive_updates !== undefined) {
                 setCheckGdriveUpdatesSettingState(settings.launcher_check_gdrive_updates !== '0');
               }
+              if (settings.launcher_gdrive_auto_sync !== undefined) {
+                setGdriveAutoSyncState(settings.launcher_gdrive_auto_sync === '1');
+              }
 
               if (settings.launcher_minimize_tray !== undefined) {
                 ipcRenderer.invoke('set-minimize-to-tray', settings.launcher_minimize_tray === '1');
@@ -401,6 +404,15 @@ export default function App() {
     localStorage.setItem('launcher_check_gdrive_updates', val ? '1' : '0');
   }, []);
 
+  const [gdriveAutoSync, setGdriveAutoSyncState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('launcher_gdrive_auto_sync');
+    return saved === '1'; // default to false
+  });
+  const setGdriveAutoSync = useCallback((val: boolean) => {
+    setGdriveAutoSyncState(val);
+    localStorage.setItem('launcher_gdrive_auto_sync', val ? '1' : '0');
+  }, []);
+
   const [gdriveUpdateAvailable, setGdriveUpdateAvailable] = useState(false);
   const [checkingGDrive, setCheckingGDrive] = useState(false);
 
@@ -435,8 +447,7 @@ export default function App() {
         if (data.updateAvailable) {
           setGdriveUpdateAvailable(true);
           
-          const autoSync = localStorage.getItem('launcher_gdrive_auto_sync') !== 'false';
-          if (autoSync) {
+          if (gdriveAutoSync) {
             setShowSyncModal(true);
           }
         } else {
@@ -1302,6 +1313,8 @@ export default function App() {
               setCheckDependencies={setCheckDependencies}
               checkGdriveUpdates={checkGdriveUpdatesSetting}
               setCheckGdriveUpdates={setCheckGdriveUpdatesSetting}
+              gdriveAutoSync={gdriveAutoSync}
+              setGdriveAutoSync={setGdriveAutoSync}
             />
           )}
         </main>
