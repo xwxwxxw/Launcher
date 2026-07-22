@@ -4,8 +4,16 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let _dirname = '';
+try {
+  if (typeof __dirname !== 'undefined') {
+    _dirname = __dirname;
+  } else if (typeof import.meta !== 'undefined' && (import.meta as any).url) {
+    _dirname = path.dirname(fileURLToPath((import.meta as any).url));
+  }
+} catch (e) {
+  // ignore
+}
 import { exec } from 'child_process';
 import mclc from 'minecraft-launcher-core';
 import multer from 'multer';
@@ -28,9 +36,9 @@ import { Profile } from './src/types.js';
 const envFilename = '.env';
 const potentialEnvPaths = [
   path.join(process.cwd(), envFilename),
-  path.join(__dirname, envFilename),
-  path.join(__dirname, '..', envFilename),
-  path.join(__dirname, '../..', envFilename),
+  path.join(_dirname, envFilename),
+  path.join(_dirname, '..', envFilename),
+  path.join(_dirname, '../..', envFilename),
 ];
 
 if ((process as any).resourcesPath) {
@@ -133,25 +141,38 @@ if (fs.existsSync(localModsFile)) {
 }
 
 // Profiles In-Memory DB (or File backed)
+function cleanParam(val: any): string {
+  if (!val || val === 'undefined' || val === 'null' || typeof val !== 'string') return '';
+  return val.trim();
+}
+
 function normalizeProfilePath(inputPath: string, profileId: string, customMcPath?: string): string {
-  if (!inputPath) return '';
+  if (!inputPath || typeof inputPath !== 'string') return path.resolve(DATA_DIR);
+  const safeProfileId = cleanParam(profileId) || '1';
+  const safeMcPath = cleanParam(customMcPath);
+  const mcPathStr = safeMcPath !== '' ? safeMcPath : './.minecraft';
+
   if (inputPath.startsWith('./profiles') || inputPath.includes('/profiles/')) {
-    const mcPath = customMcPath && customMcPath.trim() !== '' ? customMcPath : './.minecraft';
-    const resolvedMcPath = path.isAbsolute(mcPath) ? mcPath : path.resolve(process.cwd(), mcPath);
+    const resolvedMcPath = path.isAbsolute(mcPathStr) ? mcPathStr : path.resolve(process.cwd(), mcPathStr);
     
-    // Extract subfolders after "./profiles/${id}/"
-    const regex = new RegExp(`\\.?\\/?profiles\\/${profileId}\\/?(.*)`);
+    // Extract subfolders after "./profiles/${safeProfileId}/"
+    const regex = new RegExp(`\\.?\\/?profiles\\/${safeProfileId}\\/?(.*)`);
     const match = inputPath.match(regex);
-    const sub = match && match[1] ? match[1] : '';
-    return path.join(resolvedMcPath, 'profiles', profileId, sub);
+    const sub = (match && match[1] && typeof match[1] === 'string') ? match[1] : '';
+    return path.join(resolvedMcPath, 'profiles', safeProfileId, sub);
   }
   return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
 }
 
 function isPathSafe(targetPath: string, customMcPath?: string): boolean {
-  if (!targetPath) return false;
+  if (!targetPath || typeof targetPath !== 'string') return false;
   
-  const resolvedTarget = path.resolve(targetPath);
+  let resolvedTarget: string;
+  try {
+    resolvedTarget = path.resolve(targetPath);
+  } catch (e) {
+    return false;
+  }
   
   const allowedRoots: string[] = [
     path.resolve(DATA_DIR),
@@ -159,13 +180,20 @@ function isPathSafe(targetPath: string, customMcPath?: string): boolean {
     path.resolve(os.tmpdir())
   ];
   
-  if (customMcPath && customMcPath.trim() !== '') {
-    allowedRoots.push(path.resolve(customMcPath));
+  const safeMcPath = cleanParam(customMcPath);
+  if (safeMcPath !== '') {
+    try {
+      allowedRoots.push(path.resolve(safeMcPath));
+    } catch (e) {}
   }
 
   return allowedRoots.some(allowed => {
-    const resolvedAllowed = path.resolve(allowed);
-    return resolvedTarget === resolvedAllowed || resolvedTarget.startsWith(resolvedAllowed + path.sep);
+    try {
+      const resolvedAllowed = path.resolve(allowed);
+      return resolvedTarget === resolvedAllowed || resolvedTarget.startsWith(resolvedAllowed + path.sep);
+    } catch (e) {
+      return false;
+    }
   });
 }
 
@@ -506,8 +534,12 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
     resolvedToken = resolvedToken.trim();
   }
 
-  if (!folderId || !resolvedToken || !profileId) {
-    return res.status(401).json({ error: 'Missing folderId, token, or profileId' });
+  if (!folderId) {
+    return res.json({ updateAvailable: false, reason: 'No folderId specified' });
+  }
+
+  if (!resolvedToken || !profileId) {
+    return res.status(401).json({ error: 'Missing token or profileId' });
   }
 
   try {
@@ -2857,7 +2889,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = __dirname;
+    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

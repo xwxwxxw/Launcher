@@ -397,17 +397,30 @@ export default function App() {
       return;
     }
 
+    const folderId = profileToCheck.gdriveFolderId || '';
+    if (!folderId || folderId.trim() === '') {
+      setGdriveUpdateAvailable(false);
+      setGdriveAuthRequired(false);
+      return;
+    }
+
     setCheckingGDrive(true);
     setGdriveAuthRequired(false);
     try {
       const token = await getAccessToken();
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
-      const folderId = profileToCheck.gdriveFolderId || '';
       
       const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(token || '')}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
       
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Not JSON
+      }
+
       if (res.ok) {
-        const data = await res.json();
         if (data.updateAvailable) {
           setGdriveUpdateAvailable(true);
           
@@ -422,7 +435,11 @@ export default function App() {
         if (res.status === 401 || res.status === 403) {
           // Check if server-side auth is configured
           const statusRes = await fetch(`/api/gdrive/auth-status?profileId=${encodeURIComponent(profileToCheck.id)}&_t=${Date.now()}`);
-          const statusData = await statusRes.json().catch(() => ({}));
+          const statusText = await statusRes.text();
+          let statusData: any = {};
+          try {
+            statusData = JSON.parse(statusText);
+          } catch {}
           if (!statusData.hasServerToken) {
             setGdriveAuthRequired(true);
           }
