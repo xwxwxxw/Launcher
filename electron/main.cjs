@@ -43,6 +43,25 @@ if (!loadedEnv) {
 
 
 
+// Default fallback configuration constants
+const DEFAULT_GDRIVE_API_KEY = "AIzaSyAvBduoyDjqZu3t_S8w7i8Qdl5e3SoHcok";
+const DEFAULT_GDRIVE_FOLDER_ID = "1QaiLoo_bUEENvwkBogWPeerAU_VxrTFz";
+const DEFAULT_GITHUB_REPO = "xwxwxxw/Launcher";
+
+process.env.GDRIVE_API_KEY = process.env.GDRIVE_API_KEY || process.env.VITE_GDRIVE_API_KEY || DEFAULT_GDRIVE_API_KEY;
+process.env.VITE_GDRIVE_API_KEY = process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY;
+process.env.GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || process.env.VITE_GDRIVE_FOLDER_ID || DEFAULT_GDRIVE_FOLDER_ID;
+process.env.VITE_GDRIVE_FOLDER_ID = process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID;
+process.env.GITHUB_REPO = process.env.GITHUB_REPO || process.env.VITE_GITHUB_REPO || DEFAULT_GITHUB_REPO;
+process.env.VITE_GITHUB_REPO = process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO;
+
+console.log('[Electron Main] Resolved process.env configuration:', {
+  GDRIVE_API_KEY: process.env.GDRIVE_API_KEY ? `PRESENT (${process.env.GDRIVE_API_KEY.substring(0, 8)}...)` : 'MISSING',
+  GDRIVE_FOLDER_ID: process.env.GDRIVE_FOLDER_ID,
+  GITHUB_REPO: process.env.GITHUB_REPO,
+  loadedFromDotEnv: loadedEnv
+});
+
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
 
 // Set App User Model ID for Windows taskbar grouping and icon mapping
@@ -175,14 +194,31 @@ ipcMain.handle('getUserData', () => {
 });
 
 ipcMain.handle('save-auth', (event, authData) => {
-  fs.writeFileSync(authPath, JSON.stringify(authData));
+  try {
+    const dir = path.dirname(authPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(authPath, JSON.stringify(authData, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Failed to save auth to disk:', e);
+    return false;
+  }
 });
 
 ipcMain.handle('get-auth', () => {
-  if (fs.existsSync(authPath)) {
-    try {
-      return JSON.parse(fs.readFileSync(authPath, 'utf8'));
-    } catch(e) {}
+  try {
+    if (fs.existsSync(authPath)) {
+      const data = fs.readFileSync(authPath, 'utf8');
+      return JSON.parse(data);
+    }
+    if (fs.existsSync(oldAuthPath)) {
+      const data = fs.readFileSync(oldAuthPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch(e) {
+    console.error('Failed to read auth:', e);
   }
   return null;
 });

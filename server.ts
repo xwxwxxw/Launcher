@@ -71,6 +71,24 @@ if (!loadedEnv) {
   dotenv.config();
 }
 
+// Default fallback configuration constants for production/desktop mode
+const DEFAULT_GDRIVE_API_KEY = "AIzaSyAvBduoyDjqZu3t_S8w7i8Qdl5e3SoHcok";
+const DEFAULT_GDRIVE_FOLDER_ID = "1QaiLoo_bUEENvwkBogWPeerAU_VxrTFz";
+const DEFAULT_GITHUB_REPO = "xwxwxxw/Launcher";
+
+process.env.GDRIVE_API_KEY = process.env.GDRIVE_API_KEY || process.env.VITE_GDRIVE_API_KEY || DEFAULT_GDRIVE_API_KEY;
+process.env.VITE_GDRIVE_API_KEY = process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY;
+process.env.GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || process.env.VITE_GDRIVE_FOLDER_ID || DEFAULT_GDRIVE_FOLDER_ID;
+process.env.VITE_GDRIVE_FOLDER_ID = process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID;
+process.env.GITHUB_REPO = process.env.GITHUB_REPO || process.env.VITE_GITHUB_REPO || DEFAULT_GITHUB_REPO;
+process.env.VITE_GITHUB_REPO = process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO;
+
+console.log('[Server ENV Init] Resolved environment configuration:', {
+  GDRIVE_API_KEY: process.env.GDRIVE_API_KEY ? `CONFIGURED (${process.env.GDRIVE_API_KEY.substring(0, 8)}...)` : 'MISSING',
+  GDRIVE_FOLDER_ID: process.env.GDRIVE_FOLDER_ID,
+  GITHUB_REPO: process.env.GITHUB_REPO
+});
+
 let pendingElyAuth: any = null;
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;

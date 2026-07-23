@@ -1,5 +1,15 @@
 const { contextBridge, ipcRenderer, shell, process } = require('electron');
 
+const gdriveApiKey = process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY || "AIzaSyAvBduoyDjqZu3t_S8w7i8Qdl5e3SoHcok";
+const gdriveFolderId = process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID || "1QaiLoo_bUEENvwkBogWPeerAU_VxrTFz";
+const githubRepo = process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO || "xwxwxxw/Launcher";
+
+console.log('[Electron Preload] Environment variables injected into renderer context:', {
+  VITE_GDRIVE_API_KEY: gdriveApiKey ? `PRESENT (${gdriveApiKey.substring(0, 8)}...)` : 'MISSING',
+  VITE_GDRIVE_FOLDER_ID: gdriveFolderId,
+  VITE_GITHUB_REPO: githubRepo
+});
+
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
     send: (channel, data) => {
@@ -43,13 +53,13 @@ contextBridge.exposeInMainWorld('electron', {
     platform: process.platform,
     env: {
       NODE_ENV: process.env.NODE_ENV,
-      VITE_GDRIVE_API_KEY: process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY,
-      VITE_GDRIVE_FOLDER_ID: process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID,
-      VITE_GITHUB_REPO: process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO,
+      VITE_GDRIVE_API_KEY: gdriveApiKey,
+      GDRIVE_API_KEY: gdriveApiKey,
+      VITE_GDRIVE_FOLDER_ID: gdriveFolderId,
+      GDRIVE_FOLDER_ID: gdriveFolderId,
+      VITE_GITHUB_REPO: githubRepo,
+      GITHUB_REPO: githubRepo,
       VITE_APP_VERSION: process.env.VITE_APP_VERSION,
-      GDRIVE_API_KEY: process.env.GDRIVE_API_KEY || process.env.VITE_GDRIVE_API_KEY,
-      GDRIVE_FOLDER_ID: process.env.GDRIVE_FOLDER_ID || process.env.VITE_GDRIVE_FOLDER_ID,
-      GITHUB_REPO: process.env.GITHUB_REPO || process.env.VITE_GITHUB_REPO,
     },
     versions: process.versions
   },

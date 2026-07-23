@@ -132,9 +132,31 @@ export const checkGDriveUpdatesWithTimeout = async (
     return { hasUpdates: false };
   }
 
-  const folderId = profile.gdriveFolderId || '';
+  const folderId = profile.gdriveFolderId || getEnv('VITE_GDRIVE_FOLDER_ID') || getEnv('GDRIVE_FOLDER_ID') || '';
   const clientToken = getEnv('VITE_GDRIVE_API_KEY') || getEnv('GDRIVE_API_KEY') || '';
   
+  console.log('[GDSync Diagnostic] Initializing update check:', {
+    environment: getEnvironmentInfo().environmentName,
+    profileId: profile?.id,
+    folderId: folderId ? `PRESENT (${folderId.substring(0, 8)}...)` : 'MISSING',
+    clientToken: clientToken ? `PRESENT (${clientToken.substring(0, 8)}...)` : 'MISSING',
+    minecraftPath
+  });
+
+  if (!clientToken || !folderId) {
+    const missingKeys = [
+      !clientToken ? 'VITE_GDRIVE_API_KEY' : null,
+      !folderId ? 'VITE_GDRIVE_FOLDER_ID' : null
+    ].filter(Boolean).join(', ');
+
+    console.warn('[GDSync Diagnostic Warning] Missing required keys:', {
+      missingKeys,
+      clientToken,
+      folderId,
+      profile
+    });
+  }
+
   // Build query params
   const query = new URLSearchParams({
     folderId,
