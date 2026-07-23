@@ -3,6 +3,7 @@ import { User, Cpu, HardDrive, RefreshCw, Monitor, Sliders, Terminal, Folder, Fo
 import PlayerHead2D from './PlayerHead2D';
 import { openFolderInExplorer } from '../utils/explorer';
 import CustomSelect from './CustomSelect';
+import { getEnvironmentInfo } from '../utils/gdsync';
 
 export default function SettingsTab({ 
   userProfile, 
@@ -742,6 +743,60 @@ export default function SettingsTab({
 
         {subTab === 'system' && (
           <div className="space-y-6 animate-fade-in">
+            {/* Runtime Environment Info */}
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+              <div className="flex items-center gap-4 mb-6">
+                <div className={`p-3 rounded-xl border h-fit ${
+                  getEnvironmentInfo().isAIStudio 
+                    ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' 
+                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                }`}>
+                  <Terminal size={24} strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-200 tracking-wide">Информация о среде запуска (Runtime Environment)</h3>
+                  <p className="text-[11px] text-zinc-500 mt-1">Определенная среда выполнения лаунчера и доступные системные возможности.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-zinc-950/40 border border-zinc-800/50 space-y-2">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Текущая Платформа</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${getEnvironmentInfo().isAIStudio ? 'bg-violet-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+                    <span className="text-xs font-bold text-zinc-200">{getEnvironmentInfo().environmentName}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 leading-relaxed pt-1">
+                    {getEnvironmentInfo().isAIStudio 
+                      ? "Запущено в интерактивном веб-апплете AI Studio. Изолированная среда разработчика." 
+                      : "Запущено локально на десктопе как скомпилированный EXE-клиент Electron."}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-950/40 border border-zinc-800/50 space-y-2">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Доступные Возможности</span>
+                  <div className="space-y-1.5 text-[11px] text-zinc-300 font-sans">
+                    <div className="flex items-center justify-between">
+                      <span>Синхронизация Google Диск</span>
+                      <span className="text-emerald-400 font-bold">✓ Активно</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Локальный запуск игры</span>
+                      <span className={getEnvironmentInfo().isAIStudio ? "text-violet-400 font-bold" : "text-emerald-400 font-bold"}>
+                        {getEnvironmentInfo().isAIStudio ? "Эмуляция" : "Доступно (EXE)"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Открытие папок проводника</span>
+                      <span className={getEnvironmentInfo().isAIStudio ? "text-amber-400" : "text-emerald-400 font-bold"}>
+                        {getEnvironmentInfo().isAIStudio ? "Ограничено в веб" : "Доступно"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Custom JVM Arguments */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
               <div className="flex items-center gap-4 mb-6">

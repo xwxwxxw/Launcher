@@ -1,7 +1,7 @@
 {
   "name": "layle-launcher",
   "private": true,
-  "version": "2.2.6",
+  "version": "2.2.7",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -33,21 +33,21 @@
     },
     "win": {
       "icon": "public/icon.ico",
-      "target": "nsis"
+      "target": "nsis",
+      "requestedExecutionLevel": "asInvoker",
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "shortcutName": "Layle Launcher",
+        "perMachine": false,
+        "runAfterFinish": true,
+        "include": "electron/installer.nsh"
+      }
     },
     "linux": {
       "icon": "public/icon.png",
       "target": "AppImage"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "shortcutName": "Layle Launcher",
-      "perMachine": false,
-      "requestedExecutionLevel": "asInvoker",
-      "runAfterFinish": true,
-      "include": "electron/installer.nsh"
     }
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive, Minus, Maximize2 } from 'lucide-react';
 import { Profile } from '../types';
+import { gdsyncState } from '../utils/gdsync';
 
 interface SyncModalProps {
   onClose: (didSyncSucceed?: boolean) => void;
@@ -33,6 +34,13 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     });
 
     setStatus('syncing');
+    gdsyncState.updateState({
+      isSyncing: true,
+      progress: 0,
+      status: 'syncing',
+      lastError: null
+    });
+
     const eventSource = new EventSource(`/api/sync-build?${query.toString()}`);
     const timeNow = () => new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -41,6 +49,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
       if (data.progress !== undefined) {
         setProgress(data.progress);
+        gdsyncState.updateState({ progress: data.progress });
       }
     });
 
@@ -50,6 +59,12 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       setProgress(100);
       setTagName(data.tag || 'latest');
       setStatus('success');
+      gdsyncState.updateState({
+        isSyncing: false,
+        progress: 100,
+        status: 'success',
+        lastSyncTime: new Date().toISOString()
+      });
       eventSource.close();
     });
 
@@ -58,6 +73,11 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.message}`, time: timeNow() }]);
       setErrorMsg(data.message);
       setStatus('error');
+      gdsyncState.updateState({
+        isSyncing: false,
+        status: 'error',
+        lastError: data.message
+      });
       eventSource.close();
     });
 
@@ -65,6 +85,11 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       setLogs(prev => [...prev, { msg: 'КРИТИЧЕСКАЯ ОШИБКА: Ошибка подключения к серверу синхронизации.', time: timeNow() }]);
       setErrorMsg('Прервано соединение с сервером.');
       setStatus('error');
+      gdsyncState.updateState({
+        isSyncing: false,
+        status: 'error',
+        lastError: 'Прервано соединение с сервером.'
+      });
       eventSource.close();
     };
 

@@ -115,8 +115,9 @@ export default function ScreenshotsTab({ activeProfileId, globalGamePath }: { ac
     try {
       if ((window as any).electron && screenshots.length > 0) {
         const { shell } = (window as any).electron;
-        const path = (window as any).electron('path');
-        const dir = path.dirname(screenshots[0].path);
+        const filepath = screenshots[0].path;
+        const lastSlash = Math.max(filepath.lastIndexOf('/'), filepath.lastIndexOf('\\'));
+        const dir = lastSlash !== -1 ? filepath.substring(0, lastSlash) : filepath;
         shell.openPath(dir);
         return;
       }

@@ -12,12 +12,13 @@ import SettingsModal from './components/SettingsModal';
 import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
 import PlayerHead2D from './components/PlayerHead2D';
-import { FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, Image as ImageIcon, Minus, Square, X, Gamepad2, Home, DownloadCloud, RefreshCw, Star } from 'lucide-react';
+import { FolderTree, Settings, PlaySquare, User, ShieldAlert, ChevronDown, Image as ImageIcon, Minus, Square, Copy, X, Gamepad2, Home, DownloadCloud, RefreshCw, Star } from 'lucide-react';
 import { ModInfo, Profile } from './types';
 import ModrinthModal from './components/ModrinthModal';
 import ModrinthTab from './components/ModrinthTab';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
 import SyncModal from './components/SyncModal';
+import { getEnvironmentInfo, checkGDriveUpdatesWithTimeout, gdsyncState } from './utils/gdsync';
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
@@ -98,6 +99,8 @@ export default function App() {
   }, [showCustomToast]);
 
   useEffect(() => {
+    let electronCleanup: (() => void) | undefined = undefined;
+
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
         const { ipcRenderer } = (window as any).electron;
@@ -146,6 +149,22 @@ export default function App() {
             originalSetItem('ely_session', JSON.stringify(authData));
           }
         });
+
+        // Listen for window maximize/unmaximize
+        ipcRenderer.on('window-maximized', () => {
+          setIsMaximizedWeb(true);
+        });
+        ipcRenderer.on('window-unmaximized', () => {
+          setIsMaximizedWeb(false);
+        });
+
+        electronCleanup = () => {
+          try {
+            ipcRenderer.removeAllListeners('window-maximized');
+            ipcRenderer.removeAllListeners('window-unmaximized');
+            ipcRenderer.removeAllListeners('session-restore');
+          } catch (e) {}
+        };
 
         // Load all persistent settings from Electron's settings.json
         ipcRenderer.invoke('get-settings')
@@ -215,8 +234,23 @@ export default function App() {
         console.error('Failed to setup version fetch:', e);
       }
     }
+
+    // Add listener for browser fullscreen change to keep isMaximizedWeb in sync
+    const handleFullscreenChange = () => {
+      setIsMaximizedWeb(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (electronCleanup) {
+        electronCleanup();
+      }
+    };
   }, []);
   const [showSplashScreen, setShowSplashScreen] = useState(true);
+
+  const envInfo = useMemo(() => getEnvironmentInfo(), []);
 
   const [isMaximizedWeb, setIsMaximizedWeb] = useState(false);
 
@@ -435,25 +469,29 @@ export default function App() {
     }
 
     setCheckingGDrive(true);
+    gdsyncState.updateState({ isSyncing: true, status: 'syncing', lastError: null });
+    
     try {
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
-      const folderId = profileToCheck.gdriveFolderId || '';
+      const result = await checkGDriveUpdatesWithTimeout(profileToCheck, checkGdriveUpdatesSetting, mcPath);
       
-      const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
-      const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(clientToken)}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
-      
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // Not JSON
-      }
-
-      if (res.ok) {
-        if (data.updateAvailable) {
+      if (result.error) {
+        console.warn('[GDSync] Update check warning/error:', result.error);
+        gdsyncState.updateState({ 
+          isSyncing: false, 
+          status: 'error', 
+          lastError: result.error 
+        });
+        setGdriveUpdateAvailable(false);
+      } else {
+        gdsyncState.updateState({ 
+          isSyncing: false, 
+          status: 'idle', 
+          lastError: null 
+        });
+        
+        if (result.hasUpdates) {
           setGdriveUpdateAvailable(true);
-          
           if (gdriveAutoSync) {
             setShowSyncModal(true);
           }
@@ -461,8 +499,13 @@ export default function App() {
           setGdriveUpdateAvailable(false);
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error checking GDrive updates:', e);
+      gdsyncState.updateState({ 
+        isSyncing: false, 
+        status: 'error', 
+        lastError: e.message || 'Ошибка сети' 
+      });
     } finally {
       setCheckingGDrive(false);
     }
@@ -1178,6 +1221,15 @@ export default function App() {
             <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
               v{launcherVersion || '0.0.6'}
             </span>
+            {envInfo.isAIStudio ? (
+              <span className="text-[10px] font-mono font-bold tracking-wider text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded shadow-sm">
+                AI STUDIO PREVIEW
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono font-bold tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded shadow-sm">
+                DESKTOP EXE
+              </span>
+            )}
           </div>
           <div className="relative z-10 flex items-center -mr-8">
             {/* Minimize */}
@@ -1192,9 +1244,9 @@ export default function App() {
             <button
               onClick={handleMaximize}
               className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
-              title="Развернуть"
+              title={isMaximizedWeb ? "Восстановить" : "Развернуть"}
             >
-              <Square size={13} />
+              {isMaximizedWeb ? <Copy size={12} /> : <Square size={13} />}
             </button>
             {/* Close */}
             <button

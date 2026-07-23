@@ -617,6 +617,14 @@ async function createWindow() {
     }
   });
 
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized');
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-unmaximized');
+  });
+
   mainWindow.webContents.on('did-finish-load', () => {
     // Send auth back on load
     if (fs.existsSync(authPath)) {

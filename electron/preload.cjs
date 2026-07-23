@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     on: (channel, func) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress'];
+      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
       if (validChannels.includes(channel)) {
         // Deliberately strip event as it includes `sender` 
         ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('electron', {
         }
     },
     removeAllListeners: (channel) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress'];
+      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }
