@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive, Minus, Maximize2 } from 'lucide-react';
 import { Profile } from '../types';
 import { gdsyncState } from '../utils/gdsync';
+import { getEnv } from '../utils/env';
 
 interface SyncModalProps {
   onClose: (didSyncSucceed?: boolean) => void;
@@ -30,7 +31,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       minecraftPath,
       syncSource: 'gdrive',
       gdriveFolderId: profile.gdriveFolderId || '',
-      gdriveToken: (import.meta as any).env.VITE_GDRIVE_API_KEY || ''
+      gdriveToken: getEnv('VITE_GDRIVE_API_KEY') || getEnv('GDRIVE_API_KEY') || ''
     });
 
     setStatus('syncing');

@@ -2,12 +2,13 @@
  * GDSync Service & Utility Functions
  * Handles Google Drive synchronization states, environment detection, and robust API communications with timeouts.
  */
+import { getEnv } from './env';
 
 export interface EnvInfo {
   isElectron: boolean;
   isAIStudio: boolean;
   isWeb: boolean;
-  environmentName: 'AI Studio Preview' | 'Electron Desktop Client' | 'Web Browser';
+  environmentName: 'AI Studio Preview (Эмуляция)' | 'Electron Desktop Client' | 'AI Studio Preview' | 'Web Browser';
 }
 
 /**
@@ -15,15 +16,13 @@ export interface EnvInfo {
  * Helps distinguish between AI Studio (web applet preview/iframe) and the local Electron executable.
  */
 export const getEnvironmentInfo = (): EnvInfo => {
-  const isElectron = typeof window !== 'undefined' && !!(window as any).electron;
+  const isElectron = typeof window !== 'undefined' && (
+    !!(window as any).electron || 
+    (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron'))
+  );
   
-  // AI Studio runs in Google Cloud Run container URLs like ais-dev-*.run.app or ais-pre-*.run.app
-  const isAIStudio = typeof window !== 'undefined' && 
-    !isElectron && 
-    (window.location.hostname.includes('run.app') || 
-     window.location.hostname.includes('aistudio') || 
-     window.location.hostname.includes('localhost') && !isElectron);
-
+  // If not running inside Electron, it is a web/browser emulation environment (AI Studio)
+  const isAIStudio = !isElectron;
   const isWeb = !isElectron;
 
   return {
@@ -32,7 +31,7 @@ export const getEnvironmentInfo = (): EnvInfo => {
     isWeb,
     environmentName: isElectron 
       ? 'Electron Desktop Client' 
-      : (isAIStudio ? 'AI Studio Preview' : 'Web Browser')
+      : 'AI Studio Preview (Эмуляция)'
   };
 };
 
@@ -134,7 +133,7 @@ export const checkGDriveUpdatesWithTimeout = async (
   }
 
   const folderId = profile.gdriveFolderId || '';
-  const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
+  const clientToken = getEnv('VITE_GDRIVE_API_KEY') || getEnv('GDRIVE_API_KEY') || '';
   
   // Build query params
   const query = new URLSearchParams({

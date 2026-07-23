@@ -19,6 +19,7 @@ import ModrinthTab from './components/ModrinthTab';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
 import SyncModal from './components/SyncModal';
 import { getEnvironmentInfo, checkGDriveUpdatesWithTimeout, gdsyncState } from './utils/gdsync';
+import { getEnv } from './utils/env';
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
@@ -64,7 +65,7 @@ export default function App() {
   const [isCheckingInstall, setIsCheckingInstall] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [globalGamePath, setGlobalGamePath] = useState(localStorage.getItem('launcher_minecraft_path') || './.minecraft');
-  const [launcherVersion, setLauncherVersion] = useState((import.meta as any).env.VITE_APP_VERSION || '0.0.11');
+  const [launcherVersion, setLauncherVersion] = useState(getEnv('VITE_APP_VERSION') || '0.0.11');
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -303,7 +304,7 @@ export default function App() {
 
   const checkForUpdates = async (silent = true) => {
     try {
-      const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+      const repo = getEnv('VITE_GITHUB_REPO') || getEnv('GITHUB_REPO') || 'xwxwxxw/Launcher';
       const res = await fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`);
       if (!res.ok) {
         throw new Error(`Ошибка сервера обновлений: HTTP ${res.status}`);
@@ -344,7 +345,7 @@ export default function App() {
       if (typeof window !== 'undefined' && (window as any).electron) {
         try {
           const { ipcRenderer } = (window as any).electron;
-          const repo = (import.meta as any).env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher';
+          const repo = getEnv('VITE_GITHUB_REPO') || getEnv('GITHUB_REPO') || 'xwxwxxw/Launcher';
           const data = await ipcRenderer.invoke('check-updates', repo);
           if (data && data.updateAvailable) {
             setUpdateInfo({

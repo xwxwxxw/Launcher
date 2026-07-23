@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     invoke: (channel, ...args) => {
-      let validChannels = ['check-updates', 'download-update', 'install-update', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray'];
+      let validChannels = ['check-updates', 'download-update', 'install-update', 'restart-launcher', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
       }
@@ -41,7 +41,16 @@ contextBridge.exposeInMainWorld('electron', {
   },
   process: {
     platform: process.platform,
-    env: { NODE_ENV: process.env.NODE_ENV },
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+      VITE_GDRIVE_API_KEY: process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY,
+      VITE_GDRIVE_FOLDER_ID: process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID,
+      VITE_GITHUB_REPO: process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO,
+      VITE_APP_VERSION: process.env.VITE_APP_VERSION,
+      GDRIVE_API_KEY: process.env.GDRIVE_API_KEY || process.env.VITE_GDRIVE_API_KEY,
+      GDRIVE_FOLDER_ID: process.env.GDRIVE_FOLDER_ID || process.env.VITE_GDRIVE_FOLDER_ID,
+      GITHUB_REPO: process.env.GITHUB_REPO || process.env.VITE_GITHUB_REPO,
+    },
     versions: process.versions
   },
   remote: {

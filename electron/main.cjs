@@ -6,6 +6,41 @@ const https = require('https');
 const crypto = require('crypto');
 const os = require('os');
 
+// Load environment variables from .env in main process
+const dotenv = require('dotenv');
+const envFilename = '.env';
+const potentialEnvPaths = [
+  path.join(process.cwd(), envFilename),
+  path.join(__dirname, envFilename),
+  path.join(__dirname, '..', envFilename),
+];
+if (process.resourcesPath) {
+  potentialEnvPaths.push(path.join(process.resourcesPath, envFilename));
+}
+if (process.execPath) {
+  potentialEnvPaths.push(path.join(path.dirname(process.execPath), envFilename));
+}
+
+let loadedEnv = false;
+for (const envPath of potentialEnvPaths) {
+  try {
+    const resolvedPath = path.resolve(envPath);
+    if (fs.existsSync(resolvedPath)) {
+      console.log(`[Electron-ENV] Loading environment variables from: ${resolvedPath}`);
+      dotenv.config({ path: resolvedPath });
+      loadedEnv = true;
+    }
+  } catch (e) {
+    console.error(`[Electron-ENV] Failed to check/load from path ${envPath}:`, e);
+  }
+}
+if (!loadedEnv) {
+  try {
+    dotenv.config();
+  } catch (e) {}
+}
+
+
 
 
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
@@ -324,7 +359,8 @@ ipcMain.handle('check-updates', async (event, repo) => {
 
 ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
   try {
-    const tempPath = path.join(os.tmpdir(), `launcher-update-${Date.now()}.exe`);
+    const tempDir = app.getPath('temp') || os.tmpdir();
+    const tempPath = path.join(tempDir, `layle-launcher-update-${Date.now()}.exe`);
     
     const downloadFile = (url, dest) => {
       return new Promise((resolve, reject) => {
@@ -335,8 +371,8 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
           headers: { 'User-Agent': 'Minecraft-Launcher' }
         }, (response) => {
           if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            // Handle redirects
             file.close();
+            fs.unlink(dest, () => {});
             downloadFile(response.headers.location, dest).then(resolve).catch(reject);
             return;
           }
@@ -349,19 +385,32 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
 
           const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
           let downloaded = 0;
+          const startTime = Date.now();
           
           response.on('data', (chunk) => {
             downloaded += chunk.length;
-            if (totalBytes > 0) {
-              const progress = Math.round((downloaded / totalBytes) * 100);
-              event.sender.send('update-progress', progress);
-            }
+            const elapsedSec = Math.max(0.1, (Date.now() - startTime) / 1000);
+            const speedMBs = (downloaded / (1024 * 1024)) / elapsedSec;
+            const percent = totalBytes > 0 ? Math.min(100, Math.round((downloaded / totalBytes) * 100)) : 0;
+
+            event.sender.send('update-progress', {
+              percent,
+              downloadedBytes: downloaded,
+              totalBytes,
+              speedMBs: parseFloat(speedMBs.toFixed(2))
+            });
           });
           
           response.pipe(file);
           
           file.on('finish', () => {
             file.close(resolve);
+          });
+
+          file.on('error', (err) => {
+            file.close();
+            fs.unlink(dest, () => {});
+            reject(err);
           });
         });
         
@@ -396,11 +445,10 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
         const actualSha = hash.digest('hex').toLowerCase();
         
         if (expectedSha && actualSha !== expectedSha) {
-           fs.unlinkSync(tempPath);
-           return { success: false, error: 'SHA256 mismatch' };
+          return { success: false, error: 'Ошибка проверки целостности файла (SHA256 mismatch)' };
         }
       } catch (e) {
-        console.error('SHA verification failed:', e);
+        console.error('SHA verification warning:', e);
       }
     }
     
@@ -412,120 +460,100 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
 
 ipcMain.handle('install-update', async (event, tempPath) => {
   try {
-    const { spawn } = require('child_process');
-    
+    if (!tempPath || !fs.existsSync(tempPath)) {
+      return { success: false, error: 'Файл обновления не найден во временной папке' };
+    }
+
     if (!app.isPackaged) {
-      console.log('Dev mode: simulating update installation for path:', tempPath);
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log('Dev mode: simulating silent update installation for path:', tempPath);
+      await new Promise(resolve => setTimeout(resolve, 1500));
       return { success: true };
     }
 
     const exePath = process.execPath;
-    const exeDir = path.dirname(exePath);
-    const oldExePath = exePath + '.old';
+    const currentPid = process.pid;
+    const { spawn } = require('child_process');
 
-    // 1. Rename current running exe to .exe.old to unlock it
-    if (fs.existsSync(oldExePath)) {
-      try {
-        fs.unlinkSync(oldExePath);
-      } catch (e) {
-        console.error('Failed to delete existing .old backup file:', e);
-      }
-    }
-    
-    try {
-      fs.renameSync(exePath, oldExePath);
-    } catch (renameErr) {
-      return { success: false, error: `Не удалось разблокировать файл запуска (попробуйте закрыть другие копии лаунчера): ${renameErr.message}` };
-    }
+    if (process.platform === 'win32') {
+      // Windows Native Architecture Integration:
+      // Create a background VBScript running via WScript Host (wscript.exe).
+      // WScript runs 100% headless (zero console windows or black command prompt flashes).
+      const tempDir = app.getPath('temp') || os.tmpdir();
+      const vbsPath = path.join(tempDir, `layle_silent_update_${Date.now()}.vbs`);
 
-    // 2. Run the installer silently and specify the directory
-    return new Promise((resolve) => {
-      // NSIS installer is spawned with silent flag /S and custom directory.
-      // Note that in NSIS, /D specifies target directory and must be the last argument.
-      const installerProcess = spawn(tempPath, ['/S', `/D=${exeDir}`], {
+      const escapeVbsStr = (str) => str.replace(/"/g, '""');
+
+      const vbsScript = `
+Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+pid = ${currentPid}
+installer = "${escapeVbsStr(tempPath)}"
+exePath = "${escapeVbsStr(exePath)}"
+
+' 1. Poll WMI Win32_Process until main launcher process ID completely terminates
+On Error Resume Next
+Do
+    Set colProc = GetObject("winmgmts:\\\\.\\root\\cimv2").ExecQuery("Select * from Win32_Process Where ProcessId = " & pid)
+    If colProc.Count = 0 Then Exit Do
+    WScript.Sleep 250
+Loop
+
+' 2. Execute NSIS installer silently (/S) with hidden window style (0) and wait for completion
+nResult = WshShell.Run("""" & installer & """ /S", 0, True)
+
+' 3. Delete temporary installer executable
+If fso.FileExists(installer) Then
+    fso.DeleteFile installer, True
+End If
+
+' 4. Relaunch updated launcher executable
+If fso.FileExists(exePath) Then
+    WshShell.Run """" & exePath & """", 1, False
+End If
+
+' 5. Delete self VBScript runner
+scriptPath = WScript.ScriptFullName
+If fso.FileExists(scriptPath) Then
+    fso.DeleteFile scriptPath, True
+End If
+`.trim();
+
+      fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
+
+      // Launch wscript.exe background runner completely hidden
+      const child = spawn('wscript.exe', [vbsPath], {
+        detached: true,
+        windowsHide: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+
+      // Exit current launcher process to release executable file locks
+      setTimeout(() => {
+        app.isQuiting = true;
+        app.exit(0);
+      }, 300);
+
+      return { success: true };
+    } else {
+      // Non-Windows platform fallback
+      const child = spawn(tempPath, ['/S', '--silent'], {
         detached: true,
         stdio: 'ignore'
       });
+      child.unref();
 
-      let resolved = false;
-
-      // Monitor installer exit
-      installerProcess.on('close', (code) => {
-        if (resolved) return;
-        resolved = true;
-
-        if (code === 0) {
-          // Success! Try to remove the temp installer file
-          try {
-            if (fs.existsSync(tempPath)) {
-              fs.unlinkSync(tempPath);
-            }
-          } catch (err) {
-            console.error('Failed to delete temp installer:', err);
-          }
-          resolve({ success: true });
-        } else {
-          // Failure: restore the old exe
-          try {
-            if (fs.existsSync(oldExePath)) {
-              if (fs.existsSync(exePath)) {
-                fs.unlinkSync(exePath);
-              }
-              fs.renameSync(oldExePath, exePath);
-            }
-          } catch (restoreErr) {
-            console.error('Failed to restore old exe:', restoreErr);
-          }
-          resolve({ success: false, error: `Процесс установки завершился с кодом ${code}. Пожалуйста, попробуйте запустить установщик вручную из временной папки.` });
-        }
-      });
-
-      installerProcess.on('error', (err) => {
-        if (resolved) return;
-        resolved = true;
-
-        // Restore old exe on error
-        try {
-          if (fs.existsSync(oldExePath)) {
-            if (fs.existsSync(exePath)) {
-              fs.unlinkSync(exePath);
-            }
-            fs.renameSync(oldExePath, exePath);
-          }
-        } catch (restoreErr) {
-          console.error('Failed to restore old exe:', restoreErr);
-        }
-        resolve({ success: false, error: `Не удалось запустить установщик: ${err.message}` });
-      });
-
-      // Fallback timeout in case the installer process is hanging but succeeded or failed silently
       setTimeout(() => {
-        if (resolved) return;
-        
-        // Let's check if the new exe is written. If yes, we consider it a success
-        if (fs.existsSync(exePath)) {
-          resolved = true;
-          try {
-            if (fs.existsSync(tempPath)) {
-              fs.unlinkSync(tempPath);
-            }
-          } catch (err) {}
-          resolve({ success: true });
-        } else {
-          resolved = true;
-          // Restore old exe
-          try {
-            if (fs.existsSync(oldExePath)) {
-              fs.renameSync(oldExePath, exePath);
-            }
-          } catch (restoreErr) {}
-          resolve({ success: false, error: 'Превышено время ожидания установки (30 сек)' });
-        }
-      }, 30000); // 30 seconds timeout
-    });
+        app.isQuiting = true;
+        app.relaunch();
+        app.exit(0);
+      }, 300);
+
+      return { success: true };
+    }
   } catch (e) {
-    console.error('Update install failed:', e);
+    console.error('Update install error:', e);
     return { success: false, error: e.message };
   }
 });
