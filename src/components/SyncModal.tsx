@@ -37,7 +37,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     const timeNow = () => new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     eventSource.addEventListener('status', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
       if (data.progress !== undefined) {
         setProgress(data.progress);
@@ -45,7 +45,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     });
 
     eventSource.addEventListener('success', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
       setProgress(100);
       setTagName(data.tag || 'latest');
@@ -54,7 +54,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     });
 
     eventSource.addEventListener('error', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.message}`, time: timeNow() }]);
       setErrorMsg(data.message);
       setStatus('error');
@@ -79,7 +79,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     return (
       <div className="fixed bottom-6 right-6 w-80 bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 animate-in slide-in-from-bottom-5">
         <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center gap-2 text-cyan-400">
+          <div className="flex items-center gap-2 text-purple-400">
             <Loader2 size={16} className={status === 'syncing' ? 'animate-spin' : ''} />
             <span className="text-xs font-bold uppercase tracking-wider">
               {status === 'syncing' ? 'Синхронизация...' : status === 'success' ? 'Завершено' : status === 'error' ? 'Ошибка' : 'Обновление'}
@@ -102,7 +102,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
           <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
             <div 
               className={`h-full transition-all duration-300 rounded-full ${
-                status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
+                status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-purple-500 to-purple-400')
               }`}
               style={{ width: `${progress}%` }}
             ></div>
@@ -118,7 +118,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
         {/* Top Header */}
         <div className="p-6 border-b border-zinc-900 flex justify-between items-center bg-zinc-900/10">
           <div className="flex items-center gap-3">
-            <RefreshCw className={`text-cyan-400 ${status === 'syncing' ? 'animate-spin' : ''}`} size={20} />
+            <RefreshCw className={`text-purple-400 ${status === 'syncing' ? 'animate-spin' : ''}`} size={20} />
             <div>
               <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-widest">Синхронизация Сборки</h3>
               <p className="text-[10px] text-zinc-500 font-medium">
@@ -145,11 +145,11 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
         </div>
 
         {/* Dynamic Status Progress */}
-        <div className="p-8 flex flex-col items-center border-b border-zinc-900/50 bg-gradient-to-b from-cyan-950/5 to-transparent">
+        <div className="p-8 flex flex-col items-center border-b border-zinc-900/50 bg-gradient-to-b from-purple-950/5 to-transparent">
           {status === 'syncing' && (
             <>
               <div className="relative w-20 h-20 flex items-center justify-center mb-6">
-                <Loader2 className="animate-spin text-cyan-400 absolute w-full h-full" size={48} strokeWidth={1.5} />
+                <Loader2 className="animate-spin text-purple-400 absolute w-full h-full" size={48} strokeWidth={1.5} />
                 <span className="text-xs font-mono font-bold text-zinc-300">{progress}%</span>
               </div>
               <h4 className="text-zinc-100 font-semibold text-center mb-2 animate-pulse text-sm">
@@ -193,7 +193,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
             <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
               <div 
                 className={`h-full transition-all duration-300 rounded-full ${
-                  status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400')
+                  status === 'error' ? 'bg-red-500' : (status === 'success' ? 'bg-emerald-500' : 'bg-gradient-to-r from-purple-500 to-purple-400')
                 }`}
                 style={{ width: `${progress}%` }}
               ></div>

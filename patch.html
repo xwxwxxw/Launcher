@@ -1,0 +1,98 @@
+    <script>
+      // Prevent Vite HMR WebSocket from connecting and throwing unhandled rejections
+      (function() {
+        var OriginalWebSocket = window.WebSocket;
+        if (!OriginalWebSocket) return;
+        
+        function SafeWebSocket(url, protocols) {
+          this.url = url;
+          this.readyState = 0; // CONNECTING
+          
+          var isViteOrLocal = url.includes('/vite') || url.includes('localhost') || url.includes('127.0.0.1') || url.includes('run.app');
+          if (isViteOrLocal) {
+            this.isMock = true;
+            var self = this;
+            setTimeout(function() {
+              self.readyState = 1; // OPEN
+              if (typeof self.onopen === 'function') {
+                try { self.onopen({ type: 'open', target: self }); } catch(e){}
+              }
+            }, 10);
+          } else {
+            this.isMock = false;
+            this.ws = new OriginalWebSocket(url, protocols);
+            var self = this;
+            this.ws.onopen = function(e) { self.readyState = self.ws.readyState; if (self.onopen) self.onopen(e); };
+            this.ws.onmessage = function(e) { if (self.onmessage) self.onmessage(e); };
+            this.ws.onerror = function(e) { if (self.onerror) self.onerror(e); };
+            this.ws.onclose = function(e) { self.readyState = self.ws.readyState; if (self.onclose) self.onclose(e); };
+          }
+        }
+        
+        SafeWebSocket.prototype.send = function(data) {
+          if (this.isMock) return;
+          if (this.ws) this.ws.send(data);
+        };
+        SafeWebSocket.prototype.close = function(code, reason) {
+          this.readyState = 3;
+          if (this.isMock) {
+            if (typeof this.onclose === 'function') {
+              try { this.onclose({ type: 'close', wasClean: true, code: code || 1000, reason: reason || '', target: this }); } catch(e){}
+            }
+            return;
+          }
+          if (this.ws) this.ws.close(code, reason);
+        };
+        SafeWebSocket.prototype.addEventListener = function(type, listener, options) {
+          if (this.isMock) return;
+          if (this.ws) this.ws.addEventListener(type, listener, options);
+        };
+        SafeWebSocket.prototype.removeEventListener = function(type, listener, options) {
+          if (this.isMock) return;
+          if (this.ws) this.ws.removeEventListener(type, listener, options);
+        };
+        
+        try {
+          Object.defineProperty(window, 'WebSocket', { value: SafeWebSocket, configurable: true, writable: true });
+        } catch(e) {
+          try { window.WebSocket = SafeWebSocket; } catch(err){}
+        }
+      })();
+
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = event.reason ? String(event.reason.message || event.reason) : '';
+        if (msg.includes('WebSocket') || msg.includes('vite') || msg.includes('closed without opened')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function(event) {
+        var msg = event.message || '';
+        if (msg.includes('WebSocket') || msg.includes('vite') || msg.includes('closed without opened')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      var originalConsoleError = console.error;
+      console.error = function() {
+        var args = Array.prototype.slice.call(arguments);
+        var isBenign = args.some(function(arg) {
+          if (!arg) return false;
+          var str = typeof arg === 'string' ? arg : (arg.message || String(arg));
+          return str.includes('WebSocket') || str.includes('vite') || str.includes('closed without opened');
+        });
+        if (isBenign) return;
+        originalConsoleError.apply(console, args);
+      };
+      var originalConsoleLog = console.log;
+      console.log = function() {
+        var args = Array.prototype.slice.call(arguments);
+        var isBenign = args.some(function(arg) {
+          if (!arg) return false;
+          var str = typeof arg === 'string' ? arg : String(arg);
+          return str.includes('[vite] connecting') || str.includes('[vite] connected');
+        });
+        if (isBenign) return;
+        originalConsoleLog.apply(console, args);
+      };
+    </script>

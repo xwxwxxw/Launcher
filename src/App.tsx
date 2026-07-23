@@ -18,7 +18,6 @@ import ModrinthModal from './components/ModrinthModal';
 import ModrinthTab from './components/ModrinthTab';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
 import SyncModal from './components/SyncModal';
-import { getAccessToken } from './lib/googleAuth';
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
@@ -47,6 +46,13 @@ export default function App() {
     } catch (e) {}
     return null;
   });
+  const [offlineUsername, setOfflineUsernameState] = useState<string>(() => {
+    return localStorage.getItem('offline_username') || 'LaylePlayer';
+  });
+  const setOfflineUsername = (val: string) => {
+    setOfflineUsernameState(val);
+    localStorage.setItem('offline_username', val);
+  };
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [showModrinthModal, setShowModrinthModal] = useState(false);
@@ -328,9 +334,15 @@ export default function App() {
     checkForUpdates(true);
   }, []);
 
-  const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => 
-    JSON.parse(localStorage.getItem('launcher_dismissed_conflicts') || '[]')
-  );
+  const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('launcher_dismissed_conflicts');
+      if (stored === 'undefined') return [];
+      return JSON.parse(stored || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   const handleDismissConflict = (id: string) => {
     const updated = [...dismissedConflictIds, id];
@@ -422,15 +434,10 @@ export default function App() {
       return;
     }
 
-    const folderId = profileToCheck.gdriveFolderId || '';
-    if (!folderId || folderId.trim() === '') {
-      setGdriveUpdateAvailable(false);
-      return;
-    }
-
     setCheckingGDrive(true);
     try {
       const mcPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+      const folderId = profileToCheck.gdriveFolderId || '';
       
       const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
       const res = await fetch(`/api/gdrive/check-updates?folderId=${encodeURIComponent(folderId)}&token=${encodeURIComponent(clientToken)}&profileId=${encodeURIComponent(profileToCheck.id)}&minecraftPath=${encodeURIComponent(mcPath)}&_t=${Date.now()}`);
@@ -1075,9 +1082,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-blue-500/30 relative">
+    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-violet-500/30 relative">
       {/* Subtle ambient glows for glassmorphism backdrop */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-violet-500/5 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
       
       {showAuthModal && (
@@ -1090,8 +1097,8 @@ export default function App() {
       {/* Sidebar Navigation */}
       <nav className="flex w-[88px] flex-col items-center border-r border-zinc-800/40 bg-zinc-950/60 backdrop-blur-md py-8 flex-shrink-0 z-20 shadow-2xl relative">
         <div className="mb-10">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:scale-105 active:scale-95 transition-all duration-300">
-            <Gamepad2 className="h-6 w-6 text-white" strokeWidth={2.5} />
+          <div className="h-12 w-12 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 select-none">
+            <img src="/icon.png" alt="Layle Launcher" className="h-11 w-11 object-contain select-none pointer-events-none mix-blend-screen" referrerPolicy="no-referrer" />
           </div>
         </div>
         <div className="flex flex-col space-y-4 w-full px-2.5">
@@ -1141,14 +1148,14 @@ export default function App() {
           />
         </div>
         <div className="mt-auto mb-1 cursor-pointer group flex flex-col items-center" onClick={() => userProfile ? setActiveTab('settings') : setShowAuthModal(true)}>
-          <div className="h-10 w-10 rounded-full border border-zinc-800 bg-zinc-900/80 flex items-center justify-center group-hover:border-cyan-500/50 group-hover:bg-cyan-500/10 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] overflow-hidden transition-all duration-300 shadow-inner">
+          <div className="h-10 w-10 rounded-full border border-zinc-800 bg-zinc-900/80 flex items-center justify-center group-hover:border-violet-500/50 group-hover:bg-violet-500/10 group-hover:shadow-[0_0_15px_rgba(139,92,246,0.2)] overflow-hidden transition-all duration-300 shadow-inner">
             {userProfile ? (
               <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-full h-full rounded-full" />
             ) : (
-              <User className="h-5 w-5 text-zinc-400 group-hover:text-cyan-400 transition-colors duration-300" />
+              <User className="h-5 w-5 text-zinc-400 group-hover:text-violet-400 transition-colors duration-300" />
             )}
           </div>
-          <span className="text-[8px] font-bold text-zinc-500 group-hover:text-cyan-400 transition-colors mt-1.5 uppercase tracking-wider">
+          <span className="text-[8px] font-bold text-zinc-500 group-hover:text-violet-400 transition-colors mt-1.5 uppercase tracking-wider">
             {userProfile ? 'Профиль' : 'Войти'}
           </span>
         </div>
@@ -1157,24 +1164,26 @@ export default function App() {
       {/* Main Window */}
       <div className="flex flex-1 flex-col overflow-hidden bg-[#09090b] relative">
         {/* Subtle background glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-blue-500/5 blur-[120px] pointer-events-none rounded-full"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-violet-500/5 blur-[120px] pointer-events-none rounded-full"></div>
 
         {/* Custom Title Bar */}
-        <header 
-          className="flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80 select-none"
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        >
-          <div className="no-drag flex items-center space-x-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <header className="relative flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80 select-none">
+          {/* Drag Handle (ends 160px before the right edge to avoid window control click interception) */}
+          <div 
+            className="absolute inset-y-0 left-0 right-[160px] z-0 cursor-move" 
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+          />
+          <div className="relative z-10 flex items-center space-x-3 pointer-events-none">
             <span className="text-xl font-bold tracking-tight text-white">Layle Launcher</span>
             <span className="text-xs font-mono font-medium text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shadow-inner">
               v{launcherVersion || '0.0.6'}
             </span>
           </div>
-          <div className="no-drag flex items-center -mr-8" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="relative z-10 flex items-center -mr-8">
             {/* Minimize */}
             <button
               onClick={handleMinimize}
-              className="no-drag flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
               title="Свернуть"
             >
               <Minus size={16} />
@@ -1182,7 +1191,7 @@ export default function App() {
             {/* Maximize */}
             <button
               onClick={handleMaximize}
-              className="no-drag flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
+              className="flex items-center justify-center h-14 w-12 text-zinc-400 hover:text-white hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
               title="Развернуть"
             >
               <Square size={13} />
@@ -1190,7 +1199,7 @@ export default function App() {
             {/* Close */}
             <button
               onClick={handleClose}
-              className="no-drag flex items-center justify-center h-14 w-14 text-zinc-400 hover:text-white hover:bg-red-600 active:bg-red-700 transition-colors focus:outline-none cursor-pointer rounded-tr-none"
+              className="flex items-center justify-center h-14 w-14 text-zinc-400 hover:text-white hover:bg-red-600 active:bg-red-700 transition-colors focus:outline-none cursor-pointer rounded-tr-none"
               title="Закрыть"
             >
               <X size={18} />
@@ -1202,11 +1211,11 @@ export default function App() {
 
         {/* Banner Alert for GDrive update */}
         {gdriveUpdateAvailable && activeProfile && activeProfile.syncSource === 'gdrive' && (
-          <div className="bg-gradient-to-r from-cyan-950/60 to-blue-950/60 border-b border-cyan-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
+          <div className="bg-gradient-to-r from-violet-950/60 to-purple-950/60 border-b border-violet-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
             <div className="flex items-center gap-3">
               <span className="flex h-2.5 w-2.5 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500"></span>
               </span>
               <div>
                 <p className="text-xs font-bold text-zinc-100">Доступно обновление сборки "{activeProfile.name}" на Google Диске!</p>
@@ -1216,7 +1225,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSyncModal(true)}
-                className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(139,92,246,0.2)]"
               >
                 Обновить сейчас
               </button>
@@ -1315,6 +1324,8 @@ export default function App() {
               setCheckGdriveUpdates={setCheckGdriveUpdatesSetting}
               gdriveAutoSync={gdriveAutoSync}
               setGdriveAutoSync={setGdriveAutoSync}
+              offlineUsername={offlineUsername}
+              setOfflineUsername={setOfflineUsername}
             />
           )}
         </main>
@@ -1323,11 +1334,11 @@ export default function App() {
         <footer className="flex h-[88px] items-center justify-between border-t border-zinc-800/60 bg-[#09090b]/95 backdrop-blur-md px-8 flex-shrink-0 z-20">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center space-x-3">
-              <span className="text-sm font-semibold text-zinc-100">{userProfile ? userProfile.name : 'Гость'}</span>
+              <span className="text-sm font-semibold text-zinc-100">{userProfile ? userProfile.name : offlineUsername}</span>
               {userProfile ? (
-                <span className="text-[9px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">Ely.by Account</span>
+                <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">Ely.by Account</span>
               ) : (
-                <span className="text-[9px] font-bold text-zinc-500 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full uppercase tracking-widest cursor-pointer hover:bg-zinc-700 transition-colors" onClick={() => setShowAuthModal(true)}>Войти</span>
+                <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest cursor-pointer hover:bg-amber-500/20 transition-colors" onClick={() => { setSettingsSubTab('account'); setActiveTab('settings'); }} title="Нажмите, чтобы изменить локальный никнейм">Автономный режим</span>
               )}
             </div>
             <div className="flex items-center space-x-4 text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
@@ -1342,7 +1353,7 @@ export default function App() {
           <div className="flex items-center space-x-6">
             <div className="text-right flex flex-col justify-center">
               <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Статус запуска</p>
-              <p className={`text-xs font-semibold ${gameStatus === 'running' ? 'text-blue-400' : (gameStatus === 'installing' ? 'text-amber-400' : (isInstalled ? 'text-emerald-400' : 'text-amber-400'))}`}>
+              <p className={`text-xs font-semibold ${gameStatus === 'running' ? 'text-violet-400' : (gameStatus === 'installing' ? 'text-amber-400' : (isInstalled ? 'text-emerald-400' : 'text-amber-400'))}`}>
                 {gameStatus === 'running' ? 'В игре' : (gameStatus === 'installing' ? 'Запуск / Установка...' : (isInstalled ? 'Готов к игре' : 'Требуется установка'))}
               </p>
             </div>
@@ -1356,7 +1367,7 @@ export default function App() {
                 >
                   <span className="truncate pr-1">{activeProfile.name}</span>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                    <ChevronDown size={18} className={`transition-transform duration-200 ${showProfileDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                    <ChevronDown size={18} className={`transition-transform duration-200 ${showProfileDropdown ? 'rotate-180 text-violet-400' : ''}`} />
                   </div>
                 </button>
                 
@@ -1378,7 +1389,7 @@ export default function App() {
                             }}
                             className={`w-full flex flex-col gap-0.5 px-3 py-2 rounded-xl text-left transition-all ${
                               isSelected 
-                                ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.1)]' 
+                                ? 'bg-violet-500/10 border border-violet-500/20 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]' 
                                 : 'hover:bg-zinc-900 border border-transparent text-zinc-400 hover:text-zinc-100'
                             }`}
                           >
@@ -1388,14 +1399,14 @@ export default function App() {
                                 <span className="truncate">{p.name}</span>
                               </span>
                               {(p.syncSource === 'gdrive' || p.id === 'GDSync') && (
-                                <span className="bg-cyan-500/10 text-cyan-400 px-1 py-0.2 rounded border border-cyan-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">
+                                <span className="bg-violet-500/10 text-violet-400 px-1 py-0.2 rounded border border-violet-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">
                                   GDSync
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-mono">
                               <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40">Ver: {p.game_version}</span>
-                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-cyan-500/80">{p.mod_loader}</span>
+                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-violet-500/80">{p.mod_loader}</span>
                             </div>
                           </button>
                         );
@@ -1409,7 +1420,7 @@ export default function App() {
                 <button
                   onClick={() => setShowSyncModal(true)}
                   disabled={gameStatus !== 'idle'}
-                  className="flex h-12 px-4 items-center justify-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/80 text-zinc-300 hover:text-cyan-400 hover:border-cyan-500/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest cursor-pointer"
+                  className="flex h-12 px-4 items-center justify-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/80 text-zinc-300 hover:text-violet-400 hover:border-violet-500/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest cursor-pointer"
                   title="Синхронизировать сборку через GDSync (Google Диск)"
                 >
                   <RefreshCw size={14} />
@@ -1494,12 +1505,12 @@ function TabButton({ active, onClick, icon, label, badge }: { active: boolean, o
       onClick={onClick}
       className={`flex flex-col items-center justify-center w-full py-2.5 rounded-xl transition-all duration-300 group relative ${
         active 
-          ? 'text-cyan-400 bg-cyan-500/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_15px_rgba(6,182,212,0.1)] border border-cyan-500/20' 
+          ? 'text-violet-400 bg-violet-500/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_15px_rgba(139,92,246,0.15)] border border-violet-500/20' 
           : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 border border-transparent'
       }`}
     >
       {/* Animated Left Accent Indicator */}
-      <div className={`absolute left-0 top-[20%] bottom-[20%] w-[3px] bg-cyan-500 rounded-r-md transition-all duration-300 ${
+      <div className={`absolute left-0 top-[20%] bottom-[20%] w-[3px] bg-violet-500 rounded-r-md transition-all duration-300 ${
         active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
       }`} />
 
@@ -1509,13 +1520,13 @@ function TabButton({ active, onClick, icon, label, badge }: { active: boolean, o
         </span>
       )}
       
-      <div className={`transition-all duration-300 ${active ? 'scale-110 text-cyan-400' : 'group-hover:scale-110 group-hover:text-zinc-200'}`}>
+      <div className={`transition-all duration-300 ${active ? 'scale-110 text-violet-400' : 'group-hover:scale-110 group-hover:text-zinc-200'}`}>
         {icon}
       </div>
       
       <span className={`mt-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all duration-300 ${
         active 
-          ? 'text-cyan-400 opacity-100 font-extrabold' 
+          ? 'text-violet-400 opacity-100 font-extrabold' 
           : 'text-zinc-500 opacity-70 group-hover:opacity-100 group-hover:text-zinc-300'
       }`}>
         {label}

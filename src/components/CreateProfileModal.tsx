@@ -127,7 +127,7 @@ export default function CreateProfileModal({
               type="text" 
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
               required
               placeholder="Например: Мой выживач"
             />
@@ -138,7 +138,7 @@ export default function CreateProfileModal({
             <div>
               <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2 flex items-center gap-2">
                 Версия игры
-                {loadingVersions && <Loader2 size={12} className="animate-spin text-blue-400" />}
+                {loadingVersions && <Loader2 size={12} className="animate-spin text-purple-400" />}
               </label>
               <div className="relative">
                 <button
@@ -148,10 +148,10 @@ export default function CreateProfileModal({
                     setShowLoaderDropdown(false);
                   }}
                   disabled={loadingVersions}
-                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors flex items-center justify-between gap-2 cursor-pointer disabled:opacity-50 select-none text-left h-11"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors flex items-center justify-between gap-2 cursor-pointer disabled:opacity-50 select-none text-left h-11"
                 >
                   <span className="truncate">{version}</span>
-                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showVersionDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showVersionDropdown ? 'rotate-180 text-purple-400' : ''}`} />
                 </button>
                 
                 {showVersionDropdown && (
@@ -168,7 +168,7 @@ export default function CreateProfileModal({
                           }}
                           className={`px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all ${
                             v === version 
-                              ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' 
+                              ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400' 
                               : 'hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
@@ -190,12 +190,12 @@ export default function CreateProfileModal({
                     setShowLoaderDropdown(!showLoaderDropdown);
                     setShowVersionDropdown(false);
                   }}
-                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors flex items-center justify-between gap-2 cursor-pointer select-none text-left h-11"
+                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors flex items-center justify-between gap-2 cursor-pointer select-none text-left h-11"
                 >
                   <span className="truncate">
                     {modLoader === 'Fabric' ? 'Fabric (Рекомендуется)' : modLoader === 'Forge' ? 'Forge' : 'Vanilla (Чистый клиент)'}
                   </span>
-                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showLoaderDropdown ? 'rotate-180 text-cyan-400' : ''}`} />
+                  <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-200 ${showLoaderDropdown ? 'rotate-180 text-purple-400' : ''}`} />
                 </button>
                 
                 {showLoaderDropdown && (
@@ -216,7 +216,7 @@ export default function CreateProfileModal({
                           }}
                           className={`px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all ${
                             loader.id === modLoader 
-                              ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' 
+                              ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400' 
                               : 'hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
@@ -247,7 +247,7 @@ export default function CreateProfileModal({
                   checked={useSeparateFolder}
                   onChange={(e) => setUseSeparateFolder(e.target.checked)}
                 />
-                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
               </label>
             </div>
 
@@ -260,7 +260,7 @@ export default function CreateProfileModal({
                     value={customPath}
                     onChange={e => setCustomPath(e.target.value)}
                     placeholder="Путь к независимой папке..."
-                    className="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                    className="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-300 font-mono focus:outline-none focus:border-purple-500 transition-colors"
                     required={useSeparateFolder}
                   />
                   <input 
@@ -287,7 +287,7 @@ export default function CreateProfileModal({
                   </button>
                 </div>
                 <p className="text-[10px] text-zinc-500 leading-relaxed">
-                  По умолчанию будет создана папка <code className="text-blue-400 font-mono">{customPath}</code> в корне лаунчера. Все моды этой сборки будут находиться в ней изолированно.
+                  По умолчанию будет создана папка <code className="text-purple-400 font-mono">{customPath}</code> в корне лаунчера. Все моды этой сборки будут находиться в ней изолированно.
                 </p>
               </div>
             )}
@@ -310,7 +310,7 @@ export default function CreateProfileModal({
                   checked={isSyncEnabled}
                   onChange={(e) => setIsSyncEnabled(e.target.checked)}
                 />
-                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
               </label>
             </div>
 
@@ -338,7 +338,7 @@ export default function CreateProfileModal({
               step="512" 
               value={ramMb}
               onChange={(e) => setRamMb(Number(e.target.value))}
-              className="w-full accent-blue-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+              className="w-full accent-purple-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
             />
           </div>
 

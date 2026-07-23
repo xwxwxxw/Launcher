@@ -414,19 +414,137 @@ ipcMain.handle('install-update', async (event, tempPath) => {
   try {
     const { spawn } = require('child_process');
     
-    // Launch the downloaded installer directly from the temp folder
-    // We pass /S for silent install, --updated and /force-run for auto-start.
-    spawn(tempPath, ['/S', '--updated', '/force-run'], {
+    if (!app.isPackaged) {
+      console.log('Dev mode: simulating update installation for path:', tempPath);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      return { success: true };
+    }
+
+    const exePath = process.execPath;
+    const exeDir = path.dirname(exePath);
+    const oldExePath = exePath + '.old';
+
+    // 1. Rename current running exe to .exe.old to unlock it
+    if (fs.existsSync(oldExePath)) {
+      try {
+        fs.unlinkSync(oldExePath);
+      } catch (e) {
+        console.error('Failed to delete existing .old backup file:', e);
+      }
+    }
+    
+    try {
+      fs.renameSync(exePath, oldExePath);
+    } catch (renameErr) {
+      return { success: false, error: `Не удалось разблокировать файл запуска (попробуйте закрыть другие копии лаунчера): ${renameErr.message}` };
+    }
+
+    // 2. Run the installer silently and specify the directory
+    return new Promise((resolve) => {
+      // NSIS installer is spawned with silent flag /S and custom directory.
+      // Note that in NSIS, /D specifies target directory and must be the last argument.
+      const installerProcess = spawn(tempPath, ['/S', `/D=${exeDir}`], {
+        detached: true,
+        stdio: 'ignore'
+      });
+
+      let resolved = false;
+
+      // Monitor installer exit
+      installerProcess.on('close', (code) => {
+        if (resolved) return;
+        resolved = true;
+
+        if (code === 0) {
+          // Success! Try to remove the temp installer file
+          try {
+            if (fs.existsSync(tempPath)) {
+              fs.unlinkSync(tempPath);
+            }
+          } catch (err) {
+            console.error('Failed to delete temp installer:', err);
+          }
+          resolve({ success: true });
+        } else {
+          // Failure: restore the old exe
+          try {
+            if (fs.existsSync(oldExePath)) {
+              if (fs.existsSync(exePath)) {
+                fs.unlinkSync(exePath);
+              }
+              fs.renameSync(oldExePath, exePath);
+            }
+          } catch (restoreErr) {
+            console.error('Failed to restore old exe:', restoreErr);
+          }
+          resolve({ success: false, error: `Процесс установки завершился с кодом ${code}. Пожалуйста, попробуйте запустить установщик вручную из временной папки.` });
+        }
+      });
+
+      installerProcess.on('error', (err) => {
+        if (resolved) return;
+        resolved = true;
+
+        // Restore old exe on error
+        try {
+          if (fs.existsSync(oldExePath)) {
+            if (fs.existsSync(exePath)) {
+              fs.unlinkSync(exePath);
+            }
+            fs.renameSync(oldExePath, exePath);
+          }
+        } catch (restoreErr) {
+          console.error('Failed to restore old exe:', restoreErr);
+        }
+        resolve({ success: false, error: `Не удалось запустить установщик: ${err.message}` });
+      });
+
+      // Fallback timeout in case the installer process is hanging but succeeded or failed silently
+      setTimeout(() => {
+        if (resolved) return;
+        
+        // Let's check if the new exe is written. If yes, we consider it a success
+        if (fs.existsSync(exePath)) {
+          resolved = true;
+          try {
+            if (fs.existsSync(tempPath)) {
+              fs.unlinkSync(tempPath);
+            }
+          } catch (err) {}
+          resolve({ success: true });
+        } else {
+          resolved = true;
+          // Restore old exe
+          try {
+            if (fs.existsSync(oldExePath)) {
+              fs.renameSync(oldExePath, exePath);
+            }
+          } catch (restoreErr) {}
+          resolve({ success: false, error: 'Превышено время ожидания установки (30 сек)' });
+        }
+      }, 30000); // 30 seconds timeout
+    });
+  } catch (e) {
+    console.error('Update install failed:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('restart-launcher', async () => {
+  try {
+    const { spawn } = require('child_process');
+    const exePath = process.execPath;
+    
+    spawn(exePath, [], {
       detached: true,
       stdio: 'ignore'
     }).unref();
     
-    // Instantly close the launcher so that all launcher files are unlocked and ready to be overwritten by the installer
     app.isQuiting = true;
     app.quit();
     return { success: true };
   } catch (e) {
-    console.error('Update install failed:', e);
+    console.error('Restart failed:', e);
     return { success: false, error: e.message };
   }
 });
@@ -529,6 +647,16 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Cleanup old backup exe if it exists from a previous successful update
+  try {
+    const oldExePath = process.execPath + '.old';
+    if (fs.existsSync(oldExePath)) {
+      fs.unlinkSync(oldExePath);
+    }
+  } catch (e) {
+    console.error('Failed to clean up old exe backup:', e);
+  }
+
   createWindow();
   
   // 5. Tray

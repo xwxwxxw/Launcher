@@ -4,9 +4,10 @@ import App from './App.tsx';
 import './index.css';
 
 if (typeof window !== 'undefined') {
+
+
   let safeLocalStorage: Storage;
   let isInMemory = false;
-
   try {
     const testKey = '__storage_test__';
     window.localStorage.setItem(testKey, testKey);

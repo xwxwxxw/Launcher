@@ -20,7 +20,7 @@ export default function ConflictsTab({ conflicts, onResolveConflict, onDismissCo
     switch (severity) {
       case 'critical': return <XCircle className="text-red-500" size={24} />;
       case 'high': return <AlertTriangle className="text-amber-500" size={24} />;
-      case 'low': return <AlertCircle className="text-blue-500" size={24} />;
+      case 'low': return <AlertCircle className="text-purple-500" size={24} />;
       default: return <ShieldAlert className="text-zinc-500" size={24} />;
     }
   };
@@ -29,7 +29,7 @@ export default function ConflictsTab({ conflicts, onResolveConflict, onDismissCo
     switch (severity) {
       case 'critical': return 'bg-red-500/10 border-red-500/20 backdrop-blur-md shadow-lg shadow-red-900/10';
       case 'high': return 'bg-amber-500/10 border-amber-500/20 backdrop-blur-md shadow-lg shadow-amber-900/10';
-      case 'low': return 'bg-blue-500/10 border-blue-500/20 backdrop-blur-md shadow-lg shadow-blue-900/10';
+      case 'low': return 'bg-purple-500/10 border-purple-500/20 backdrop-blur-md shadow-lg shadow-purple-900/10';
       default: return 'bg-zinc-800/40 border-zinc-700/50 backdrop-blur-md shadow-lg';
     }
   };
@@ -58,7 +58,7 @@ export default function ConflictsTab({ conflicts, onResolveConflict, onDismissCo
                 <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full ${
                   conflict.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
                   conflict.severity === 'high' ? 'bg-amber-500/20 text-amber-400' :
-                  'bg-blue-500/20 text-blue-400'
+                  'bg-purple-500/20 text-purple-400'
                 }`}>
                   {conflict.severity === 'critical' ? 'Критично' : conflict.severity === 'high' ? 'Высокий' : 'Информация'}
                 </span>

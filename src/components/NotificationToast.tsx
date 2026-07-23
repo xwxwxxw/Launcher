@@ -19,7 +19,7 @@ export default function NotificationToast({ toasts, onClose }: NotificationToast
         {toasts.map((toast) => {
           let bgColor = 'bg-zinc-950/90 border-zinc-800 text-zinc-200';
           let Icon = Info;
-          let iconColor = 'text-blue-400';
+          let iconColor = 'text-purple-400';
           let borderGlow = 'shadow-[0_4px_20px_rgba(0,0,0,0.5)]';
 
           if (toast.type === 'success') {

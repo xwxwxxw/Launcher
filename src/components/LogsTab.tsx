@@ -47,7 +47,7 @@ export default function LogsTab({ activeProfileId, globalGamePath }: { activePro
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-            <Terminal className="text-blue-500" size={28} />
+            <Terminal className="text-purple-500" size={28} />
             Логи игры
           </h2>
           <p className="text-zinc-400 mt-1">latest.log и crash-reports</p>
@@ -63,7 +63,7 @@ export default function LogsTab({ activeProfileId, globalGamePath }: { activePro
           </button>
           <button 
             onClick={handleOpenFolder}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl transition-colors border border-blue-500/20"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-xl transition-colors border border-purple-500/20"
           >
             <FolderOpen size={16} />
             Открыть папку

@@ -84,14 +84,14 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
   return (
     <div className="fixed inset-0 bg-[#09090b] z-50 flex flex-col items-center justify-center p-6 select-none overflow-hidden">
       {/* Background Ambience */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.07)_0%,transparent_70%)] pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.07)_0%,transparent_70%)] pointer-events-none"></div>
       
       {/* Decorative Minecraft-like floating particles */}
       <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
-        <div className="absolute top-[20%] left-[15%] w-2 h-2 bg-blue-500/30 animate-pulse rounded-sm"></div>
+        <div className="absolute top-[20%] left-[15%] w-2 h-2 bg-purple-500/30 animate-pulse rounded-sm"></div>
         <div className="absolute top-[60%] left-[80%] w-3 h-3 bg-indigo-500/20 animate-bounce rounded-sm" style={{ animationDuration: '4s' }}></div>
-        <div className="absolute bottom-[25%] left-[30%] w-1.5 h-1.5 bg-sky-500/40 animate-ping rounded-sm" style={{ animationDuration: '3s' }}></div>
-        <div className="absolute top-[15%] left-[70%] w-2 h-2 bg-blue-400/20 animate-pulse rounded-sm" style={{ animationDuration: '2.5s' }}></div>
+        <div className="absolute bottom-[25%] left-[30%] w-1.5 h-1.5 bg-purple-500/40 animate-ping rounded-sm" style={{ animationDuration: '3s' }}></div>
+        <div className="absolute top-[15%] left-[70%] w-2 h-2 bg-purple-400/20 animate-pulse rounded-sm" style={{ animationDuration: '2.5s' }}></div>
       </div>
 
       <div className="w-full max-w-sm flex flex-col items-center relative z-10">
@@ -99,7 +99,7 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
         <div className="relative w-28 h-28 mb-10 flex items-center justify-center">
           {/* External rotating glowing ring */}
           <motion.div 
-            className="absolute inset-0 border border-blue-500/20 rounded-2xl"
+            className="absolute inset-0 border border-purple-500/20 rounded-2xl"
             animate={{ rotate: 360 }}
             transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
           ></motion.div>
@@ -117,14 +117,14 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
             >
               {/* Front face */}
               <div 
-                className="absolute inset-0 bg-blue-600/80 border border-blue-400 text-white flex items-center justify-center rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.5)] backface-hidden" 
+                className="absolute inset-0 bg-purple-600/80 border border-purple-400 text-white flex items-center justify-center rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.5)] backface-hidden" 
                 style={{ transform: 'translateZ(24px)' }}
               >
-                <div className="w-3.5 h-3.5 bg-cyan-400 rounded-sm animate-pulse" />
+                <div className="w-3.5 h-3.5 bg-purple-400 rounded-sm animate-pulse" />
               </div>
               {/* Back face */}
               <div 
-                className="absolute inset-0 bg-blue-900/90 border border-blue-600/70 rounded-lg backface-hidden" 
+                className="absolute inset-0 bg-purple-900/90 border border-purple-600/70 rounded-lg backface-hidden" 
                 style={{ transform: 'rotateY(180deg) translateZ(24px)' }}
               />
               {/* Left face */}
@@ -139,7 +139,7 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
               />
               {/* Top face */}
               <div 
-                className="absolute inset-0 bg-cyan-600/85 border border-cyan-400/80 rounded-lg backface-hidden" 
+                className="absolute inset-0 bg-purple-600/85 border border-purple-400/80 rounded-lg backface-hidden" 
                 style={{ transform: 'rotateX(90deg) translateZ(24px)' }}
               />
               {/* Bottom face */}
@@ -152,11 +152,11 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
         </div>
 
         {/* Brand Header */}
-        <h1 className="text-3xl font-extrabold tracking-[0.15em] bg-gradient-to-r from-white via-zinc-200 to-blue-400 bg-clip-text text-transparent text-center mb-1 drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+        <h1 className="text-3xl font-extrabold tracking-[0.15em] bg-gradient-to-r from-white via-zinc-200 to-purple-400 bg-clip-text text-transparent text-center mb-1 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)]">
           LAYLE LAUNCHER
         </h1>
         <div className="flex items-center gap-1.5 mb-8">
-          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-ping"></span>
           <span className="text-[9px] tracking-[0.25em] font-mono text-zinc-500 uppercase font-bold">
             Система инициализации v2.5
           </span>
@@ -168,14 +168,14 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
             <span className="text-[11px] font-medium text-zinc-400 font-sans tracking-wide">
               {statusText}
             </span>
-            <span className="text-xs font-bold font-mono text-blue-400">
+            <span className="text-xs font-bold font-mono text-purple-400">
               {displayProgress}%
             </span>
           </div>
 
           <div className="h-1.5 w-full bg-zinc-950/80 rounded-full overflow-hidden border border-zinc-900/50">
             <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+              className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(168,85,247,0.5)]"
               style={{ width: `${displayProgress}%` }}
             ></div>
           </div>
@@ -187,9 +187,9 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
                 key={s} 
                 className={`h-1 rounded-sm transition-all duration-500 ${
                   step >= s + 1 
-                    ? 'bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.4)]' 
+                    ? 'bg-purple-500 shadow-[0_0_4px_rgba(168,85,247,0.4)]' 
                     : step === s 
-                      ? 'bg-blue-500/40 animate-pulse' 
+                      ? 'bg-purple-500/40 animate-pulse' 
                       : 'bg-zinc-800'
                 }`}
               />

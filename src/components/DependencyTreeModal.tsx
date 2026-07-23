@@ -165,7 +165,7 @@ export default function DependencyTreeModal({ mod, allMods, onClose }: { mod: Mo
     // Colors mapping
     const getColor = (group: string) => {
       switch (group) {
-        case 'selected': return '#3b82f6'; // blue-500
+        case 'selected': return '#3b82f6'; // purple-500
         case 'dependency': return '#10b981'; // emerald-500
         case 'dependent': return '#a855f7'; // purple-500
         case 'missing': return '#ef4444'; // red-500
@@ -227,12 +227,12 @@ export default function DependencyTreeModal({ mod, allMods, onClose }: { mod: Mo
       <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl relative overflow-hidden">
         
         {/* Glow effect */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] bg-blue-500/10 blur-[80px] pointer-events-none rounded-full"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] bg-purple-500/10 blur-[80px] pointer-events-none rounded-full"></div>
 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-zinc-800/60 bg-zinc-900/30 relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-blue-400">
+            <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-purple-400">
               <Network size={20} strokeWidth={1.5} />
             </div>
             <div>
@@ -245,7 +245,7 @@ export default function DependencyTreeModal({ mod, allMods, onClose }: { mod: Mo
             {/* Legend */}
             <div className="flex items-center gap-4 bg-zinc-900/50 px-4 py-2 rounded-xl border border-zinc-800/50 hidden md:flex">
                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-zinc-400">
-                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Выбран
+                 <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Выбран
                </div>
                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-zinc-400">
                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Зависимость

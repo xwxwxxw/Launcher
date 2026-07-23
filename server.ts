@@ -1,3 +1,4 @@
+import http from "http";
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -523,7 +524,13 @@ app.get('/api/gdrive/auth-status', (req, res) => {
 
 // GDrive update check endpoint
 app.get('/api/gdrive/check-updates', async (req, res) => {
-  const folderId = extractGDriveFolderId(String(req.query.folderId || ''));
+  let folderId = String(req.query.folderId || '');
+  if (!folderId || folderId === 'undefined') {
+    folderId = extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || '');
+  } else {
+    folderId = extractGDriveFolderId(folderId);
+  }
+  
   const token = String(req.query.token || '');
   const profileId = String(req.query.profileId || '');
   const mcPath = String(req.query.minecraftPath || '');
@@ -537,7 +544,7 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
   }
 
   if (!folderId) {
-    return res.json({ updateAvailable: false, reason: 'No folderId specified' });
+    return res.json({ updateAvailable: false, reason: 'No folderId specified in profile or server config' });
   }
 
   if (!resolvedToken || !profileId) {
@@ -763,7 +770,7 @@ app.get('/api/sync-build', async (req, res) => {
         return res.end();
       }
       if (!resolvedToken) {
-        sendEvent('error', { message: 'Токен авторизации Google отсутствует. Пожалуйста, войдите в аккаунт Google в настройках профиля или настройте токен/API-ключ сервера.' });
+        sendEvent('error', { message: 'КРИТИЧЕСКАЯ ОШИБКА: Токен авторизации Google (GDRIVE_API_KEY) не настроен в конфигурации сервера/сборки.' });
         return res.end();
       }
 
@@ -774,7 +781,7 @@ app.get('/api/sync-build', async (req, res) => {
       } catch (e: any) {
         if (e.status === 401 || e.status === 403) {
           console.log('GDrive sync: Authentication required (401/403).');
-          sendEvent('error', { message: 'Требуется авторизация Google Диска. Пожалуйста, войдите или укажите верный ключ доступа/API-ключ в настройках профиля.' });
+          sendEvent('error', { message: 'Требуется авторизация Google Диска. Текущий API-ключ недействителен или не имеет доступа к папке.' });
         } else {
           console.error('Failed to list GDrive files:', e);
           sendEvent('error', { message: `Ошибка получения списка файлов: ${e.message}` });
@@ -2418,14 +2425,32 @@ app.get('/api/minecraft/launch', async (req, res) => {
   // Get the latest loader version dynamically
   let loaderVer = '';
   if (activeProfile.mod_loader === 'Fabric') {
-    try {
-      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) loaderVer = data[0].loader.version;
+    // Check if we can find an already downloaded version on disk first
+    const versionsDirRoot = path.join(minecraftPathAbsolute, 'versions');
+    if (fs.existsSync(versionsDirRoot)) {
+      try {
+        const dirs = fs.readdirSync(versionsDirRoot);
+        const matchPrefix = 'fabric-loader-';
+        const matchSuffix = `-${activeProfile.game_version}`;
+        const found = dirs.find(d => d.startsWith(matchPrefix) && d.endsWith(matchSuffix));
+        if (found) {
+          loaderVer = found.substring(matchPrefix.length, found.length - matchSuffix.length);
+        }
+      } catch (err) {
+        console.error('Failed to scan versions directory for Fabric:', err);
       }
-    } catch(e) {}
-    if (!loaderVer) loaderVer = '0.16.10'; // Fallback to a modern version
+    }
+
+    if (!loaderVer) {
+      try {
+        const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) loaderVer = data[0].loader.version;
+        }
+      } catch(e) {}
+      if (!loaderVer) loaderVer = '0.16.10'; // Fallback to a modern version
+    }
 
     const customVersionName = `fabric-loader-${loaderVer}-${activeProfile.game_version}`;
     opts.version.custom = customVersionName;
@@ -2449,14 +2474,32 @@ app.get('/api/minecraft/launch', async (req, res) => {
         }
     }
   } else if (activeProfile.mod_loader === 'Quilt') {
-    try {
-      const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) loaderVer = data[0].loader.version;
+    // Check if we can find an already downloaded version on disk first
+    const versionsDirRoot = path.join(minecraftPathAbsolute, 'versions');
+    if (fs.existsSync(versionsDirRoot)) {
+      try {
+        const dirs = fs.readdirSync(versionsDirRoot);
+        const matchPrefix = 'quilt-loader-';
+        const matchSuffix = `-${activeProfile.game_version}`;
+        const found = dirs.find(d => d.startsWith(matchPrefix) && d.endsWith(matchSuffix));
+        if (found) {
+          loaderVer = found.substring(matchPrefix.length, found.length - matchSuffix.length);
+        }
+      } catch (err) {
+        console.error('Failed to scan versions directory for Quilt:', err);
       }
-    } catch(e) {}
-    if (!loaderVer) loaderVer = '0.24.0';
+    }
+
+    if (!loaderVer) {
+      try {
+        const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) loaderVer = data[0].loader.version;
+        }
+      } catch(e) {}
+      if (!loaderVer) loaderVer = '0.24.0';
+    }
 
     const customVersionName = `quilt-loader-${loaderVer}-${activeProfile.game_version}`;
     opts.version.custom = customVersionName;
@@ -2479,6 +2522,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
             console.error('Failed to download Quilt profile', e);
         }
     }
+
   } else if (activeProfile.mod_loader === 'Forge') {
     try {
       const res = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
@@ -2524,7 +2568,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
   }
 
   const customJvmArgs = [...jvmArguments];
-  if (authName && authUuid && authAccess) {
+  if (authName && authUuid && authAccess && authAccess !== 'offline-token') {
     const injectorPath = path.join(DATA_DIR, 'authlib-injector.jar');
     let injectorReady = false;
     if (fs.existsSync(injectorPath)) {
@@ -2882,11 +2926,17 @@ app.get('/api/system/check-update', async (req, res) => {
   }
 });
 
+
 async function startServer() {
+  const server = http.createServer(app);
+
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: { server, clientPort: 443 }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -2915,7 +2965,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

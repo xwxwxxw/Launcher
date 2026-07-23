@@ -12,7 +12,7 @@ const ForgeIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) 
 );
 
 const FabricIcon: React.FC<{ className?: string }> = ({ className = "w-3 h-3" }) => (
-  <svg className={`${className} text-cyan-400`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+  <svg className={`${className} text-purple-400`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
     <circle cx="12" cy="12" r="9" />
     <path d="M12 3a9 9 0 0 0-9 9" />
     <path d="M19 17A9 9 0 0 0 9 7" />
@@ -149,7 +149,7 @@ export default function ProfilesTab({
             <p className="text-xs text-zinc-500 mb-6 max-w-xs text-center">
               Создайте первый профиль для запуска игры, настройки модов и выделения оперативной памяти.
             </p>
-            <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest">
+            <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-violet-400 hover:text-violet-300 uppercase tracking-widest">
               + Добавить профиль
             </button>
           </div>
@@ -219,15 +219,15 @@ const ProfileCard: React.FC<{
       className={`flex flex-col rounded-3xl border p-6 transition-all duration-300 backdrop-blur-md hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative group overflow-hidden cursor-pointer ${
         profile.id === 'GDSync' 
           ? isActive 
-            ? 'border-cyan-500/50 bg-cyan-900/20 shadow-[0_4px_30px_rgba(6,182,212,0.15)]' 
-            : 'border-cyan-500/30 bg-cyan-900/10 hover:border-cyan-500/50'
+            ? 'border-violet-500/50 bg-violet-900/20 shadow-[0_4px_30px_rgba(139,92,246,0.15)]' 
+            : 'border-violet-500/30 bg-violet-900/10 hover:border-violet-500/50'
           : isActive 
             ? 'border-emerald-500/40 bg-zinc-900/70 hover:border-emerald-500/60 shadow-[0_4px_20px_rgba(16,185,129,0.05)]' 
             : 'border-zinc-800/40 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/60'
       }`}
     >
       <div className={`absolute top-0 right-0 w-32 h-32 blur-[40px] rounded-full pointer-events-none transition-colors ${
-        profile.id === 'GDSync' ? 'bg-cyan-500/10 group-hover:bg-cyan-500/20' : isActive ? 'bg-emerald-500/5 group-hover:bg-emerald-500/10' : 'bg-blue-500/5 group-hover:bg-blue-500/10'
+        profile.id === 'GDSync' ? 'bg-violet-500/10 group-hover:bg-violet-500/20' : isActive ? 'bg-emerald-500/5 group-hover:bg-emerald-500/10' : 'bg-violet-500/5 group-hover:bg-violet-500/10'
       }`}></div>
       
       <div className="flex justify-between items-start mb-4 relative z-10">
@@ -250,7 +250,7 @@ const ProfileCard: React.FC<{
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-bold text-zinc-100">{profile.name}</h3>
               {(profile.syncSource === 'gdrive' || profile.id === 'GDSync') && (
-                <span className="text-[8px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                <span className="text-[8px] bg-violet-500/15 text-violet-400 border border-violet-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
                   GDSync
                 </span>
               )}
@@ -295,7 +295,7 @@ const ProfileCard: React.FC<{
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onEdit(); }} 
-              className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"
+              className="p-1.5 text-zinc-500 hover:text-violet-400 hover:bg-violet-400/10 rounded-md transition-colors"
               title="Редактировать сборку"
             >
               <Edit size={14} />
@@ -334,7 +334,7 @@ const ProfileCard: React.FC<{
            <span className="text-[10px] font-mono text-zinc-300 font-bold">{profile.ram_mb} MB</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden mb-3">
-          <div className="h-full rounded-full bg-blue-500/80" style={{ width: `${Math.min(100, (profile.ram_mb / 16384) * 100)}%` }}></div>
+          <div className="h-full rounded-full bg-violet-500/80" style={{ width: `${Math.min(100, (profile.ram_mb / 16384) * 100)}%` }}></div>
         </div>
         <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-800/50">
           <button 

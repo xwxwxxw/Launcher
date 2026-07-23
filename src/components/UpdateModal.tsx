@@ -8,7 +8,7 @@ interface UpdateModalProps {
 }
 
 export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
-  const [status, setStatus] = useState<'idle' | 'downloading' | 'installing' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'downloading' | 'installing' | 'completed' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -94,7 +94,13 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           setStatus('installing');
           localStorage.setItem('pending_update_installer', result.tempPath);
           const installResult = await ipcRenderer.invoke('install-update', result.tempPath);
-          if (!installResult.success) {
+          if (installResult.success) {
+            setStatus('completed');
+            localStorage.removeItem('pending_update_installer');
+            setTimeout(async () => {
+              await ipcRenderer.invoke('restart-launcher');
+            }, 1500);
+          } else {
             setErrorMsg(installResult.error || 'Ошибка установки');
             setStatus('error');
             localStorage.removeItem('pending_update_installer');
@@ -139,12 +145,12 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     <div className="fixed bottom-6 right-6 w-96 bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl p-5 z-50 animate-in slide-in-from-bottom-5">
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-emerald-400 font-bold flex items-center gap-2">
-          {status === 'downloading' || status === 'installing' ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-          {status === 'downloading' ? 'Скачивание...' : status === 'installing' ? 'Установка...' : status === 'error' ? 'Ошибка обновления' : 'Доступно обновление'}
+          {status === 'downloading' || status === 'installing' || status === 'completed' ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+          {status === 'downloading' ? 'Скачивание...' : status === 'installing' ? 'Установка...' : status === 'completed' ? 'Успешно!' : status === 'error' ? 'Ошибка обновления' : 'Доступно обновление'}
         </h3>
         <button 
           onClick={onClose} 
-          disabled={status === 'downloading' || status === 'installing'} 
+          disabled={status === 'downloading' || status === 'installing' || status === 'completed'} 
           className="text-zinc-500 hover:text-white disabled:opacity-50 cursor-pointer"
         >
           <X size={18} />
@@ -152,7 +158,14 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       </div>
 
       {status === 'error' ? (
-        <p className="text-red-400 text-sm mb-4">{errorMsg}</p>
+        <div className="space-y-2 mb-4">
+          <p className="text-red-400 text-sm font-semibold">Произошла ошибка:</p>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 text-xs text-red-300 font-mono max-h-24 overflow-y-auto">
+            {errorMsg}
+          </div>
+        </div>
+      ) : status === 'completed' ? (
+        <p className="text-emerald-400 text-sm mb-4 font-semibold">Лаунчер успешно обновлен! Автоматический перезапуск...</p>
       ) : (
         <>
           <p className="text-zinc-300 text-sm mb-2">
@@ -183,17 +196,19 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         </div>
       )}
 
-      {(status === 'downloading' || status === 'installing') && (
+      {(status === 'downloading' || status === 'installing' || status === 'completed') && (
         <div className="w-full mt-4">
           <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/20 shadow-inner">
             <div 
               className="h-full transition-all duration-300 rounded-full bg-emerald-500"
-              style={{ width: `${status === 'installing' ? 100 : progress}%` }}
+              style={{ width: `${status === 'downloading' ? progress : 100}%` }}
             ></div>
           </div>
           <div className="flex justify-between items-center mt-2 font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
-            <span>{status === 'installing' ? 'Установка...' : 'Скачивание...'}</span>
-            <span>{status === 'installing' ? '' : `${progress}%`}</span>
+            <span>
+              {status === 'downloading' ? 'Скачивание...' : status === 'installing' ? 'Установка...' : 'Перезапуск...'}
+            </span>
+            <span>{status === 'downloading' ? `${progress}%` : '100%'}</span>
           </div>
         </div>
       )}

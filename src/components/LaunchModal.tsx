@@ -46,12 +46,19 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
       query.set('authName', userProfile.name);
       query.set('authUuid', userProfile.id);
       query.set('authAccess', userProfile.accessToken);
+    } else {
+      const offlineUsername = localStorage.getItem('offline_username') || 'LaylePlayer';
+      // Use standard deterministic UUID for offline nickname
+      const offlineUuid = '00000000-0000-0000-0000-' + offlineUsername.toLowerCase().padEnd(12, '0').substring(0, 12);
+      query.set('authName', offlineUsername);
+      query.set('authUuid', offlineUuid);
+      query.set('authAccess', 'offline-token');
     }
 
     const eventSource = new EventSource(`/api/minecraft/launch?${query.toString()}`);
     
     eventSource.addEventListener('log', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLogs(prev => [...prev, { msg: data.message, time }]);
       setProgress(data.progress);
@@ -63,7 +70,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
     });
 
     eventSource.addEventListener('game_closed', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       if (data.code !== 0) {
         if (data.crashMessage) {
            setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.crashMessage}`, time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
@@ -81,7 +88,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
     });
 
     eventSource.addEventListener('error', (e: any) => {
-      const data = JSON.parse(e.data);
+      let data: any; try { data = JSON.parse(e.data); } catch { return; }
       const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLogs(prev => [...prev, { msg: `Ошибка: ${data}`, time }]);
       setStatus('error');
@@ -101,8 +108,8 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-md">
       {status === 'running' ? (
-        <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-md p-10 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.15)] relative overflow-hidden animate-in zoom-in-95 duration-500">
-          <div className="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent pointer-events-none"></div>
+        <div className="bg-[#09090b] border border-zinc-800/60 rounded-3xl w-full max-w-md p-10 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(168,85,247,0.15)] relative overflow-hidden animate-in zoom-in-95 duration-500">
+          <div className="absolute inset-0 bg-gradient-to-b from-purple-500/10 to-transparent pointer-events-none"></div>
           <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
             <CheckCircle2 size={40} className="text-emerald-400" />
           </div>
@@ -119,7 +126,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-zinc-800/60 bg-zinc-900/30 relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
+              <div className="w-10 h-10 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-400">
                 <Gamepad2 size={20} />
               </div>
               <div>
@@ -142,7 +149,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
                   </span>
                 ) : (
                   <div className="text-zinc-300 flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin text-blue-400" /> 
+                    <Loader2 size={14} className="animate-spin text-purple-400" /> 
                     <span>Установка и подготовка...</span>
                   </div>
                 )}
@@ -151,7 +158,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
             </div>
             <div className="h-2 w-full rounded-full bg-zinc-800/50 overflow-hidden">
               <div 
-                className={`h-full rounded-full transition-all duration-300 ease-out ${status === 'error' ? 'bg-red-500' : 'bg-blue-500'}`} 
+                className={`h-full rounded-full transition-all duration-300 ease-out ${status === 'error' ? 'bg-red-500' : 'bg-purple-500'}`} 
                 style={{ width: `${progress}%` }}
               ></div>
             </div>

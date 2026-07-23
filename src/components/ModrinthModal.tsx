@@ -254,7 +254,7 @@ export default function ModrinthModal({ onClose, onRefresh, activeProfileId, act
                 <button
                   onClick={() => setContentType('shader')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                    contentType === 'shader' ? 'bg-zinc-800 text-cyan-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
+                    contentType === 'shader' ? 'bg-zinc-800 text-purple-400 shadow' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
                   <Sun size={14} />

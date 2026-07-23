@@ -98,30 +98,30 @@ export default function SettingsModal({ onClose, gamePath, setGamePath }: Settin
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Система</h3>
+            <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">Система</h3>
             
             <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="relative flex items-center justify-center w-5 h-5 rounded border border-zinc-700 bg-zinc-950 group-hover:border-blue-500 transition-colors">
+              <div className="relative flex items-center justify-center w-5 h-5 rounded border border-zinc-700 bg-zinc-950 group-hover:border-purple-500 transition-colors">
                 <input 
                   type="checkbox" 
                   checked={autostart} 
                   onChange={(e) => setAutostart(e.target.checked)}
                   className="absolute opacity-0 cursor-pointer" 
                 />
-                {autostart && <CheckCircle2 className="text-blue-500" size={14} />}
+                {autostart && <CheckCircle2 className="text-purple-500" size={14} />}
               </div>
               <span className="text-sm text-zinc-300 group-hover:text-white transition-colors">Автозапуск с Windows</span>
             </label>
 
             <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="relative flex items-center justify-center w-5 h-5 rounded border border-zinc-700 bg-zinc-950 group-hover:border-blue-500 transition-colors">
+              <div className="relative flex items-center justify-center w-5 h-5 rounded border border-zinc-700 bg-zinc-950 group-hover:border-purple-500 transition-colors">
                 <input 
                   type="checkbox" 
                   checked={minimizeTray} 
                   onChange={(e) => setMinimizeTray(e.target.checked)}
                   className="absolute opacity-0 cursor-pointer" 
                 />
-                {minimizeTray && <CheckCircle2 className="text-blue-500" size={14} />}
+                {minimizeTray && <CheckCircle2 className="text-purple-500" size={14} />}
               </div>
               <span className="text-sm text-zinc-300 group-hover:text-white transition-colors">Сворачивать в трей при закрытии</span>
             </label>

@@ -105,6 +105,7 @@ export default function ElyAuthModal({ onClose, onSuccess }: ElyAuthModalProps) 
     }
   };
 
+
   const handleOAuthLogin = async () => {
     setLoading(true);
     setError('');

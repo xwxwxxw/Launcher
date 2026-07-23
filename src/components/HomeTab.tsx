@@ -28,7 +28,7 @@ export default function HomeTab({
       <div className="flex-1 px-10 py-12 overflow-y-auto scrollbar-none h-full relative z-10">
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-14">
-          <StatCard icon={<Package className="text-blue-400" size={20} strokeWidth={2} />} title="Установлено модов" value={modsCount} trend="В выбранной сборке" onClick={() => onNavigate('mods')} />
+          <StatCard icon={<Package className="text-violet-400" size={20} strokeWidth={2} />} title="Установлено модов" value={modsCount} trend="В выбранной сборке" onClick={() => onNavigate('mods')} />
           <StatCard icon={<Layers className="text-emerald-400" size={20} strokeWidth={2} />} title="Активные сборки" value={profilesCount} trend={activeProfileName} onClick={() => onNavigate('profiles')} />
           <StatCard icon={<ShieldAlert className={conflictsCount > 0 ? "text-amber-400" : "text-emerald-400"} size={20} strokeWidth={2} />} title="Проблемы и конфликты" value={conflictsCount} trend={conflictsCount > 0 ? "Обнаружены проблемы" : "Проблем не найдено"} onClick={() => onNavigate('conflicts')} />
           <StatCard icon={<Cpu className="text-indigo-400" size={20} strokeWidth={2} />} title="Выделено памяти" value={(ram >= 1024) ? (ram / 1024).toFixed(ram % 1024 === 0 ? 0 : 1) + " GB" : ram + " MB"} trend={ram < 3072 ? "Рекомендуется больше" : ram > 8192 ? "Слишком много" : "Оптимально"} onClick={() => onNavigate('settings', 'ram')} />
@@ -43,7 +43,7 @@ export default function HomeTab({
             title="Менеджер модов" 
             desc="Анализ зависимостей, фильтрация по типу и выявление конфликтов."
             onClick={() => onNavigate('mods')}
-            icon={<FolderTree size={24} className="mb-4 text-blue-400" strokeWidth={1.5} />}
+            icon={<FolderTree size={24} className="mb-4 text-violet-400" strokeWidth={1.5} />}
           />
           <QuickAction 
             title="Управление сборками" 
@@ -62,7 +62,7 @@ export default function HomeTab({
 
       {/* Right Sidebar for Skin Viewer */}
       <div className="w-80 h-full overflow-y-auto border-l border-zinc-800/40 bg-zinc-900/40 backdrop-blur-md flex-shrink-0 flex flex-col items-center py-10 px-6 relative z-20 shadow-2xl">
-        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-violet-500/5 to-transparent pointer-events-none"></div>
         
         {userProfile ? (
           <div className="flex flex-col items-center group relative z-10 w-full">
@@ -81,7 +81,7 @@ export default function HomeTab({
                     window.open('https://ely.by', '_blank');
                   }
                 }}
-                className="px-5 py-2 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 text-[10px] font-bold uppercase tracking-widest transition-colors border border-blue-500/30"
+                className="px-5 py-2 rounded-xl bg-violet-600/20 text-violet-400 hover:bg-violet-600/30 text-[10px] font-bold uppercase tracking-widest transition-colors border border-violet-500/30"
               >
                 Изменить скин (Ely.by)
               </button>
@@ -99,7 +99,7 @@ export default function HomeTab({
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-zinc-400">Последний запуск</span>
-                  <span className="text-blue-400 font-medium">
+                  <span className="text-violet-400 font-medium">
                     {activeProfile.stats.lastLaunchTime > 0 ? new Date(activeProfile.stats.lastLaunchTime).toLocaleString() : 'Никогда'}
                   </span>
                 </div>

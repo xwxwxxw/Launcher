@@ -193,7 +193,7 @@ export default function SkinViewer({ username, uuid, width = 200, height = 300 }
       <canvas ref={canvasRef} className="cursor-grab active:cursor-grabbing drop-shadow-[0_15px_15px_rgba(0,0,0,0.8)]" />
       
       {/* Visual shadow effect */}
-      <div className="absolute bottom-12 w-32 h-4 bg-blue-900/10 blur-[15px] rounded-[100%] scale-x-150 pointer-events-none"></div>
+      <div className="absolute bottom-12 w-32 h-4 bg-purple-900/10 blur-[15px] rounded-[100%] scale-x-150 pointer-events-none"></div>
 
       {/* Floating Modern HUD Controls */}
       <div className="mt-4 flex flex-col gap-3 w-full max-w-[240px] bg-zinc-950/60 border border-zinc-800/40 backdrop-blur-md p-3 rounded-2xl shadow-xl transition-all opacity-90 group-hover/viewer:opacity-100 group-hover/viewer:border-zinc-700/50">
@@ -207,7 +207,7 @@ export default function SkinViewer({ username, uuid, width = 200, height = 300 }
             onClick={() => setAutoRotate(!autoRotate)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${
               autoRotate 
-                ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
+                ? 'bg-purple-500/20 text-purple-400 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.15)]' 
                 : 'bg-zinc-900/50 text-zinc-400 border-zinc-800/50 hover:bg-zinc-800/50 hover:text-zinc-200'
             }`}
             title="Вращение скина"

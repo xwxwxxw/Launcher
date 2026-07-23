@@ -220,7 +220,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
               <p className="text-xs text-zinc-400/90 uppercase tracking-widest font-bold">
                 {loading ? 'Идет сканирование...' : `${getTitle()} • ${getSubTitleText()}`}
               </p>
-              {loading && <RefreshCw size={12} className="animate-spin text-blue-400" />}
+              {loading && <RefreshCw size={12} className="animate-spin text-violet-400" />}
             </div>
             
             <div className="flex flex-wrap items-center gap-4 mt-3">
@@ -287,7 +287,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
             <button 
               onClick={handleUpdateMods} 
               disabled={updating}
-              className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 hover:border-blue-500/30 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-blue-400 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 hover:border-violet-500/30 px-4 py-2.5 rounded-xl flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-violet-400 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <DownloadCloud size={14} className={updating ? 'animate-bounce' : ''} />
               <span>{updating ? 'Обновление...' : 'Обновить'}</span>
@@ -318,7 +318,7 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
               placeholder="Поиск по названию..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all placeholder:text-zinc-600 font-medium"
+              className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 outline-none transition-all placeholder:text-zinc-600 font-medium"
             />
           </div>
         </div>
@@ -327,11 +327,11 @@ export default function ModsTab({ onRefresh, globalGamePath, onOpenModrinth, pro
         {contentType === 'mods' && (
           <div className="flex items-center gap-2 flex-wrap">
             <FilterTag active={fWorldgen} onClick={() => setFWorldgen(!fWorldgen)} label="Генерация" color="text-red-400" dotColor="bg-red-400" />
-            <FilterTag active={fClient} onClick={() => setFClient(!fClient)} label="Клиент" color="text-blue-400" dotColor="bg-blue-400" />
+            <FilterTag active={fClient} onClick={() => setFClient(!fClient)} label="Клиент" color="text-violet-400" dotColor="bg-violet-400" />
             <FilterTag active={fServer} onClick={() => setFServer(!fServer)} label="Сервер" color="text-purple-400" dotColor="bg-purple-400" />
             <FilterTag active={fHeavy} onClick={() => setFHeavy(!fHeavy)} label="Тяжелые" color="text-amber-400" dotColor="bg-amber-400" />
             <FilterTag active={fLibrary} onClick={() => setFLibrary(!fLibrary)} label="Библиотеки" color="text-emerald-400" dotColor="bg-emerald-400" />
-            <FilterTag active={fOpt} onClick={() => setFOpt(!fOpt)} label="Оптимизация" color="text-cyan-400" dotColor="bg-cyan-400" />
+            <FilterTag active={fOpt} onClick={() => setFOpt(!fOpt)} label="Оптимизация" color="text-purple-400" dotColor="bg-purple-400" />
           </div>
         )}
       </div>
@@ -506,15 +506,15 @@ const ModCard: React.FC<{
           {contentType === 'mods' && (
             <>
               {mod.is_worldgen && <Badge label="Генерация" color="border-red-500/30 bg-red-500/10 text-red-400" />}
-              {mod.is_client && <Badge label="Клиент" color="border-blue-500/30 bg-blue-500/10 text-blue-400" />}
+              {mod.is_client && <Badge label="Клиент" color="border-violet-500/30 bg-violet-500/10 text-violet-400" />}
               {mod.is_server && <Badge label="Сервер" color="border-purple-500/30 bg-purple-500/10 text-purple-400" />}
               {mod.is_heavy && <Badge label="Тяжелый" color="border-amber-500/30 bg-amber-500/10 text-amber-400" />}
               {mod.is_library && <Badge label="Core/API" color="border-emerald-500/30 bg-emerald-500/10 text-emerald-400" />}
-              {mod.is_optimization && <Badge label="Опт" color="border-cyan-500/30 bg-cyan-500/10 text-cyan-400" />}
+              {mod.is_optimization && <Badge label="Опт" color="border-purple-500/30 bg-purple-500/10 text-purple-400" />}
             </>
           )}
           {contentType === 'resourcepacks' && <Badge label="Ресурспак" color="border-purple-500/30 bg-amber-500/10 text-amber-400" />}
-          {contentType === 'shaderpacks' && <Badge label="Шейдер" color="border-cyan-500/30 bg-cyan-500/10 text-cyan-400" />}
+          {contentType === 'shaderpacks' && <Badge label="Шейдер" color="border-purple-500/30 bg-purple-500/10 text-purple-400" />}
         </div>
 
         <p className="text-xs text-zinc-400 mb-5 line-clamp-2 leading-relaxed">
@@ -528,7 +528,7 @@ const ModCard: React.FC<{
                 Зависит от: <span className="text-zinc-300">{mod.depends?.length || 0}</span>
               </span>
             </div>
-            <button onClick={onShowDeps} className="text-[10px] uppercase tracking-widest font-bold text-blue-400 hover:text-blue-300 transition-colors">
+            <button onClick={onShowDeps} className="text-[10px] uppercase tracking-widest font-bold text-violet-400 hover:text-violet-300 transition-colors">
               Граф зависимостей
             </button>
           </div>
