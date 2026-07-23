@@ -199,7 +199,31 @@ ipcMain.handle('save-auth', (event, authData) => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(authPath, JSON.stringify(authData, null, 2), 'utf8');
+    if (authData && typeof authData === 'object' && authData.name) {
+      const authStr = JSON.stringify(authData, null, 2);
+      fs.writeFileSync(authPath, authStr, 'utf8');
+      fs.writeFileSync(oldAuthPath, authStr, 'utf8');
+
+      // Also ensure settings.json keeps ely_session synced in userData
+      try {
+        let settings = {};
+        if (fs.existsSync(settingsPath)) {
+          settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+        settings.ely_session = JSON.stringify(authData);
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+      } catch (err) {}
+    } else if (authData === null) {
+      if (fs.existsSync(authPath)) fs.unlinkSync(authPath);
+      if (fs.existsSync(oldAuthPath)) fs.unlinkSync(oldAuthPath);
+      try {
+        if (fs.existsSync(settingsPath)) {
+          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+          delete settings.ely_session;
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+        }
+      } catch (err) {}
+    }
     return true;
   } catch (e) {
     console.error('Failed to save auth to disk:', e);
@@ -210,12 +234,19 @@ ipcMain.handle('save-auth', (event, authData) => {
 ipcMain.handle('get-auth', () => {
   try {
     if (fs.existsSync(authPath)) {
-      const data = fs.readFileSync(authPath, 'utf8');
-      return JSON.parse(data);
+      const data = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+      if (data && data.name) return data;
     }
     if (fs.existsSync(oldAuthPath)) {
-      const data = fs.readFileSync(oldAuthPath, 'utf8');
-      return JSON.parse(data);
+      const data = JSON.parse(fs.readFileSync(oldAuthPath, 'utf8'));
+      if (data && data.name) return data;
+    }
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      if (settings && settings.ely_session) {
+        const parsed = typeof settings.ely_session === 'string' ? JSON.parse(settings.ely_session) : settings.ely_session;
+        if (parsed && parsed.name) return parsed;
+      }
     }
   } catch(e) {
     console.error('Failed to read auth:', e);
@@ -337,6 +368,10 @@ ipcMain.on('window-close', () => {
       app.quit();
     }
   }
+});
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
 });
 
 // 3. GitHub Updates

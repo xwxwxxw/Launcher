@@ -11,6 +11,13 @@ console.log('[Electron Preload] Environment variables injected into renderer con
 });
 
 contextBridge.exposeInMainWorld('electron', {
+  window: {
+    minimize: () => ipcRenderer.send('window-minimize'),
+    maximize: () => ipcRenderer.send('window-maximize'),
+    unmaximize: () => ipcRenderer.send('window-maximize'),
+    close: () => ipcRenderer.send('window-close'),
+    isMaximized: () => ipcRenderer.invoke('window-is-maximized')
+  },
   ipcRenderer: {
     send: (channel, data) => {
       let validChannels = ['window-minimize', 'window-maximize', 'window-close'];
@@ -19,7 +26,7 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     invoke: (channel, ...args) => {
-      let validChannels = ['check-updates', 'download-update', 'install-update', 'restart-launcher', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray'];
+      let validChannels = ['check-updates', 'download-update', 'install-update', 'restart-launcher', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray', 'window-is-maximized'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
       }

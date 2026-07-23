@@ -100,6 +100,18 @@ export default function App() {
   }, [showCustomToast]);
 
   useEffect(() => {
+    // Check backend session endpoint
+    fetch('/api/auth/session')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && data.profile) {
+          setUserProfile(data.profile);
+          const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
+          originalSetItem('ely_session', JSON.stringify(data.profile));
+        }
+      })
+      .catch(() => {});
+
     let electronCleanup: (() => void) | undefined = undefined;
 
     if (typeof window !== 'undefined' && (window as any).electron) {
@@ -144,7 +156,7 @@ export default function App() {
 
         // Listen for session-restore from Electron main process
         ipcRenderer.on('session-restore', (e: any, authData: any) => {
-          if (authData) {
+          if (authData && authData.name) {
             setUserProfile(authData);
             const originalSetItem = (localStorage as any).originalSetItem || localStorage.setItem.bind(localStorage);
             originalSetItem('ely_session', JSON.stringify(authData));
@@ -257,7 +269,11 @@ export default function App() {
 
   const handleMinimize = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
-      (window as any).electron.ipcRenderer.send('window-minimize');
+      if ((window as any).electron.window?.minimize) {
+        (window as any).electron.window.minimize();
+      } else if ((window as any).electron.ipcRenderer) {
+        (window as any).electron.ipcRenderer.send('window-minimize');
+      }
     } else {
       showCustomToast("Окно свернуто (эмуляция для браузера)");
     }
@@ -265,7 +281,11 @@ export default function App() {
 
   const handleMaximize = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
-      (window as any).electron.ipcRenderer.send('window-maximize');
+      if ((window as any).electron.window?.maximize) {
+        (window as any).electron.window.maximize();
+      } else if ((window as any).electron.ipcRenderer) {
+        (window as any).electron.ipcRenderer.send('window-maximize');
+      }
     } else {
       try {
         if (!document.fullscreenElement) {
@@ -293,7 +313,11 @@ export default function App() {
 
   const handleClose = () => {
     if (typeof window !== 'undefined' && (window as any).electron) {
-      (window as any).electron.ipcRenderer.send('window-close');
+      if ((window as any).electron.window?.close) {
+        (window as any).electron.window.close();
+      } else if ((window as any).electron.ipcRenderer) {
+        (window as any).electron.ipcRenderer.send('window-close');
+      }
     } else {
       showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
     }
@@ -1027,10 +1051,17 @@ export default function App() {
           localStorage.setItem('ely_session', JSON.stringify(profile));
           setShowAuthModal(false);
           
+          fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profile)
+          }).catch(() => {});
+
           if (typeof window !== 'undefined' && (window as any).electron) {
             try {
               const { ipcRenderer } = (window as any).electron;
               ipcRenderer.invoke('save-auth', profile).catch(() => {});
+              ipcRenderer.invoke('save-settings', { ely_session: JSON.stringify(profile) }).catch(() => {});
             } catch (e) {}
           }
           
@@ -1089,10 +1120,16 @@ export default function App() {
     setUserProfile(profile);
     localStorage.setItem('ely_session', JSON.stringify(profile));
     setShowAuthModal(false);
+    fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    }).catch(() => {});
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
         const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('save-auth', profile).catch(() => {});
+        ipcRenderer.invoke('save-settings', { ely_session: JSON.stringify(profile) }).catch(() => {});
       } catch (e) {}
     }
   };
@@ -1100,10 +1137,12 @@ export default function App() {
   const handleLogout = () => {
     setUserProfile(null);
     localStorage.removeItem('ely_session');
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
         const { ipcRenderer } = (window as any).electron;
         ipcRenderer.invoke('save-auth', null).catch(() => {});
+        ipcRenderer.invoke('delete-setting', 'ely_session').catch(() => {});
       } catch (e) {}
     }
   };
@@ -1519,7 +1558,11 @@ export default function App() {
           onClose={(didSyncSucceed) => {
             setShowSyncModal(false);
             if (didSyncSucceed) {
+              setGdriveUpdateAvailable(false);
+              fetchMods();
               handleSelectProfile(activeProfile.id);
+            } else if (activeProfile && (activeProfile.syncSource === 'gdrive' || activeProfile.id === 'GDSync')) {
+              checkGDriveUpdates(activeProfile);
             }
           }}
         />

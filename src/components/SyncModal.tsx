@@ -15,6 +15,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'syncing' | 'success' | 'error'>('syncing');
   const [errorMsg, setErrorMsg] = useState('');
+  const [successSummaryMsg, setSuccessSummaryMsg] = useState('');
   const [tagName, setTagName] = useState('');
   const logsEndRef = useRef<HTMLDivElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -59,6 +60,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
       setLogs(prev => [...prev, { msg: data.message, time: timeNow() }]);
       setProgress(100);
       setTagName(data.tag || 'latest');
+      setSuccessSummaryMsg(data.message || '');
       setStatus('success');
       gdsyncState.updateState({
         isSyncing: false,
@@ -200,10 +202,14 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
                 <CheckCircle2 size={36} />
               </div>
               <h4 className="text-emerald-400 font-bold text-center mb-2">Синхронизация завершена успешно!</h4>
-              <p className="text-xs text-zinc-400 text-center max-w-md mb-1">
-                Все моды и настройки сборки были успешно обновлены.
-              </p>
-              <p className="text-[10px] text-zinc-500 text-center">
+              {successSummaryMsg && (
+                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-4 py-2.5 my-2 text-center max-w-lg">
+                  <p className="text-xs font-bold text-emerald-200 leading-relaxed">
+                    {successSummaryMsg}
+                  </p>
+                </div>
+              )}
+              <p className="text-[10px] text-zinc-500 text-center mt-1">
                 Личные настройки (сервера, управление, синглплеерные миры) полностью сохранены.
               </p>
             </>

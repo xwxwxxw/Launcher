@@ -105,25 +105,39 @@ app.use('/api', (req, res, next) => {
 // Define standard directory for storing profiles and mods data
 const getStorageDir = () => {
   let baseDir = process.cwd();
-  let oldBaseDir = '';
+  let oldBaseDirs: string[] = [];
   if (process.env.APPDATA) {
-    baseDir = path.join(process.env.APPDATA, 'LayleLauncher');
-    oldBaseDir = path.join(process.env.APPDATA, 'MinecraftLauncher');
+    baseDir = path.join(process.env.APPDATA, 'layle-launcher');
+    oldBaseDirs = [
+      path.join(process.env.APPDATA, 'LayleLauncher'),
+      path.join(process.env.APPDATA, 'MinecraftLauncher')
+    ];
   } else if (process.platform === 'darwin') {
-    baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'LayleLauncher');
-    oldBaseDir = path.join(os.homedir(), 'Library', 'Application Support', 'MinecraftLauncher');
+    baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'layle-launcher');
+    oldBaseDirs = [
+      path.join(os.homedir(), 'Library', 'Application Support', 'LayleLauncher'),
+      path.join(os.homedir(), 'Library', 'Application Support', 'MinecraftLauncher')
+    ];
   } else {
-    baseDir = path.join(os.homedir(), '.LayleLauncher');
-    oldBaseDir = path.join(os.homedir(), '.MinecraftLauncher');
+    baseDir = path.join(os.homedir(), '.layle-launcher');
+    oldBaseDirs = [
+      path.join(os.homedir(), '.LayleLauncher'),
+      path.join(os.homedir(), '.MinecraftLauncher')
+    ];
   }
 
   // Migrate old directory if exists
-  if (!fs.existsSync(baseDir) && oldBaseDir && fs.existsSync(oldBaseDir)) {
-    try {
-      fs.renameSync(oldBaseDir, baseDir);
-      console.log(`Migrated storage folder from ${oldBaseDir} to ${baseDir}`);
-    } catch (e) {
-      console.error('Failed to migrate launcher directory:', e);
+  if (!fs.existsSync(baseDir)) {
+    for (const oldDir of oldBaseDirs) {
+      if (fs.existsSync(oldDir)) {
+        try {
+          fs.renameSync(oldDir, baseDir);
+          console.log(`Migrated storage folder from ${oldDir} to ${baseDir}`);
+          break;
+        } catch (e) {
+          console.error('Failed to migrate launcher directory:', e);
+        }
+      }
     }
   }
 
@@ -606,17 +620,10 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
       }
 
       const outPath = path.resolve(profileDir, targetRelPath);
-      if (!fs.existsSync(outPath)) {
+      if (!isLocalFileIdentical(outPath, file.size, file.md5Checksum)) {
         updateAvailable = true;
-        details.push(`Missing: ${targetRelPath}`);
+        details.push(`Modified or missing: ${targetRelPath}`);
         break;
-      } else {
-        const stats = fs.statSync(outPath);
-        if (file.size && parseInt(file.size) !== stats.size) {
-          updateAvailable = true;
-          details.push(`Modified: ${targetRelPath}`);
-          break;
-        }
       }
     }
 
@@ -1020,6 +1027,25 @@ app.get('/api/sync-build', async (req, res) => {
         }
       }
 
+      // Calculate total mods currently in profile
+      let totalModsInProfile = 0;
+      const finalModsFolder = path.join(profileDir, 'mods');
+      if (fs.existsSync(finalModsFolder)) {
+        const countMods = (dirPath: string): number => {
+          let cnt = 0;
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              cnt += countMods(path.join(dirPath, entry.name));
+            } else if (entry.isFile() && (entry.name.endsWith('.jar') || entry.name.endsWith('.jar.disabled'))) {
+              cnt++;
+            }
+          }
+          return cnt;
+        };
+        totalModsInProfile = countMods(finalModsFolder);
+      }
+
       if (downloadedCount === 0 && itemsToDownload.length > 0 && failedFiles.length > 0) {
         sendEvent('error', { message: `Не удалось загрузить файлы (${failedFiles[0].error}). Проверьте подключение к Google Диску.` });
         return res.end();
@@ -1027,20 +1053,20 @@ app.get('/api/sync-build', async (req, res) => {
 
       if (failedFiles.length > 0) {
         sendEvent('status', { 
-          message: `Синхронизация завершена с предупреждениями! Загружено: ${downloadedCount}, актуально: ${skippedCount}, ошибок: ${failedFiles.length}.`, 
+          message: `Синхронизация завершена! Всего модов в сборке: ${totalModsInProfile}. Загружено: ${downloadedCount}, актуально: ${skippedCount}, ошибок: ${failedFiles.length}.`, 
           progress: 98 
         });
         failedFiles.slice(0, 5).forEach(f => {
           sendEvent('status', { message: `• Ошибка ${f.name}: ${f.error}` });
         });
         sendEvent('success', { 
-          message: `Синхронизация завершена (обновлено: ${downloadedCount}, без изменений: ${skippedCount}). Пропущено с ошибками: ${failedFiles.length}.`, 
+          message: `Синхронизация завершена! Всего модов в сборке: ${totalModsInProfile} (обновлено: ${downloadedCount}, без изменений: ${skippedCount}, с ошибками: ${failedFiles.length}).`, 
           tag: 'Google Drive' 
         });
       } else {
         const summaryMsg = downloadedCount > 0 
-          ? `Сборка обновлена! Скачано файлов: ${downloadedCount}, без изменений: ${skippedCount}.`
-          : `Сборка в актуальном состоянии! Проверено файлов: ${skippedCount}.`;
+          ? `Сборка обновлена! Всего модов в сборке: ${totalModsInProfile} (скачано: ${downloadedCount}, без изменений: ${skippedCount}).`
+          : `Сборка в актуальном состоянии! Всего модов в сборке: ${totalModsInProfile} (проверено: ${skippedCount}).`;
         sendEvent('success', { message: summaryMsg, tag: 'Google Drive' });
       }
       return res.end();
@@ -1856,8 +1882,84 @@ const handleElyCallback = async (req, res) => {
 app.get('/api/auth/ely/callback', handleElyCallback);
 app.get('/api/auth/ely/callback/', handleElyCallback);
 
+const SESSION_FILE = path.join(DATA_DIR, 'session', 'auth.json');
+const SESSION_FILE_ALT = path.join(DATA_DIR, 'auth.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+
+app.get('/api/auth/session', (req, res) => {
+  try {
+    if (fs.existsSync(SESSION_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+      if (data && data.name) return res.json({ success: true, profile: data });
+    }
+    if (fs.existsSync(SESSION_FILE_ALT)) {
+      const data = JSON.parse(fs.readFileSync(SESSION_FILE_ALT, 'utf-8'));
+      if (data && data.name) return res.json({ success: true, profile: data });
+    }
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+      if (settings && settings.ely_session) {
+        const parsed = typeof settings.ely_session === 'string' ? JSON.parse(settings.ely_session) : settings.ely_session;
+        if (parsed && parsed.name) return res.json({ success: true, profile: parsed });
+      }
+    }
+  } catch (e) {}
+  return res.json({ success: false });
+});
+
+app.post('/api/auth/session', express.json(), (req, res) => {
+  try {
+    const profile = req.body;
+    if (profile && profile.name) {
+      const dir = path.dirname(SESSION_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const str = JSON.stringify(profile, null, 2);
+      fs.writeFileSync(SESSION_FILE, str, 'utf-8');
+      fs.writeFileSync(SESSION_FILE_ALT, str, 'utf-8');
+
+      try {
+        let settings: any = {};
+        if (fs.existsSync(SETTINGS_FILE)) {
+          settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+        }
+        settings.ely_session = JSON.stringify(profile);
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+      } catch (err) {}
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.delete('/api/auth/session', (req, res) => {
+  try {
+    if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+    if (fs.existsSync(SESSION_FILE_ALT)) fs.unlinkSync(SESSION_FILE_ALT);
+    try {
+      if (fs.existsSync(SETTINGS_FILE)) {
+        const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+        delete settings.ely_session;
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+      }
+    } catch (err) {}
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 app.post('/api/auth/ely/success', express.json(), (req, res) => {
   pendingElyAuth = req.body;
+  if (req.body && req.body.name) {
+    try {
+      const dir = path.dirname(SESSION_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const str = JSON.stringify(req.body, null, 2);
+      fs.writeFileSync(SESSION_FILE, str, 'utf-8');
+      fs.writeFileSync(SESSION_FILE_ALT, str, 'utf-8');
+    } catch (e) {}
+  }
   res.json({ success: true });
 });
 
