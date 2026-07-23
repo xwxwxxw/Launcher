@@ -79,7 +79,7 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         return;
       }
 
-      if (platform !== 'win32') {
+      if (platform !== 'win32' || !ipcRenderer || typeof ipcRenderer.invoke !== 'function') {
         setStatus('downloading');
         try {
           if (shell) {

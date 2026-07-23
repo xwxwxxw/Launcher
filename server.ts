@@ -672,16 +672,30 @@ async function downloadSingleGDriveFile(
   outPath: string,
   maxAttempts = 4
 ): Promise<{ success: boolean; error?: string }> {
-  let fileUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-  const headers: Record<string, string> = {
+  let primaryUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  const isKey = isApiKey(accessToken);
+
+  if (isKey) {
+    primaryUrl += `&key=${accessToken}`;
+  }
+
+  const primaryHeaders: Record<string, string> = {
     'User-Agent': 'Layle-Minecraft-Launcher'
   };
 
-  if (isApiKey(accessToken)) {
-    fileUrl += `&key=${accessToken}`;
-  } else {
-    headers.Authorization = `Bearer ${accessToken}`;
+  if (!isKey) {
+    primaryHeaders.Authorization = `Bearer ${accessToken}`;
   }
+
+  const fallbackUrls = [
+    `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+    `https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`,
+    `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`
+  ];
+
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  };
 
   let lastError = '';
   const tempPath = `${outPath}.tmp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -693,42 +707,76 @@ async function downloadSingleGDriveFile(
         await new Promise(res => setTimeout(res, delayMs));
       }
 
-      const fileRes = await fetch(fileUrl, { headers });
-
-      if (!fileRes.ok) {
-        let details = '';
-        try {
-          const errText = await fileRes.text();
-          if (errText) {
-            const parsed = JSON.parse(errText);
-            if (parsed.error && parsed.error.message) {
-              details = `: ${parsed.error.message}`;
-            }
-          }
-        } catch (_) {}
-
-        lastError = `HTTP ${fileRes.status}${details}`;
-
-        if ((fileRes.status === 403 || fileRes.status === 429 || fileRes.status >= 500) && attempt < maxAttempts) {
-          console.warn(`[GDrive Sync] File '${fileName}' attempt ${attempt}/${maxAttempts} failed (${lastError}). Retrying...`);
-          continue;
-        }
-
-        return { success: false, error: lastError };
+      // If using API Key, try primary Google Drive API v3 endpoint first, but quickly fall back to direct UC links if 403/error
+      const urlsToTry: { url: string; headers: Record<string, string> }[] = [];
+      if (!isKey) {
+        urlsToTry.push({ url: primaryUrl, headers: primaryHeaders });
+        fallbackUrls.forEach(f => urlsToTry.push({ url: f, headers: browserHeaders }));
+      } else {
+        // With API Key, API v3 alt=media usually throws 403 on Google Drive, so prefer UC fallback direct links first
+        fallbackUrls.forEach(f => urlsToTry.push({ url: f, headers: browserHeaders }));
+        urlsToTry.push({ url: primaryUrl, headers: primaryHeaders });
       }
 
-      const arrayBuffer = await fileRes.arrayBuffer();
-      fs.writeFileSync(tempPath, Buffer.from(arrayBuffer));
-      fs.renameSync(tempPath, outPath);
-      return { success: true };
+      for (const target of urlsToTry) {
+        try {
+          const fileRes = await fetch(target.url, { headers: target.headers, redirect: 'follow' as any });
+
+          if (!fileRes.ok) {
+            let details = '';
+            try {
+              const errText = await fileRes.text();
+              if (errText) {
+                const parsed = JSON.parse(errText);
+                if (parsed.error && parsed.error.message) {
+                  details = `: ${parsed.error.message}`;
+                }
+              }
+            } catch (_) {}
+            lastError = `HTTP ${fileRes.status}${details}`;
+            continue; // try next URL in fallback list
+          }
+
+          const arrayBuffer = await fileRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          // Check if Google Drive returned an HTML warning/confirm page instead of binary content
+          const contentType = fileRes.headers.get('content-type') || '';
+          if (contentType.includes('text/html') || (buffer.length < 60000 && buffer.toString('utf-8').includes('<!DOCTYPE html>'))) {
+            const html = buffer.toString('utf-8');
+            const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/) || html.match(/confirm=([a-zA-Z0-9_-]+)/);
+            if (confirmMatch && confirmMatch[1]) {
+              const confirmUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirmMatch[1]}`;
+              const confirmRes = await fetch(confirmUrl, { headers: browserHeaders, redirect: 'follow' as any });
+              if (confirmRes.ok) {
+                const confirmBuf = Buffer.from(await confirmRes.arrayBuffer());
+                if (!confirmBuf.toString('utf-8').includes('<!DOCTYPE html>')) {
+                  fs.writeFileSync(tempPath, confirmBuf);
+                  fs.renameSync(tempPath, outPath);
+                  return { success: true };
+                }
+              }
+            }
+            lastError = 'Google Drive returned HTML confirmation page instead of file';
+            continue; // try next candidate URL
+          }
+
+          fs.writeFileSync(tempPath, buffer);
+          fs.renameSync(tempPath, outPath);
+          return { success: true };
+        } catch (innerErr: any) {
+          lastError = innerErr.message || 'Error fetching URL';
+        }
+      }
+
+      if (attempt < maxAttempts) {
+        console.warn(`[GDrive Sync] File '${fileName}' attempt ${attempt}/${maxAttempts} failed (${lastError}). Retrying...`);
+      }
     } catch (err: any) {
       if (fs.existsSync(tempPath)) {
         try { fs.unlinkSync(tempPath); } catch (_) {}
       }
       lastError = err.message || 'Сетевая ошибка';
-      if (attempt < maxAttempts) {
-        console.warn(`[GDrive Sync] File '${fileName}' attempt ${attempt}/${maxAttempts} threw error: ${lastError}. Retrying...`);
-      }
     }
   }
 

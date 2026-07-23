@@ -10,6 +10,40 @@ console.log('[Electron Preload] Environment variables injected into renderer con
   VITE_GITHUB_REPO: githubRepo
 });
 
+const ipcRendererWrapper = {
+  send: (channel, data) => {
+    let validChannels = ['window-minimize', 'window-maximize', 'window-close'];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    }
+  },
+  invoke: (channel, ...args) => {
+    let validChannels = ['check-updates', 'download-update', 'install-update', 'restart-launcher', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray', 'window-is-maximized'];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+  },
+  on: (channel, func) => {
+    let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
+    if (validChannels.includes(channel)) {
+      // Deliberately strip event as it includes `sender` 
+      ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
+    }
+  },
+  once: (channel, func) => {
+      let validChannels = ['auth-success', 'update-progress'];
+      if (validChannels.includes(channel)) {
+          ipcRenderer.once(channel, (event, ...args) => func(event, ...args));
+      }
+  },
+  removeAllListeners: (channel) => {
+    let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeAllListeners(channel);
+    }
+  }
+};
+
 contextBridge.exposeInMainWorld('electron', {
   window: {
     minimize: () => ipcRenderer.send('window-minimize'),
@@ -18,39 +52,7 @@ contextBridge.exposeInMainWorld('electron', {
     close: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized')
   },
-  ipcRenderer: {
-    send: (channel, data) => {
-      let validChannels = ['window-minimize', 'window-maximize', 'window-close'];
-      if (validChannels.includes(channel)) {
-        ipcRenderer.send(channel, data);
-      }
-    },
-    invoke: (channel, ...args) => {
-      let validChannels = ['check-updates', 'download-update', 'install-update', 'restart-launcher', 'delete-file', 'select-folder', 'open-dev-tools', 'elyLogin', 'microsoftLogin', 'get-app-version', 'get-auth', 'save-auth', 'save-settings', 'get-settings', 'delete-setting', 'select-directory', 'open-path', 'set-autostart', 'set-minimize-to-tray', 'window-is-maximized'];
-      if (validChannels.includes(channel)) {
-        return ipcRenderer.invoke(channel, ...args);
-      }
-    },
-    on: (channel, func) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
-      if (validChannels.includes(channel)) {
-        // Deliberately strip event as it includes `sender` 
-        ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
-      }
-    },
-    once: (channel, func) => {
-        let validChannels = ['auth-success', 'update-progress'];
-        if (validChannels.includes(channel)) {
-            ipcRenderer.once(channel, (event, ...args) => func(event, ...args));
-        }
-    },
-    removeAllListeners: (channel) => {
-      let validChannels = ['session-restore', 'show-auth-modal', 'auth-success', 'update-progress', 'window-maximized', 'window-unmaximized'];
-      if (validChannels.includes(channel)) {
-        ipcRenderer.removeAllListeners(channel);
-      }
-    }
-  },
+  ipcRenderer: ipcRendererWrapper,
   shell: {
     openPath: (path) => shell.openPath(path),
     showItemInFolder: (path) => shell.showItemInFolder(path),
@@ -76,3 +78,5 @@ contextBridge.exposeInMainWorld('electron', {
     }
   }
 });
+
+contextBridge.exposeInMainWorld('ipcRenderer', ipcRendererWrapper);
