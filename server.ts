@@ -636,7 +636,96 @@ interface GDriveFile {
   name: string;
   mimeType: string;
   size?: string;
+  md5Checksum?: string;
   relativePath: string;
+}
+
+function isLocalFileIdentical(outPath: string, expectedSize?: string, expectedMd5?: string): boolean {
+  if (!fs.existsSync(outPath)) return false;
+  try {
+    const stat = fs.statSync(outPath);
+    if (expectedSize && stat.size !== parseInt(expectedSize, 10)) {
+      return false;
+    }
+    if (expectedMd5) {
+      const fileBuffer = fs.readFileSync(outPath);
+      const actualMd5 = crypto.createHash('md5').update(fileBuffer).digest('hex').toLowerCase();
+      return actualMd5 === expectedMd5.toLowerCase();
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function downloadSingleGDriveFile(
+  fileId: string,
+  fileName: string,
+  accessToken: string,
+  outPath: string,
+  maxAttempts = 4
+): Promise<{ success: boolean; error?: string }> {
+  let fileUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  const headers: Record<string, string> = {
+    'User-Agent': 'Layle-Minecraft-Launcher'
+  };
+
+  if (isApiKey(accessToken)) {
+    fileUrl += `&key=${accessToken}`;
+  } else {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  let lastError = '';
+  const tempPath = `${outPath}.tmp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (attempt > 1) {
+        const delayMs = Math.min(400 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 300), 5000);
+        await new Promise(res => setTimeout(res, delayMs));
+      }
+
+      const fileRes = await fetch(fileUrl, { headers });
+
+      if (!fileRes.ok) {
+        let details = '';
+        try {
+          const errText = await fileRes.text();
+          if (errText) {
+            const parsed = JSON.parse(errText);
+            if (parsed.error && parsed.error.message) {
+              details = `: ${parsed.error.message}`;
+            }
+          }
+        } catch (_) {}
+
+        lastError = `HTTP ${fileRes.status}${details}`;
+
+        if ((fileRes.status === 403 || fileRes.status === 429 || fileRes.status >= 500) && attempt < maxAttempts) {
+          console.warn(`[GDrive Sync] File '${fileName}' attempt ${attempt}/${maxAttempts} failed (${lastError}). Retrying...`);
+          continue;
+        }
+
+        return { success: false, error: lastError };
+      }
+
+      const arrayBuffer = await fileRes.arrayBuffer();
+      fs.writeFileSync(tempPath, Buffer.from(arrayBuffer));
+      fs.renameSync(tempPath, outPath);
+      return { success: true };
+    } catch (err: any) {
+      if (fs.existsSync(tempPath)) {
+        try { fs.unlinkSync(tempPath); } catch (_) {}
+      }
+      lastError = err.message || 'Сетевая ошибка';
+      if (attempt < maxAttempts) {
+        console.warn(`[GDrive Sync] File '${fileName}' attempt ${attempt}/${maxAttempts} threw error: ${lastError}. Retrying...`);
+      }
+    }
+  }
+
+  return { success: false, error: lastError };
 }
 
 async function listGDriveFolder(folderId: string, accessToken: string, currentPath = ''): Promise<GDriveFile[]> {
@@ -645,7 +734,7 @@ async function listGDriveFolder(folderId: string, accessToken: string, currentPa
 
   do {
     const q = `'${folderId}' in parents and trashed = false`;
-    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=1000` + (pageToken ? `&pageToken=${pageToken}` : '');
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,md5Checksum)&pageSize=1000` + (pageToken ? `&pageToken=${pageToken}` : '');
     
     const headers: any = {};
     if (isApiKey(accessToken)) {
@@ -676,6 +765,7 @@ async function listGDriveFolder(folderId: string, accessToken: string, currentPa
             name: file.name,
             mimeType: file.mimeType,
             size: file.size,
+            md5Checksum: file.md5Checksum,
             relativePath: fileRelativePath
           });
         }
@@ -815,25 +905,15 @@ app.get('/api/sync-build', async (req, res) => {
       const rootHasJar = files.some(f => !f.relativePath.includes('/') && f.name.endsWith('.jar'));
       const hasModsFolder = files.some(f => f.relativePath.startsWith('mods/'));
 
-      sendEvent('status', { message: 'Очистка папки модов перед синхронизацией...', progress: 20 });
-      
-      // Clean up local mods directory if syncing mods directly or via subfolder
-      if (rootHasJar || hasModsFolder) {
-        const modsDir = path.join(profileDir, 'mods');
-        if (fs.existsSync(modsDir)) {
-          const existingFiles = fs.readdirSync(modsDir);
-          for (const file of existingFiles) {
-            if (file.endsWith('.jar') || file.endsWith('.jar.disabled')) {
-              fs.unlinkSync(path.join(modsDir, file));
-            }
-          }
-        } else {
-          fs.mkdirSync(modsDir, { recursive: true });
-        }
-      }
+      sendEvent('status', { message: 'Анализ файлов и проверка версии...', progress: 20 });
 
       let downloadedCount = 0;
-      const limit = 15; // Concurrency limit
+      let skippedCount = 0;
+      let completedCount = 0;
+      const failedFiles: { name: string; error: string }[] = [];
+      const CONCURRENCY = 5;
+      const expectedLocalPaths = new Set<string>();
+
       const binaryFiles = files.filter(f => !f.mimeType.startsWith('application/vnd.google-apps.'));
 
       if (binaryFiles.length === 0) {
@@ -841,61 +921,128 @@ app.get('/api/sync-build', async (req, res) => {
         return res.end();
       }
 
-      sendEvent('status', { message: `Найдено ${binaryFiles.length} файлов. Начинается загрузка...`, progress: 25 });
+      // Map file items and resolve target output paths
+      const itemsToProcess = binaryFiles.map(file => {
+        let targetRelPath = file.relativePath;
+        if (rootHasJar) {
+          targetRelPath = 'mods/' + file.relativePath;
+        }
 
-      for (let i = 0; i < binaryFiles.length; i += limit) {
-        const chunk = binaryFiles.slice(i, i + limit);
-        await Promise.all(chunk.map(async (file) => {
-          let targetRelPath = file.relativePath;
-          if (rootHasJar) {
-            targetRelPath = 'mods/' + file.relativePath;
-          }
+        const cloudSyncMatch = targetRelPath.match(/^(CloudSync|Cloud_Sync|Cloud\s+Sync)\//i);
+        if (cloudSyncMatch) {
+          targetRelPath = targetRelPath.substring(cloudSyncMatch[0].length);
+        }
 
-          // Clean up CloudSync prefix if any
-          const cloudSyncMatch = targetRelPath.match(/^(CloudSync|Cloud_Sync|Cloud\s+Sync)\//i);
-          if (cloudSyncMatch) {
-            targetRelPath = targetRelPath.substring(cloudSyncMatch[0].length);
-          }
+        const resPackMatch = targetRelPath.match(/^(resoursepacks?|resourcepack)\//i);
+        if (resPackMatch) {
+          targetRelPath = 'resourcepacks/' + targetRelPath.substring(resPackMatch[0].length);
+        }
 
-          const resPackMatch = targetRelPath.match(/^(resoursepacks?|resourcepack)\//i);
-          if (resPackMatch) {
-            targetRelPath = 'resourcepacks/' + targetRelPath.substring(resPackMatch[0].length);
-          }
+        const outPath = path.resolve(profileDir, targetRelPath);
+        if (isPathSafe(outPath, mcPath)) {
+          expectedLocalPaths.add(path.normalize(outPath));
+        }
 
-          const outPath = path.resolve(profileDir, targetRelPath);
-          if (!isPathSafe(outPath, mcPath)) {
-            return;
-          }
+        return { file, targetRelPath, outPath };
+      }).filter(item => isPathSafe(item.outPath, mcPath));
 
-          const parentDir = path.dirname(outPath);
-          if (!fs.existsSync(parentDir)) {
-            fs.mkdirSync(parentDir, { recursive: true });
-          }
+      // Check existing local files for exact size/MD5 match (incremental sync)
+      const itemsToDownload: typeof itemsToProcess = [];
 
-          let fileUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-          const headers: any = {};
-          if (isApiKey(resolvedToken)) {
-            fileUrl += `&key=${resolvedToken}`;
-          } else {
-            headers.Authorization = `Bearer ${resolvedToken}`;
-          }
-
-          const fileRes = await fetch(fileUrl, { headers });
-
-          if (!fileRes.ok) {
-            throw new Error(`Ошибка скачивания ${file.name}: HTTP ${fileRes.status}`);
-          }
-
-          const arrayBuffer = await fileRes.arrayBuffer();
-          fs.writeFileSync(outPath, Buffer.from(arrayBuffer));
-
-          downloadedCount++;
-          const progressPercent = Math.round(25 + 70 * (downloadedCount / binaryFiles.length));
-          sendEvent('status', { message: `Успешно загружен: ${targetRelPath}`, progress: progressPercent });
-        }));
+      for (const item of itemsToProcess) {
+        if (isLocalFileIdentical(item.outPath, item.file.size, item.file.md5Checksum)) {
+          skippedCount++;
+          completedCount++;
+          const progressPercent = Math.round(20 + 75 * (completedCount / itemsToProcess.length));
+          sendEvent('status', { message: `Уже актуален (пропущен): ${item.targetRelPath}`, progress: progressPercent });
+        } else {
+          itemsToDownload.push(item);
+        }
       }
 
-      sendEvent('success', { message: 'Сборка успешно синхронизирована с Google Диском!', tag: 'Google Drive' });
+      if (skippedCount > 0 && itemsToDownload.length === 0) {
+        sendEvent('status', { message: `Все ${skippedCount} файлов уже актуальны и проверены!`, progress: 95 });
+      } else if (itemsToDownload.length > 0) {
+        sendEvent('status', { 
+          message: `Скачивание ${itemsToDownload.length} обновленных файлов (${skippedCount} уже актуальны)...`, 
+          progress: Math.round(20 + 75 * (completedCount / itemsToProcess.length)) 
+        });
+
+        let queueIndex = 0;
+        const worker = async () => {
+          while (queueIndex < itemsToDownload.length) {
+            const idx = queueIndex++;
+            const item = itemsToDownload[idx];
+
+            const parentDir = path.dirname(item.outPath);
+            if (!fs.existsSync(parentDir)) {
+              fs.mkdirSync(parentDir, { recursive: true });
+            }
+
+            const dlRes = await downloadSingleGDriveFile(item.file.id, item.file.name, resolvedToken, item.outPath, 4);
+
+            completedCount++;
+            const progressPercent = Math.round(20 + 75 * (completedCount / itemsToProcess.length));
+
+            if (dlRes.success) {
+              downloadedCount++;
+              sendEvent('status', { message: `Загружен: ${item.targetRelPath}`, progress: progressPercent });
+            } else {
+              failedFiles.push({ name: item.file.name, error: dlRes.error || 'Ошибка скачивания' });
+              sendEvent('status', { message: `⚠️ Пропущен файл: ${item.file.name} (${dlRes.error})`, progress: progressPercent });
+            }
+          }
+        };
+
+        const workers = Array.from({ length: Math.min(CONCURRENCY, itemsToDownload.length) }, () => worker());
+        await Promise.all(workers);
+      }
+
+      // Safe post-sync cleanup of orphaned local mods (mods no longer on Google Drive)
+      if (rootHasJar || hasModsFolder) {
+        const modsDir = path.join(profileDir, 'mods');
+        if (fs.existsSync(modsDir)) {
+          const removeOrphans = (dirPath: string) => {
+            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+              const fullPath = path.join(dirPath, entry.name);
+              if (entry.isDirectory()) {
+                removeOrphans(fullPath);
+              } else if (entry.isFile() && (entry.name.endsWith('.jar') || entry.name.endsWith('.jar.disabled'))) {
+                if (!expectedLocalPaths.has(path.normalize(fullPath))) {
+                  console.log('[GDrive Sync] Cleaned up obsolete local mod:', entry.name);
+                  try { fs.unlinkSync(fullPath); } catch (_) {}
+                }
+              }
+            }
+          };
+          removeOrphans(modsDir);
+        }
+      }
+
+      if (downloadedCount === 0 && itemsToDownload.length > 0 && failedFiles.length > 0) {
+        sendEvent('error', { message: `Не удалось загрузить файлы (${failedFiles[0].error}). Проверьте подключение к Google Диску.` });
+        return res.end();
+      }
+
+      if (failedFiles.length > 0) {
+        sendEvent('status', { 
+          message: `Синхронизация завершена с предупреждениями! Загружено: ${downloadedCount}, актуально: ${skippedCount}, ошибок: ${failedFiles.length}.`, 
+          progress: 98 
+        });
+        failedFiles.slice(0, 5).forEach(f => {
+          sendEvent('status', { message: `• Ошибка ${f.name}: ${f.error}` });
+        });
+        sendEvent('success', { 
+          message: `Синхронизация завершена (обновлено: ${downloadedCount}, без изменений: ${skippedCount}). Пропущено с ошибками: ${failedFiles.length}.`, 
+          tag: 'Google Drive' 
+        });
+      } else {
+        const summaryMsg = downloadedCount > 0 
+          ? `Сборка обновлена! Скачано файлов: ${downloadedCount}, без изменений: ${skippedCount}.`
+          : `Сборка в актуальном состоянии! Проверено файлов: ${skippedCount}.`;
+        sendEvent('success', { message: summaryMsg, tag: 'Google Drive' });
+      }
       return res.end();
     }
 

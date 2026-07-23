@@ -397,99 +397,85 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
   try {
     const tempDir = app.getPath('temp') || os.tmpdir();
     const tempPath = path.join(tempDir, `layle-launcher-update-${Date.now()}.exe`);
+    const logPath = path.join(tempDir, `layle-update-log-${Date.now()}.txt`);
+
+    console.log('[Update] Starting automated download from:', assetUrl);
+
+    // Stream download using native fetch (Node 18+) with redirect follow
+    const response = await fetch(assetUrl, {
+      headers: {
+        'User-Agent': 'Layle-Minecraft-Launcher'
+      },
+      redirect: 'follow'
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub download failed: HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
+    const fileStream = fs.createWriteStream(tempPath);
     
-    const downloadFile = (url, dest) => {
-      return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(dest);
-        const protocol = url.startsWith('https') ? https : require('http');
-        
-        const request = protocol.get(url, {
-          headers: { 'User-Agent': 'Minecraft-Launcher' }
-        }, (response) => {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            file.close();
-            fs.unlink(dest, () => {});
-            downloadFile(response.headers.location, dest).then(resolve).catch(reject);
-            return;
-          }
-          
-          if (response.statusCode !== 200) {
-            file.close();
-            fs.unlink(dest, () => {});
-            return reject(new Error(`Не удалось скачать файл: HTTP ${response.statusCode}`));
-          }
+    const reader = response.body.getReader();
+    let downloadedBytes = 0;
+    const startTime = Date.now();
 
-          const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
-          let downloaded = 0;
-          const startTime = Date.now();
-          
-          response.on('data', (chunk) => {
-            downloaded += chunk.length;
-            const elapsedSec = Math.max(0.1, (Date.now() - startTime) / 1000);
-            const speedMBs = (downloaded / (1024 * 1024)) / elapsedSec;
-            const percent = totalBytes > 0 ? Math.min(100, Math.round((downloaded / totalBytes) * 100)) : 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-            event.sender.send('update-progress', {
-              percent,
-              downloadedBytes: downloaded,
-              totalBytes,
-              speedMBs: parseFloat(speedMBs.toFixed(2))
-            });
-          });
-          
-          response.pipe(file);
-          
-          file.on('finish', () => {
-            file.close(resolve);
-          });
+      downloadedBytes += value.length;
+      fileStream.write(Buffer.from(value));
 
-          file.on('error', (err) => {
-            file.close();
-            fs.unlink(dest, () => {});
-            reject(err);
-          });
-        });
-        
-        request.on('error', (err) => {
-          file.close();
-          fs.unlink(dest, () => {});
-          reject(err);
-        });
+      const elapsedSec = Math.max(0.1, (Date.now() - startTime) / 1000);
+      const speedMBs = (downloadedBytes / (1024 * 1024)) / elapsedSec;
+      const percent = totalBytes > 0 ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : 0;
+
+      event.sender.send('update-progress', {
+        percent,
+        downloadedBytes,
+        totalBytes,
+        speedMBs: parseFloat(speedMBs.toFixed(2))
       });
-    };
+    }
 
-    const downloadText = async (url) => {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Minecraft-Launcher' }
-      });
-      if (!response.ok) {
-        throw new Error(`Не удалось получить данные: HTTP ${response.status} ${response.statusText}`);
-      }
-      return await response.text();
-    };
+    await new Promise((resolve, reject) => {
+      fileStream.end(() => resolve());
+      fileStream.on('error', (err) => reject(err));
+    });
 
-    await downloadFile(assetUrl, tempPath);
+    console.log('[Update] Download complete. Temp path:', tempPath, 'Size:', fs.statSync(tempPath).size);
 
     if (sha256AssetUrl) {
       try {
-        const shaText = await downloadText(sha256AssetUrl);
-        const expectedSha = shaText.split(' ')[0].trim().toLowerCase();
-        
-        const hash = crypto.createHash('sha256');
-        const fileBuffer = fs.readFileSync(tempPath);
-        hash.update(fileBuffer);
-        const actualSha = hash.digest('hex').toLowerCase();
-        
-        if (expectedSha && actualSha !== expectedSha) {
-          return { success: false, error: 'Ошибка проверки целостности файла (SHA256 mismatch)' };
+        const shaRes = await fetch(sha256AssetUrl, {
+          headers: { 'User-Agent': 'Layle-Minecraft-Launcher' },
+          redirect: 'follow'
+        });
+        if (shaRes.ok) {
+          const shaText = await shaRes.text();
+          const expectedSha = shaText.split(' ')[0].trim().toLowerCase();
+          const fileBuffer = fs.readFileSync(tempPath);
+          const actualSha = crypto.createHash('sha256').update(fileBuffer).digest('hex').toLowerCase();
+
+          if (expectedSha && actualSha !== expectedSha) {
+            fs.writeFileSync(logPath, `SHA256 mismatch!\nExpected: ${expectedSha}\nActual: ${actualSha}\nTime: ${new Date().toISOString()}`);
+            return { success: false, error: 'Ошибка проверки целостности файла (SHA256 mismatch)' };
+          }
         }
       } catch (e) {
-        console.error('SHA verification warning:', e);
+        console.warn('[Update] SHA256 check warning:', e.message);
       }
     }
-    
+
     return { success: true, tempPath };
   } catch (e) {
+    console.error('[Update] Download error:', e);
+    const tempDir = app.getPath('temp') || os.tmpdir();
+    const logPath = path.join(tempDir, `layle-update-error-${Date.now()}.log`);
+    try {
+      fs.writeFileSync(logPath, `Download error: ${e.stack || e.message}\nTime: ${new Date().toISOString()}`);
+    } catch (_) {}
     return { success: false, error: e.message };
   }
 });
@@ -508,14 +494,11 @@ ipcMain.handle('install-update', async (event, tempPath) => {
 
     const exePath = process.execPath;
     const currentPid = process.pid;
-    const { spawn } = require('child_process');
 
     if (process.platform === 'win32') {
-      // Windows Native Architecture Integration:
-      // Create a background VBScript running via WScript Host (wscript.exe).
-      // WScript runs 100% headless (zero console windows or black command prompt flashes).
       const tempDir = app.getPath('temp') || os.tmpdir();
       const vbsPath = path.join(tempDir, `layle_silent_update_${Date.now()}.vbs`);
+      const errorLogPath = path.join(tempDir, `layle_update_error_${Date.now()}.log`);
 
       const escapeVbsStr = (str) => str.replace(/"/g, '""');
 
@@ -526,19 +509,32 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 pid = ${currentPid}
 installer = "${escapeVbsStr(tempPath)}"
 exePath = "${escapeVbsStr(exePath)}"
+errorLogPath = "${escapeVbsStr(errorLogPath)}"
+
+On Error Resume Next
 
 ' 1. Poll WMI Win32_Process until main launcher process ID completely terminates
-On Error Resume Next
 Do
     Set colProc = GetObject("winmgmts:\\\\.\\root\\cimv2").ExecQuery("Select * from Win32_Process Where ProcessId = " & pid)
     If colProc.Count = 0 Then Exit Do
     WScript.Sleep 250
 Loop
 
-' 2. Execute NSIS installer silently (/S) with hidden window style (0) and wait for completion
+WScript.Sleep 500
+
+' 2. Execute NSIS installer silently (/S)
 nResult = WshShell.Run("""" & installer & """ /S", 0, True)
 
-' 3. Delete temporary installer executable
+' Log error if installation failed
+If Err.Number <> 0 Or nResult <> 0 Then
+    Set logFile = fso.CreateTextFile(errorLogPath, True)
+    logFile.WriteLine "Silent install failed at " & Now
+    logFile.WriteLine "Exit Code: " & nResult
+    logFile.WriteLine "Error: " & Err.Description
+    logFile.Close
+End If
+
+' 3. Clean up temporary installer executable
 If fso.FileExists(installer) Then
     fso.DeleteFile installer, True
 End If
@@ -548,7 +544,7 @@ If fso.FileExists(exePath) Then
     WshShell.Run """" & exePath & """", 1, False
 End If
 
-' 5. Delete self VBScript runner
+' 5. Clean up VBScript runner itself
 scriptPath = WScript.ScriptFullName
 If fso.FileExists(scriptPath) Then
     fso.DeleteFile scriptPath, True
@@ -557,7 +553,7 @@ End If
 
       fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
 
-      // Launch wscript.exe background runner completely hidden
+      const { spawn } = require('child_process');
       const child = spawn('wscript.exe', [vbsPath], {
         detached: true,
         windowsHide: true,
@@ -565,7 +561,6 @@ End If
       });
       child.unref();
 
-      // Exit current launcher process to release executable file locks
       setTimeout(() => {
         app.isQuiting = true;
         app.exit(0);
@@ -573,8 +568,8 @@ End If
 
       return { success: true };
     } else {
-      // Non-Windows platform fallback
-      const child = spawn(tempPath, ['/S', '--silent'], {
+      const { spawn } = require('child_process');
+      const child = spawn(tempPath, ['/S'], {
         detached: true,
         stdio: 'ignore'
       });
@@ -590,6 +585,11 @@ End If
     }
   } catch (e) {
     console.error('Update install error:', e);
+    const tempDir = app.getPath('temp') || os.tmpdir();
+    const logPath = path.join(tempDir, `layle-update-install-error-${Date.now()}.log`);
+    try {
+      fs.writeFileSync(logPath, `Install error: ${e.stack || e.message}\nTime: ${new Date().toISOString()}`);
+    } catch (_) {}
     return { success: false, error: e.message };
   }
 });
@@ -673,6 +673,13 @@ async function createWindow() {
   });
 
 
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 
   mainWindow.on('close', (event) => {
     if (!app.isQuiting) {

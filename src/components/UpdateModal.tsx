@@ -19,25 +19,27 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    const isElectron = typeof window !== 'undefined' && ((window as any).electron || (window as any).ipcRenderer || navigator.userAgent.toLowerCase().includes('electron'));
     if (isElectron) {
-      const { ipcRenderer } = (window as any).electron;
-      const handleProgress = (_: any, data: any) => {
-        if (typeof data === 'number') {
-          setProgress(data);
-        } else if (data && typeof data === 'object') {
-          setProgress(data.percent || 0);
-          setDownloadDetails({
-            downloadedMB: ((data.downloadedBytes || 0) / (1024 * 1024)).toFixed(1),
-            totalMB: ((data.totalBytes || 0) / (1024 * 1024)).toFixed(1),
-            speedMBs: data.speedMBs || 0
-          });
-        }
-      };
-      ipcRenderer.on('update-progress', handleProgress);
-      return () => {
-        ipcRenderer.removeAllListeners('update-progress');
-      };
+      const ipcRenderer = (window as any).electron?.ipcRenderer || (window as any).ipcRenderer;
+      if (ipcRenderer) {
+        const handleProgress = (_: any, data: any) => {
+          if (typeof data === 'number') {
+            setProgress(data);
+          } else if (data && typeof data === 'object') {
+            setProgress(data.percent || 0);
+            setDownloadDetails({
+              downloadedMB: ((data.downloadedBytes || 0) / (1024 * 1024)).toFixed(1),
+              totalMB: ((data.totalBytes || 0) / (1024 * 1024)).toFixed(1),
+              speedMBs: data.speedMBs || 0
+            });
+          }
+        };
+        ipcRenderer.on('update-progress', handleProgress);
+        return () => {
+          ipcRenderer.removeAllListeners('update-progress');
+        };
+      }
     }
   }, []);
 
@@ -49,11 +51,13 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     setDownloadDetails({ downloadedMB: '0.0', totalMB: '0.0', speedMBs: 0 });
 
     const assets = updateInfo.assets || [];
-    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    const isElectron = typeof window !== 'undefined' && ((window as any).electron || (window as any).ipcRenderer || navigator.userAgent.toLowerCase().includes('electron'));
 
     if (isElectron) {
-      const { ipcRenderer, shell } = (window as any).electron;
-      const electProcess = (window as any).electron.process;
+      const electronObj = (window as any).electron;
+      const ipcRenderer = electronObj?.ipcRenderer || (window as any).ipcRenderer;
+      const shell = electronObj?.shell;
+      const electProcess = electronObj?.process;
       const platform = electProcess?.platform || 'win32';
       
       let targetAsset = null;
@@ -101,17 +105,17 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       
       try {
         const result = await ipcRenderer.invoke('download-update', targetAsset.browser_download_url, shaAsset ? shaAsset.browser_download_url : null);
-        if (result.success) {
+        if (result && result.success) {
           setStatus('installing');
           const installResult = await ipcRenderer.invoke('install-update', result.tempPath);
-          if (installResult.success) {
+          if (installResult && installResult.success) {
             setStatus('completed');
           } else {
-            setErrorMsg(installResult.error || 'Ошибка при установке обновления');
+            setErrorMsg(installResult?.error || 'Ошибка при установке обновления');
             setStatus('error');
           }
         } else {
-          setErrorMsg(result.error || 'Ошибка скачивания файла обновления');
+          setErrorMsg(result?.error || 'Ошибка скачивания файла обновления');
           setStatus('error');
         }
       } catch (e: any) {

@@ -71,7 +71,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
 
     eventSource.addEventListener('error', (e: any) => {
       let data: any; try { data = JSON.parse(e.data); } catch { return; }
-      setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.message}`, time: timeNow() }]);
+      setLogs(prev => [...prev, { msg: `ОШИБКА: ${data.message}`, time: timeNow() }]);
       setErrorMsg(data.message);
       setStatus('error');
       gdsyncState.updateState({
@@ -83,7 +83,14 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
     });
 
     eventSource.onerror = () => {
-      setLogs(prev => [...prev, { msg: 'КРИТИЧЕСКАЯ ОШИБКА: Ошибка подключения к серверу синхронизации.', time: timeNow() }]);
+      if (eventSource.readyState === EventSource.CLOSED) return;
+      setLogs(prev => {
+        const last = prev[prev.length - 1];
+        if (last && (last.msg.includes('ОШИБКА') || last.msg.includes('заверш'))) {
+          return prev;
+        }
+        return [...prev, { msg: 'ОШИБКА: Прервано соединение с сервером синхронизации.', time: timeNow() }];
+      });
       setErrorMsg('Прервано соединение с сервером.');
       setStatus('error');
       gdsyncState.updateState({
