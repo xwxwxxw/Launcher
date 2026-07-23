@@ -285,11 +285,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('account')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'account'
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20 border-transparent'
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 shadow-[0_0_18px_rgba(245,158,11,0.15)]'
+                : 'text-zinc-500 hover:text-amber-300/80 hover:bg-amber-500/5 border-transparent'
             }`}
           >
-            <User size={15} />
+            <User size={15} className={subTab === 'account' ? 'text-amber-400' : ''} />
             Аккаунт
           </button>
           
@@ -297,11 +297,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('game')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'game'
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20 border-transparent'
+                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-[0_0_18px_rgba(6,182,212,0.15)]'
+                : 'text-zinc-500 hover:text-cyan-300/80 hover:bg-cyan-500/5 border-transparent'
             }`}
           >
-            <Cpu size={15} />
+            <Cpu size={15} className={subTab === 'game' ? 'text-cyan-400' : ''} />
             Память и Пути
           </button>
 
@@ -309,11 +309,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('graphics')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'graphics'
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20 border-transparent'
+                ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30 shadow-[0_0_18px_rgba(99,102,241,0.15)]'
+                : 'text-zinc-500 hover:text-indigo-300/80 hover:bg-indigo-500/5 border-transparent'
             }`}
           >
-            <Monitor size={15} />
+            <Monitor size={15} className={subTab === 'graphics' ? 'text-indigo-400' : ''} />
             Экран и Запуск
           </button>
 
@@ -321,11 +321,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('system')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'system'
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/20 border-transparent'
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 shadow-[0_0_18px_rgba(16,185,129,0.15)]'
+                : 'text-zinc-500 hover:text-emerald-300/80 hover:bg-emerald-500/5 border-transparent'
             }`}
           >
-            <Sliders size={15} />
+            <Sliders size={15} className={subTab === 'system' ? 'text-emerald-400' : ''} />
             Система
           </button>
         </div>
@@ -336,10 +336,10 @@ export default function SettingsTab({
           <div className="space-y-6 animate-fade-in">
             {/* Auth Settings - ELY.BY */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 blur-[80px] rounded-full pointer-events-none"></div>
               
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
+                <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
                   <User size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -362,8 +362,8 @@ export default function SettingsTab({
                       <>
                         <h4 className="text-sm font-bold text-zinc-100">{userProfile.name}</h4>
                         <div className="flex items-center gap-2 mt-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">Подключено (Ely.by)</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                          <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Подключено (Ely.by)</span>
                         </div>
                       </>
                     ) : (
@@ -407,15 +407,15 @@ export default function SettingsTab({
                     </button>
                   )
                 ) : (
-                  <button onClick={onLoginClick} className="bg-white text-black hover:bg-zinc-200 px-6 py-2.5 rounded-lg text-xs font-bold transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-105 active:scale-95 cursor-pointer">
+                  <button onClick={onLoginClick} className="bg-amber-400 text-zinc-950 hover:bg-amber-300 font-extrabold px-6 py-2.5 rounded-lg text-xs transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:scale-105 active:scale-95 cursor-pointer">
                     Войти через Ely.by
                   </button>
                 )}
               </div>
               
-              <div className="mt-4 flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-lg relative z-10">
-                <span className="text-emerald-400 mt-0.5 text-xs">ℹ</span>
-                <p className="text-[11px] text-emerald-400/80 leading-relaxed font-sans">
+              <div className="mt-4 flex items-start gap-2 bg-amber-500/5 border border-amber-500/15 p-3 rounded-lg relative z-10">
+                <span className="text-amber-400 mt-0.5 text-xs">ℹ</span>
+                <p className="text-[11px] text-amber-300/80 leading-relaxed font-sans">
                   Ely.by позволяет бесплатно использовать свои скины и плащи на серверах. Все моды на скины (например, Fabric Tailor) будут работать корректно.
                 </p>
               </div>
@@ -459,14 +459,16 @@ export default function SettingsTab({
         {subTab === 'game' && (
           <div className="space-y-6 animate-fade-in">
             {/* Memory Settings */}
-            <div className={`rounded-3xl border p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-1000 ${
+            <div className={`rounded-3xl border p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-1000 relative overflow-hidden ${
               highlightRam 
-                ? 'border-purple-500 bg-purple-500/5 shadow-[0_0_30px_rgba(168,85,247,0.15)] ring-2 ring-purple-500/20' 
+                ? 'border-cyan-500 bg-cyan-500/5 shadow-[0_0_30px_rgba(6,182,212,0.15)] ring-2 ring-cyan-500/20' 
                 : 'border-zinc-800/40 bg-zinc-900/40'
             }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+                  <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
                     <Cpu size={24} strokeWidth={1.5} />
                   </div>
                   <div>
@@ -484,16 +486,16 @@ export default function SettingsTab({
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border flex items-center gap-2 select-none cursor-pointer ${
                     isAutoRam 
-                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.15)]' 
+                      ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]' 
                       : 'bg-zinc-950/40 text-zinc-500 border-zinc-800/60 hover:text-zinc-300 hover:border-zinc-700/60'
                   }`}
                 >
-                  <Sparkles size={12} className={isAutoRam ? "animate-pulse text-purple-400" : ""} />
+                  <Sparkles size={12} className={isAutoRam ? "animate-pulse text-cyan-400" : ""} />
                   {isAutoRam ? "Авто выбор: Вкл" : "Авто выбор: Выкл"}
                 </button>
               </div>
               
-              <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-col gap-4 mb-6 relative z-10">
                 <div className="flex items-center gap-6 bg-zinc-950/30 p-6 rounded-xl border border-zinc-800/40">
                   <input 
                     type="range" 
@@ -506,9 +508,9 @@ export default function SettingsTab({
                       setIsAutoRam(false);
                       localStorage.setItem('launcher_auto_ram', '0');
                     }}
-                    className="flex-1 accent-purple-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                    className="flex-1 accent-cyan-400 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
                   />
-                  <div className="bg-zinc-900 border border-zinc-700/50 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-zinc-200 shadow-inner min-w-[110px] text-center">
+                  <div className="bg-zinc-900 border border-cyan-500/30 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-cyan-300 shadow-inner min-w-[110px] text-center">
                     {ram} MB
                   </div>
                 </div>
@@ -521,17 +523,17 @@ export default function SettingsTab({
                     </div>
                     <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
                       <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Доступно / Свободно</span>
-                      <span className="font-mono text-emerald-400 font-medium">{(systemRamSpecs.free / 1024).toFixed(1)} GB ({systemRamSpecs.free} MB)</span>
+                      <span className="font-mono text-cyan-400 font-medium">{(systemRamSpecs.free / 1024).toFixed(1)} GB ({systemRamSpecs.free} MB)</span>
                     </div>
                     <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
                       <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Оптимально (Выбрано)</span>
-                      <span className="font-mono text-purple-400 font-medium">{(systemRamSpecs.suggested / 1024).toFixed(1)} GB ({systemRamSpecs.suggested} MB)</span>
+                      <span className="font-mono text-cyan-300 font-medium">{(systemRamSpecs.suggested / 1024).toFixed(1)} GB ({systemRamSpecs.suggested} MB)</span>
                     </div>
                   </div>
                 )}
               </div>
               
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-2 ml-2 relative z-10">
                 <span className="text-amber-500/80 text-xs">⚠️</span>
                 <p className="text-[11px] text-amber-500/80 font-medium">
                   {isAutoRam 
@@ -542,9 +544,11 @@ export default function SettingsTab({
             </div>
 
             {/* Directory Paths */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
                   <Folder size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -553,7 +557,7 @@ export default function SettingsTab({
                 </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 relative z-10">
                 <div>
                   <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-2">Рабочая папка игры (.minecraft)</label>
                   <div className="flex gap-3">
@@ -562,7 +566,7 @@ export default function SettingsTab({
                       value={minecraftPath}
                       onChange={(e) => handleMinecraftPathChange(e.target.value)}
                       placeholder="Например, C:\Users\user\AppData\Roaming\.minecraft"
-                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
+                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                     />
                     <input 
                       type="file"
@@ -597,7 +601,7 @@ export default function SettingsTab({
                       value={javaPath}
                       onChange={(e) => setJavaPath(e.target.value)}
                       placeholder="Автоматический поиск среды выполнения..." 
-                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
+                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                     />
                     <input 
                       type="file"
@@ -610,7 +614,7 @@ export default function SettingsTab({
                       type="button"
                       onClick={handleFindJava}
                       disabled={isFindingJava}
-                      className="bg-purple-600/10 hover:bg-purple-600/20 text-purple-500 hover:text-purple-400 px-4 py-3 border border-purple-600/20 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                      className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                       title="Автоматический поиск Java на ПК"
                     >
                       {isFindingJava ? 'Поиск...' : 'Найти Java'}
@@ -643,9 +647,11 @@ export default function SettingsTab({
         {subTab === 'graphics' && (
           <div className="space-y-6 animate-fade-in">
             {/* Graphics & Resolution */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400">
                   <Monitor size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -654,14 +660,14 @@ export default function SettingsTab({
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-zinc-950/30 border border-zinc-800/40 rounded-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-zinc-950/30 border border-zinc-800/40 rounded-xl relative z-10">
                 <div className="space-y-4">
                   <label className="flex items-center gap-3 cursor-pointer select-none">
                     <input 
                       type="checkbox" 
                       checked={isFullscreen}
                       onChange={(e) => handleFullscreenChange(e.target.checked)}
-                      className="rounded bg-zinc-900 border-zinc-700 text-purple-500 focus:ring-0 cursor-pointer"
+                      className="rounded bg-zinc-900 border-zinc-700 text-indigo-400 focus:ring-0 cursor-pointer accent-indigo-500"
                     />
                     <span className="text-sm font-semibold text-zinc-200">Полноэкранный режим</span>
                   </label>
@@ -676,7 +682,7 @@ export default function SettingsTab({
                       value={resolutionWidth}
                       disabled={isFullscreen}
                       onChange={(e) => handleResWidthChange(Number(e.target.value))}
-                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-purple-500/50 outline-none transition-all font-mono disabled:opacity-40"
+                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 outline-none transition-all font-mono disabled:opacity-40"
                     />
                     <span className="text-zinc-500 font-mono">x</span>
                     <input 
@@ -684,7 +690,7 @@ export default function SettingsTab({
                       value={resolutionHeight}
                       disabled={isFullscreen}
                       onChange={(e) => handleResHeightChange(Number(e.target.value))}
-                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-purple-500/50 outline-none transition-all font-mono disabled:opacity-40"
+                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 outline-none transition-all font-mono disabled:opacity-40"
                     />
                   </div>
                 </div>
@@ -692,9 +698,11 @@ export default function SettingsTab({
             </div>
 
             {/* Launcher Behavior & Console */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400">
                   <Terminal size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -703,7 +711,7 @@ export default function SettingsTab({
                 </div>
               </div>
               
-              <div className="space-y-5 bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl">
+              <div className="space-y-5 bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl relative z-10">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h4 className="text-sm font-semibold text-zinc-200">Действие лаунчера</h4>
@@ -733,7 +741,7 @@ export default function SettingsTab({
                       checked={showConsole}
                       onChange={(e) => handleShowConsoleChange(e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                   </label>
                 </div>
               </div>
@@ -744,13 +752,11 @@ export default function SettingsTab({
         {subTab === 'system' && (
           <div className="space-y-6 animate-fade-in">
             {/* Runtime Environment Info */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className={`p-3 rounded-xl border h-fit ${
-                  getEnvironmentInfo().isAIStudio 
-                    ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' 
-                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                }`}>
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 h-fit">
                   <Terminal size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -759,11 +765,11 @@ export default function SettingsTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
                 <div className="p-4 rounded-2xl bg-zinc-950/40 border border-zinc-800/50 space-y-2">
                   <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Текущая Платформа</span>
                   <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${getEnvironmentInfo().isAIStudio ? 'bg-violet-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${getEnvironmentInfo().isAIStudio ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
                     <span className="text-xs font-bold text-zinc-200">{getEnvironmentInfo().environmentName}</span>
                   </div>
                   <p className="text-[10px] text-zinc-400 leading-relaxed pt-1">
@@ -782,7 +788,7 @@ export default function SettingsTab({
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Локальный запуск игры</span>
-                      <span className={getEnvironmentInfo().isAIStudio ? "text-violet-400 font-bold" : "text-emerald-400 font-bold"}>
+                      <span className={getEnvironmentInfo().isAIStudio ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
                         {getEnvironmentInfo().isAIStudio ? "Эмуляция" : "Доступно (EXE)"}
                       </span>
                     </div>
@@ -798,9 +804,11 @@ export default function SettingsTab({
             </div>
 
             {/* Custom JVM Arguments */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
                   <Sliders size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -809,13 +817,13 @@ export default function SettingsTab({
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-3 relative z-10">
                 <textarea 
                   value={jvmArgs}
                   onChange={(e) => handleJvmArgsChange(e.target.value)}
                   placeholder="Дополнительные аргументы запуска..." 
                   rows={3}
-                  className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-4 text-xs text-zinc-200 focus:border-purple-500/50 outline-none transition-all font-mono leading-relaxed"
+                  className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-4 text-xs text-zinc-200 focus:border-emerald-500/50 outline-none transition-all font-mono leading-relaxed"
                 />
                 <p className="text-[11px] text-zinc-500 ml-2 leading-relaxed font-sans">Рекомендуемые аргументы для оптимизации G1 Garbage Collector и предотвращения микрофризов включены по умолчанию.</p>
               </div>
@@ -823,9 +831,11 @@ export default function SettingsTab({
 
             {/* Modrinth Auto Update */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
               <div className="flex items-start justify-between relative z-10">
                 <div className="flex gap-4">
-                  <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400 h-fit">
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 h-fit">
                     <RefreshCw size={24} strokeWidth={1.5} />
                   </div>
                   <div className="max-w-md">
@@ -859,9 +869,11 @@ export default function SettingsTab({
 
             {/* Dependency Check Toggle */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
               <div className="flex items-start justify-between relative z-10">
                 <div className="flex gap-4">
-                  <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400 h-fit">
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 h-fit">
                     <Shield size={24} strokeWidth={1.5} />
                   </div>
                   <div className="max-w-md">
@@ -886,9 +898,11 @@ export default function SettingsTab({
 
             {/* Google Drive Update checking */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden space-y-6">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
               <div className="flex items-start justify-between relative z-10">
                 <div className="flex gap-4">
-                  <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400 h-fit">
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 h-fit">
                     <HardDrive size={24} strokeWidth={1.5} />
                   </div>
                   <div className="max-w-md">
@@ -938,9 +952,11 @@ export default function SettingsTab({
             </div>
 
             {/* Launcher Updates */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
                   <Sparkles size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -949,7 +965,7 @@ export default function SettingsTab({
                 </div>
               </div>
               
-              <div className="bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="bg-zinc-950/30 p-6 border border-zinc-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
                 <div>
                   <p className="text-xs text-zinc-300 font-semibold font-sans">Текущая версия: <span className="font-mono font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 border border-zinc-800 rounded">v{currentVersion}</span></p>
                   {updateStatus === 'latest' && <p className="text-[11px] text-emerald-400 mt-1.5 font-medium font-sans">✓ Установлена последняя версия!</p>}

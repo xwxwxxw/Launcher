@@ -76,12 +76,12 @@ const DEFAULT_GDRIVE_API_KEY = "AIzaSyAvBduoyDjqZu3t_S8w7i8Qdl5e3SoHcok";
 const DEFAULT_GDRIVE_FOLDER_ID = "1QaiLoo_bUEENvwkBogWPeerAU_VxrTFz";
 const DEFAULT_GITHUB_REPO = "xwxwxxw/Launcher";
 
-process.env.GDRIVE_API_KEY = process.env.GDRIVE_API_KEY || process.env.VITE_GDRIVE_API_KEY || DEFAULT_GDRIVE_API_KEY;
-process.env.VITE_GDRIVE_API_KEY = process.env.VITE_GDRIVE_API_KEY || process.env.GDRIVE_API_KEY;
-process.env.GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || process.env.VITE_GDRIVE_FOLDER_ID || DEFAULT_GDRIVE_FOLDER_ID;
-process.env.VITE_GDRIVE_FOLDER_ID = process.env.VITE_GDRIVE_FOLDER_ID || process.env.GDRIVE_FOLDER_ID;
-process.env.GITHUB_REPO = process.env.GITHUB_REPO || process.env.VITE_GITHUB_REPO || DEFAULT_GITHUB_REPO;
-process.env.VITE_GITHUB_REPO = process.env.VITE_GITHUB_REPO || process.env.GITHUB_REPO;
+process.env['GDRIVE_API_KEY'] = process.env['GDRIVE_API_KEY'] || process.env['VITE_GDRIVE_API_KEY'] || DEFAULT_GDRIVE_API_KEY;
+process.env['VITE_GDRIVE_API_KEY'] = process.env['VITE_GDRIVE_API_KEY'] || process.env['GDRIVE_API_KEY'];
+process.env['GDRIVE_FOLDER_ID'] = process.env['GDRIVE_FOLDER_ID'] || process.env['VITE_GDRIVE_FOLDER_ID'] || DEFAULT_GDRIVE_FOLDER_ID;
+process.env['VITE_GDRIVE_FOLDER_ID'] = process.env['VITE_GDRIVE_FOLDER_ID'] || process.env['GDRIVE_FOLDER_ID'];
+process.env['GITHUB_REPO'] = process.env['GITHUB_REPO'] || process.env['VITE_GITHUB_REPO'] || DEFAULT_GITHUB_REPO;
+process.env['VITE_GITHUB_REPO'] = process.env['VITE_GITHUB_REPO'] || process.env['GITHUB_REPO'];
 
 console.log('[Server ENV Init] Resolved environment configuration:', {
   GDRIVE_API_KEY: process.env.GDRIVE_API_KEY ? `CONFIGURED (${process.env.GDRIVE_API_KEY.substring(0, 8)}...)` : 'MISSING',
@@ -515,28 +515,92 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
   }
 });
 
+// GitHub API cache helper
+const githubApiCache = new Map<string, { data: any; timestamp: number; status: number }>();
+
+async function fetchGitHubApi(url: string) {
+  const now = Date.now();
+  const cached = githubApiCache.get(url);
+  if (cached && (now - cached.timestamp < 10 * 60 * 1000)) { // 10 minutes cache
+    return { ok: cached.status === 200, status: cached.status, data: cached.data };
+  }
+
+  const headers: Record<string, string> = {
+    'User-Agent': 'Layle-Minecraft-Launcher',
+    'Accept': 'application/vnd.github.v3+json'
+  };
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token) {
+    headers['Authorization'] = `token ${token}`;
+  }
+
+  try {
+    const res = await fetch(url, { headers });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {}
+
+    if (res.ok && data) {
+      githubApiCache.set(url, { data, timestamp: now, status: res.status });
+      return { ok: true, status: res.status, data };
+    } else {
+      if (cached) { // return stale cache if rate limited
+        return { ok: true, status: 200, data: cached.data };
+      }
+      return { ok: false, status: res.status, data };
+    }
+  } catch (err: any) {
+    if (cached) {
+      return { ok: true, status: 200, data: cached.data };
+    }
+    return { ok: false, status: 500, error: err.message, data: null };
+  }
+}
+
 // Update check endpoint available for both Web and Electron
 app.get('/api/updates/check', async (req, res) => {
   const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
   try {
-    const gitRes = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-      headers: { 'User-Agent': 'Layle-Minecraft-Launcher' }
-    });
-    if (!gitRes.ok) {
-      return res.status(gitRes.status).json({ error: `GitHub API returned ${gitRes.status}` });
+    const { ok, status, data } = await fetchGitHubApi(`https://api.github.com/repos/${repo}/releases/latest`);
+    
+    if (!ok || !data || !data.tag_name) {
+      if (status === 403) {
+        return res.json({ 
+          success: false, 
+          error: 'GitHub API лимит запросов (HTTP 403). Попробуйте позже.',
+          latestVersion: null,
+          assets: []
+        });
+      }
+      if (status === 404) {
+        return res.json({ 
+          success: false, 
+          error: 'Релизы в репозитории не найдены (HTTP 404)',
+          latestVersion: null,
+          assets: []
+        });
+      }
+      return res.json({ 
+        success: false, 
+        error: `GitHub API статус ${status}`,
+        latestVersion: null,
+        assets: []
+      });
     }
-    const release: any = await gitRes.json();
-    const versionMatch = release.tag_name.match(/(\d+\.\d+\.\d+)/);
-    const latestVersion = versionMatch ? versionMatch[1] : release.tag_name.replace(/^v/, '');
+
+    const versionMatch = data.tag_name.match(/(\d+\.\d+\.\d+)/);
+    const latestVersion = versionMatch ? versionMatch[1] : data.tag_name.replace(/^v/, '');
     
     res.json({
+      success: true,
       latestVersion,
-      tag_name: release.tag_name,
-      releaseNotes: release.body,
-      assets: release.assets || []
+      tag_name: data.tag_name,
+      releaseNotes: data.body || '',
+      assets: data.assets || []
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: false, error: err.message });
   }
 });
 

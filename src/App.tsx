@@ -268,59 +268,79 @@ export default function App() {
   const [isMaximizedWeb, setIsMaximizedWeb] = useState(false);
 
   const handleMinimize = () => {
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      if ((window as any).electron.window?.minimize) {
-        (window as any).electron.window.minimize();
-      } else if ((window as any).electron.ipcRenderer) {
-        (window as any).electron.ipcRenderer.send('window-minimize');
+    if (typeof window !== 'undefined') {
+      const electronObj = (window as any).electron;
+      const ipc = (window as any).ipcRenderer || electronObj?.ipcRenderer;
+
+      if (electronObj?.window?.minimize) {
+        electronObj.window.minimize();
+        return;
       }
-    } else {
-      showCustomToast("Окно свернуто (эмуляция для браузера)");
+      if (ipc && typeof ipc.send === 'function') {
+        ipc.send('window-minimize');
+        return;
+      }
     }
+    showCustomToast("Окно свернуто (эмуляция для браузера)");
   };
 
   const handleMaximize = () => {
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      if ((window as any).electron.window?.maximize) {
-        (window as any).electron.window.maximize();
-      } else if ((window as any).electron.ipcRenderer) {
-        (window as any).electron.ipcRenderer.send('window-maximize');
+    if (typeof window !== 'undefined') {
+      const electronObj = (window as any).electron;
+      const ipc = (window as any).ipcRenderer || electronObj?.ipcRenderer;
+
+      if (electronObj?.window?.maximize) {
+        electronObj.window.maximize();
+        electronObj.window.isMaximized?.().then((max: boolean) => setIsMaximizedWeb(max)).catch(() => {});
+        return;
       }
-    } else {
-      try {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen()
-            .then(() => {
-              setIsMaximizedWeb(true);
-            })
-            .catch(() => {
-              setIsMaximizedWeb(!isMaximizedWeb);
-            });
-        } else {
-          document.exitFullscreen()
-            .then(() => {
-              setIsMaximizedWeb(false);
-            })
-            .catch(() => {
-              setIsMaximizedWeb(!isMaximizedWeb);
-            });
+      if (ipc && typeof ipc.send === 'function') {
+        ipc.send('window-maximize');
+        if (ipc.invoke) {
+          ipc.invoke('window-is-maximized').then((max: boolean) => setIsMaximizedWeb(max)).catch(() => {});
         }
-      } catch (e) {
-        setIsMaximizedWeb(!isMaximizedWeb);
+        return;
       }
+    }
+
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen()
+          .then(() => {
+            setIsMaximizedWeb(true);
+          })
+          .catch(() => {
+            setIsMaximizedWeb(!isMaximizedWeb);
+          });
+      } else {
+        document.exitFullscreen()
+          .then(() => {
+            setIsMaximizedWeb(false);
+          })
+          .catch(() => {
+            setIsMaximizedWeb(!isMaximizedWeb);
+          });
+      }
+    } catch (e) {
+      setIsMaximizedWeb(!isMaximizedWeb);
     }
   };
 
   const handleClose = () => {
-    if (typeof window !== 'undefined' && (window as any).electron) {
-      if ((window as any).electron.window?.close) {
-        (window as any).electron.window.close();
-      } else if ((window as any).electron.ipcRenderer) {
-        (window as any).electron.ipcRenderer.send('window-close');
+    if (typeof window !== 'undefined') {
+      const electronObj = (window as any).electron;
+      const ipc = (window as any).ipcRenderer || electronObj?.ipcRenderer;
+
+      if (electronObj?.window?.close) {
+        electronObj.window.close();
+        return;
       }
-    } else {
-      showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
+      if (ipc && typeof ipc.send === 'function') {
+        ipc.send('window-close');
+        return;
+      }
     }
+    showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
   };
 
   const [updateInfo, setUpdateInfo] = useState<{ version: string; notes: string; assets: any[] } | null>(null);
@@ -331,11 +351,11 @@ export default function App() {
       const repo = getEnv('VITE_GITHUB_REPO') || getEnv('GITHUB_REPO') || 'xwxwxxw/Launcher';
       const res = await fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`);
       if (!res.ok) {
-        throw new Error(`Ошибка сервера обновлений: HTTP ${res.status}`);
+        return { success: false, error: `Ошибка сервера обновлений (HTTP ${res.status})` };
       }
       const data = await res.json();
-      if (data.error) {
-        return { success: false, error: data.error };
+      if (data.error || !data.latestVersion) {
+        return { success: false, error: data.error || 'Информация об обновлениях недоступна' };
       }
       const latestVersion = data.latestVersion;
       const currentVersion = launcherVersion || '0.0.6';
