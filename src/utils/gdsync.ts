@@ -133,38 +133,81 @@ export const checkGDriveUpdatesWithTimeout = async (
     return { hasUpdates: false };
   }
 
-  try {
-    const folderId = profile.gdriveFolderId || '';
-    const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
-    
-    // Build query params
-    const query = new URLSearchParams({
-      folderId,
-      token: clientToken,
-      profileId: profile.id,
-      minecraftPath,
-      _t: Date.now().toString()
-    });
+  const folderId = profile.gdriveFolderId || '';
+  const clientToken = (import.meta as any).env.VITE_GDRIVE_API_KEY || '';
+  
+  // Build query params
+  const query = new URLSearchParams({
+    folderId,
+    token: clientToken,
+    profileId: profile.id,
+    minecraftPath,
+    _t: Date.now().toString()
+  });
 
-    const url = `/api/gdrive/check-updates?${query.toString()}`;
-    
-    // Check with a robust 12 seconds timeout to handle slow Google API response or server wakeups
-    const response = await fetchWithTimeout(url, { timeout: 12000 });
-    
-    if (!response.ok) {
-      return { 
-        hasUpdates: false, 
-        error: `Сервер вернул ошибку проверки обновлений: ${response.statusText}` 
-      };
+  const url = `/api/gdrive/check-updates?${query.toString()}`;
+
+  let attempts = 3;
+  let delay = 1000;
+  let lastError: any = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      // Check with a robust 12 seconds timeout to handle slow Google API response or server wakeups
+      const response = await fetchWithTimeout(url, { timeout: 12000 });
+      const text = await response.text();
+
+      // If the response is not ok (e.g. 500, 401, 502, etc.)
+      if (!response.ok) {
+        let serverErrorMsg = '';
+        try {
+          const errObj = JSON.parse(text);
+          serverErrorMsg = errObj.error || errObj.message || '';
+        } catch {
+          // Not JSON (e.g. gateway HTML page)
+        }
+        
+        // Don't retry client-side config errors like 401 Unauthorized or 404 Not Found
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          return {
+            hasUpdates: false,
+            error: serverErrorMsg 
+              ? `Ошибка аутентификации или настройки: ${serverErrorMsg}`
+              : `Ошибка ${response.status} при обращении к серверу.`
+          };
+        }
+
+        const details = serverErrorMsg ? `: ${serverErrorMsg}` : ` (код ${response.status})`;
+        throw new Error(`Сервер вернул ошибку проверки обновлений${details}`);
+      }
+
+      // Try to parse JSON from the response text
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        console.warn(`[GDSync] Response is not valid JSON on attempt ${attempt}:`, text.substring(0, 150));
+        throw new Error('Сервер вернул некорректный ответ (не JSON). Возможно, сервер перезагружается.');
+      }
+
+      // Success!
+      return { hasUpdates: !!data.updateAvailable };
+
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`[GDSync] Attempt ${attempt} failed: ${error.message}`);
+      
+      if (attempt < attempts) {
+        // Wait before retrying with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 1.5;
+      }
     }
-
-    const data = await response.json();
-    return { hasUpdates: !!data.updateAvailable };
-  } catch (error: any) {
-    console.error('[GDSync] Error checking Google Drive updates:', error);
-    return { 
-      hasUpdates: false, 
-      error: error.message || 'Ошибка сети при проверке обновлений.' 
-    };
   }
+
+  // All attempts failed
+  return {
+    hasUpdates: false,
+    error: lastError ? lastError.message : 'Не удалось получить обновления после нескольких попыток.'
+  };
 };
