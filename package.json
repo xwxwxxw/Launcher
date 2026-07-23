@@ -1,7 +1,7 @@
 {
   "name": "layle-launcher",
   "private": true,
-  "version": "2.2.5",
+  "version": "2.2.6",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -32,9 +32,7 @@
       "category": "public.app-category.games"
     },
     "win": {
-      "verifyUpdateCodeSignature": false,
       "icon": "public/icon.ico",
-      "publisherName": "Layle",
       "target": "nsis"
     },
     "linux": {
@@ -45,7 +43,6 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
       "shortcutName": "Layle Launcher",
       "perMachine": false,
       "requestedExecutionLevel": "asInvoker",
