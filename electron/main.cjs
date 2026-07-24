@@ -43,9 +43,6 @@ if (!loadedEnv) {
   } catch (e) {}
 }
 
-
-
-
 // Default fallback configuration constants
 const DEFAULT_GDRIVE_API_KEY = "AIzaSyAvBduoyDjqZu3t_S8w7i8Qdl5e3SoHcok";
 const DEFAULT_GDRIVE_FOLDER_ID = "1QaiLoo_bUEENvwkBogWPeerAU_VxrTFz";

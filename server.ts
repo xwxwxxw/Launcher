@@ -15,7 +15,7 @@ try {
 } catch (e) {
   // ignore
 }
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import mclc from 'minecraft-launcher-core';
 import multer from 'multer';
 import * as archiverPkg from 'archiver';
@@ -269,6 +269,70 @@ function isPathSafe(targetPath: string, customMcPath?: string): boolean {
       return false;
     }
   });
+}
+
+export async function ensureAuthlibInjector(onLog?: (msg: string) => void): Promise<string | null> {
+  const injectorPath = path.join(DATA_DIR, 'authlib-injector.jar');
+
+  if (fs.existsSync(injectorPath)) {
+    try {
+      const stats = fs.statSync(injectorPath);
+      if (stats.size > 50000) {
+        return injectorPath;
+      } else {
+        fs.unlinkSync(injectorPath);
+      }
+    } catch (_) {}
+  }
+
+  if (onLog) onLog('Загрузка authlib-injector для скинов и авторизации Ely.by...');
+
+  const sources = [
+    async () => {
+      const metaRes = await fetch('https://authlib-injector.yushi.moe/artifact/latest.json');
+      if (metaRes.ok) {
+        const json: any = await metaRes.json();
+        if (json?.download_url) return json.download_url;
+      }
+      return null;
+    },
+    async () => {
+      const metaRes = await fetch('https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest.json');
+      if (metaRes.ok) {
+        const json: any = await metaRes.json();
+        if (json?.download_url) return json.download_url;
+      }
+      return null;
+    },
+    async () => 'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.5/authlib-injector-1.2.5.jar',
+    async () => 'https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest/authlib-injector.jar'
+  ];
+
+  for (const sourceGetter of sources) {
+    try {
+      const downloadUrl = await sourceGetter();
+      if (!downloadUrl) continue;
+
+      const res = await fetch(downloadUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      });
+
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        if (buffer.length > 50000) {
+          fs.writeFileSync(injectorPath, buffer);
+          if (onLog) onLog('authlib-injector успешно загружен.');
+          return injectorPath;
+        }
+      }
+    } catch (e: any) {
+      console.warn('[authlib-injector] Download source failed:', e?.message || e);
+    }
+  }
+
+  if (onLog) onLog('Предупреждение: не удалось загрузить authlib-injector.');
+  return null;
 }
 
 export async function ensureMinecraftAndLoaderInstalled(
@@ -2837,26 +2901,22 @@ app.post('/api/utils/open-folder', (req, res) => {
     }
   }
 
-  let command = '';
-  switch (process.platform) {
-    case 'win32':
-      command = `explorer.exe "${absolutePath}"`;
-      break;
-    case 'darwin':
-      command = `open "${absolutePath}"`;
-      break;
-    default:
-      command = `xdg-open "${absolutePath}"`;
-      break;
+  let bin = 'xdg-open';
+  let args = [absolutePath];
+  if (process.platform === 'win32') {
+    bin = 'explorer.exe';
+  } else if (process.platform === 'darwin') {
+    bin = 'open';
   }
 
-  exec(command, (err) => {
-    if (err) {
-      // In cloud container, xdg-open might fail, we just ignore it for the backend
-      return res.status(200).json({ success: false, message: 'Opening folders is not supported in the web container environment.' });
-    }
+  try {
+    const child = spawn(bin, args, { detached: true, stdio: 'ignore' });
+    child.unref();
+    child.on('error', () => {});
     return res.json({ success: true });
-  });
+  } catch (err) {
+    return res.status(200).json({ success: false, message: 'Opening folders is not supported in the web container environment.' });
+  }
 });
 
 app.post('/api/mods/toggle', (req, res) => {
@@ -3288,29 +3348,12 @@ app.get('/api/minecraft/launch', async (req, res) => {
 
   const customJvmArgs = [...jvmArguments];
   if (authName && authUuid && authAccess && authAccess !== 'offline-token') {
-    const injectorPath = path.join(DATA_DIR, 'authlib-injector.jar');
-    let injectorReady = false;
-    if (fs.existsSync(injectorPath)) {
-      injectorReady = true;
-    } else {
-      sendEvent('log', { message: 'Скачивание authlib-injector для авторизации Ely.by...', progress: 12 });
-      try {
-        const injectorRes = await fetch('https://authlib-injector.yushijinhun.com/artifact/latest/authlib-injector.jar');
-        if (injectorRes.ok) {
-          const buffer = await injectorRes.arrayBuffer();
-          fs.writeFileSync(injectorPath, Buffer.from(buffer));
-          injectorReady = true;
-          sendEvent('log', { message: 'authlib-injector успешно скачан.', progress: 15 });
-        } else {
-          sendEvent('log', { message: 'Предупреждение: не удалось скачать authlib-injector. Запуск без скинов и мультиплеера Ely.by.', progress: 15 });
-        }
-      } catch (err) {
-        console.error('Failed to download authlib-injector:', err);
-        sendEvent('log', { message: 'Предупреждение: ошибка при скачивании authlib-injector.', progress: 15 });
-      }
-    }
-    if (injectorReady) {
-      customJvmArgs.push(`-javaagent:${injectorPath}=https://authserver.ely.by/`);
+    sendEvent('log', { message: 'Проверка компонентов Ely.by и скинов...', progress: 12 });
+    const injectorPath = await ensureAuthlibInjector((msg) => sendEvent('log', { message: msg, progress: 14 }));
+    if (injectorPath) {
+      const elyEndpoint = 'https://account.ely.by/api/authlib-injector';
+      customJvmArgs.push(`-javaagent:${injectorPath}=${elyEndpoint}`);
+      sendEvent('log', { message: `Подключен authlib-injector: ${elyEndpoint}`, progress: 15 });
     }
   }
 
@@ -3319,22 +3362,109 @@ app.get('/api/minecraft/launch', async (req, res) => {
   }
 
   let stdLog = '';
+  const logsDir = path.join(isolatedDir, 'logs');
+  if (!fs.existsSync(logsDir)) {
+    try { fs.mkdirSync(logsDir, { recursive: true }); } catch (_) {}
+  }
+  const launcherLogPath = path.join(logsDir, 'latest-launcher.log');
+  try {
+    fs.writeFileSync(launcherLogPath, `=== Layle Launcher Output - ${new Date().toLocaleString('ru-RU')} ===\n`, 'utf8');
+  } catch (_) {}
+
+  const writeRawLog = (line: string) => {
+    try {
+      // Mask sensitive tokens/secrets
+      let safeLine = line
+        .replace(/([?&]access_token=)[^&\s]+/gi, '$1***MASKED***')
+        .replace(/("accessToken"\s*:\s*")[^"]+/gi, '$1***MASKED***')
+        .replace(/("client_secret"\s*:\s*")[^"]+/gi, '$1***MASKED***');
+
+      // Max 5MB file size rotation
+      if (fs.existsSync(launcherLogPath)) {
+        const stats = fs.statSync(launcherLogPath);
+        if (stats.size > 5 * 1024 * 1024) {
+          fs.writeFileSync(launcherLogPath, `=== Layle Launcher Output (Log Rotated) - ${new Date().toLocaleString('ru-RU')} ===\n`, 'utf8');
+        }
+      }
+      fs.appendFileSync(launcherLogPath, safeLine + '\n', 'utf8');
+    } catch (_) {}
+  };
+
+  const cleanServerLogMsg = (raw: string): { msg: string; type: 'info' | 'warn' | 'error' | 'success' } | null => {
+    if (!raw || typeof raw !== 'string') return null;
+    let str = raw.trim();
+
+    // Strip [MCLC]: prefix
+    if (str.startsWith('[MCLC]:')) {
+      str = str.replace(/^\[MCLC\]:\s*/, '').trim();
+    }
+
+    // Skip MCLC internal noise lines
+    if (
+      str.startsWith('MCLC version') ||
+      str.startsWith('Set global env var') ||
+      str.includes('Setting custom version file') ||
+      str === 'Attempting to download assets' ||
+      str === 'Downloaded assets'
+    ) {
+      return null;
+    }
+
+    if (str.startsWith('Detected custom in options')) {
+      return { msg: 'Подготовка конфигурации версии...', type: 'info' };
+    }
+    if (str.startsWith('Executing java')) {
+      return { msg: 'Запуск процесса Java...', type: 'info' };
+    }
+    if (str.startsWith('Set custom version file to')) {
+      const ver = str.replace('Set custom version file to', '').trim();
+      return { msg: `Конфигурация версии: ${ver}`, type: 'info' };
+    }
+
+    // Sanitize long paths
+    str = str.replace(/(?:\/[^\s\/]+)+(\/[^\s\/]+\.(?:jar|json|txt|png))/g, '$1');
+
+    let type: 'info' | 'warn' | 'error' | 'success' = 'info';
+    const lower = str.toLowerCase();
+    if (lower.includes('ошибка') || lower.includes('error') || lower.includes('failed') || lower.includes('critical') || lower.includes('[stderr]')) {
+      type = 'error';
+    } else if (lower.includes('warn') || lower.includes('warning') || lower.includes('внимание') || lower.includes('пропущен')) {
+      type = 'warn';
+    } else if (lower.includes('успешно') || lower.includes('готов') || lower.includes('запущен') || lower.includes('найдена java') || lower.includes('подключен')) {
+      type = 'success';
+    }
+
+    return { msg: str, type };
+  };
+
   launcher.on('debug', (e: string) => {
     stdLog += e + '\n';
     if (stdLog.length > 50000) stdLog = stdLog.substring(stdLog.length - 50000);
-    sendEvent('log', { message: e, progress: 50 });
+    writeRawLog(`[DEBUG] ${e}`);
+    const cleaned = cleanServerLogMsg(e);
+    if (cleaned) {
+      sendEvent('log', { message: cleaned.msg, type: cleaned.type, progress: 50 });
+    }
   });
   launcher.on('data', (e: string) => {
     stdLog += e + '\n';
     if (stdLog.length > 50000) stdLog = stdLog.substring(stdLog.length - 50000);
-    sendEvent('log', { message: e, progress: 80 });
+    writeRawLog(`[GAME] ${e}`);
+    const cleaned = cleanServerLogMsg(e);
+    if (cleaned) {
+      sendEvent('log', { message: cleaned.msg, type: cleaned.type, progress: 80 });
+    }
   });
   launcher.on('download-status', (e: any) => {
     const progress = Math.min(100, Math.round((e.current / e.total) * 100));
-    sendEvent('log', { message: `Загрузка ${e.name}...`, progress });
+    const msg = `Загрузка ${e.name}...`;
+    writeRawLog(`[DOWNLOAD] ${msg}`);
+    sendEvent('log', { message: msg, type: 'info', progress });
   });
   launcher.on('progress', (e: any) => {
-    sendEvent('log', { message: `Прогресс: ${e.task} (${e.total} всего)`, progress: 60 });
+    const msg = `Прогресс: ${e.task} (${e.total} всего)`;
+    writeRawLog(`[PROGRESS] ${msg}`);
+    sendEvent('log', { message: msg, type: 'info', progress: 60 });
   });
 
   try {

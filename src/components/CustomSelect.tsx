@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 interface Option {
@@ -16,7 +16,7 @@ interface CustomSelectProps {
   icon?: React.ReactNode;
 }
 
-export default function CustomSelect({ value, onChange, options, className = '', placeholder = '', icon }: CustomSelectProps) {
+function CustomSelect({ value, onChange, options, className = '', placeholder = '', icon }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -76,3 +76,5 @@ export default function CustomSelect({ value, onChange, options, className = '',
     </div>
   );
 }
+
+export default memo(CustomSelect);

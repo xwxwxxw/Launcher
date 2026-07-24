@@ -25,7 +25,7 @@ function parseGitHubRepo(repoString: string): string {
   return clean;
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
   const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
   const version = pkg.version || '0.0.11';
   const rawRepo = process.env.GITHUB_REPO || '';
@@ -33,6 +33,36 @@ export default defineConfig(() => {
 
   return {
     plugins: [react(), tailwindcss()],
+    esbuild: {
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
+    },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('skinview3d') || id.includes('three')) {
+                return 'vendor-skinviewer';
+              }
+              if (id.includes('d3')) {
+                return 'vendor-d3';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('motion')) {
+                return 'vendor-motion';
+              }
+              if (id.includes('react-markdown')) {
+                return 'vendor-markdown';
+              }
+              return 'vendor-core';
+            }
+          },
+        },
+      },
+    },
     define: {
       'import.meta.env.VITE_GITHUB_REPO': JSON.stringify(parsedRepo),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),

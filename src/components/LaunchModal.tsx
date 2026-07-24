@@ -103,8 +103,8 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
     eventSource.addEventListener('log', (e: any) => {
       let data: any; try { data = JSON.parse(e.data); } catch { return; }
       const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLogs(prev => [...prev, { msg: data.message, time }]);
-      setProgress(data.progress);
+      setLogs(prev => [...prev, { msg: data.message, time, type: data.type || 'info' }]);
+      if (data.progress !== undefined) setProgress(data.progress);
     });
 
     eventSource.addEventListener('done', (e: any) => {
@@ -116,7 +116,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
       let data: any; try { data = JSON.parse(e.data); } catch { return; }
       if (data.code !== 0) {
         if (data.crashMessage) {
-           setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.crashMessage}`, time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+           setLogs(prev => [...prev, { msg: `КРИТИЧЕСКАЯ ОШИБКА: ${data.crashMessage}`, time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }), type: 'error' }]);
         }
         if (data.outOfMemory) {
            setTimeout(() => alert("Недостаточно памяти! Пожалуйста, увеличьте RAM для этой сборки в настройках профиля."), 500);

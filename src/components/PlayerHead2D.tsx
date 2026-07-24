@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 
 interface PlayerHead2DProps {
   username: string;
@@ -6,7 +6,7 @@ interface PlayerHead2DProps {
   className?: string;
 }
 
-export default function PlayerHead2D({ username, uuid, className = '' }: PlayerHead2DProps) {
+function PlayerHead2D({ username, uuid, className = '' }: PlayerHead2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -102,3 +102,5 @@ export default function PlayerHead2D({ username, uuid, className = '' }: PlayerH
     </div>
   );
 }
+
+export default memo(PlayerHead2D);
