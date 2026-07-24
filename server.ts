@@ -352,6 +352,19 @@ export async function ensureMinecraftAndLoaderInstalled(
     if (profile.mod_loader === 'Fabric') {
       let loaderVer = profile.mod_loader_version || '0.16.10';
 
+      // 1. Fetch official valid Fabric Loader versions for this game version
+      let validMetaVersions: string[] = [];
+      try {
+        const metaRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}`);
+        if (metaRes.ok) {
+          const list: any = await metaRes.json();
+          validMetaVersions = list.map((item: any) => item.loader?.version).filter(Boolean);
+        }
+      } catch (_) {}
+
+      const latestMetaVersion = validMetaVersions[0] || '0.16.10';
+
+      // 2. Scan mods for requirements
       const modsDir = profile.mod_path
         ? normalizeProfilePath(profile.mod_path, profile.id, resolvedMcPath)
         : path.join(profileDir, 'mods');
@@ -359,11 +372,29 @@ export async function ensureMinecraftAndLoaderInstalled(
       if (fs.existsSync(modsDir)) {
         try {
           const modReqs = await scanFabricRequirementsFromMods(modsDir);
-          if (modReqs.maxRequiredVersion && semverCompare(modReqs.maxRequiredVersion, loaderVer) > 0) {
-            loaderVer = modReqs.maxRequiredVersion;
-            log(`Обнаружено требование модов к Fabric Loader >= ${loaderVer}`);
+          if (modReqs.maxRequiredVersion) {
+            // Check if maxRequiredVersion is valid on Meta
+            if (validMetaVersions.includes(modReqs.maxRequiredVersion)) {
+              loaderVer = modReqs.maxRequiredVersion;
+              log(`Моды требуют Fabric Loader >= ${loaderVer}`);
+            } else {
+              const suitable = validMetaVersions.find(v => semverCompare(v, modReqs.maxRequiredVersion!) >= 0);
+              if (suitable) {
+                loaderVer = suitable;
+                log(`Выбрана рабочая версия Fabric Loader v${loaderVer} для требований модов`);
+              } else {
+                log(`Версия Fabric Loader >= ${modReqs.maxRequiredVersion} не найдена в API Fabric Meta. Использование актуальной v${latestMetaVersion}`);
+                loaderVer = latestMetaVersion;
+              }
+            }
           }
         } catch (_) {}
+      }
+
+      // 3. Fallback check: if loaderVer is not valid or doesn't exist on Meta, use latestMetaVersion
+      if (validMetaVersions.length > 0 && !validMetaVersions.includes(loaderVer)) {
+        log(`Указанная версия Fabric Loader (${loaderVer}) недоступна в Meta. Замена на v${latestMetaVersion}`);
+        loaderVer = latestMetaVersion;
       }
 
       let customVersionName = `fabric-loader-${loaderVer}-${gameVersion}`;
@@ -382,18 +413,10 @@ export async function ensureMinecraftAndLoaderInstalled(
         let fabRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
 
         if (!fabRes.ok) {
-          log(`Версия Fabric Loader ${loaderVer} недоступна. Поиск актуальной версии...`);
-          const metaRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}`);
-          if (metaRes.ok) {
-            const list: any = await metaRes.json();
-            if (list && list.length > 0) {
-              const latestValid = list[0].loader.version;
-              log(`Выбрана рабочая версия Fabric Loader v${latestValid}`);
-              loaderVer = latestValid;
-              customVersionName = `fabric-loader-${loaderVer}-${gameVersion}`;
-              fabRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
-            }
-          }
+          log(`Запрошенная версия ${loaderVer} недоступна (HTTP ${fabRes.status}). Использование актуальной v${latestMetaVersion}...`);
+          loaderVer = latestMetaVersion;
+          customVersionName = `fabric-loader-${loaderVer}-${gameVersion}`;
+          fabRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
         }
 
         if (!fabRes.ok) {
@@ -407,11 +430,14 @@ export async function ensureMinecraftAndLoaderInstalled(
           fs.writeFileSync(path.join(targetDir, `${customVersionName}.json`), fabJsonText, 'utf8');
         }
 
-        if (profile.mod_loader_version !== loaderVer) {
-          profile.mod_loader_version = loaderVer;
-          saveProfiles();
-        }
-        log(`Fabric Loader v${loaderVer} успешно установлен.`);
+        log(`Fabric Loader v${loaderVer} успешно сохранён в папку versions.`);
+      }
+
+      // Always update profile's mod_loader_version to the guaranteed installed version
+      if (profile.mod_loader_version !== loaderVer) {
+        profile.mod_loader_version = loaderVer;
+        saveProfiles();
+        log(`Профиль обновлён: версия Fabric Loader установлена в v${loaderVer}`);
       }
     } else if (profile.mod_loader === 'Quilt') {
       let loaderVer = profile.mod_loader_version || '0.24.0';
@@ -2942,23 +2968,73 @@ app.get('/api/minecraft/versions', async (req, res) => {
 
 app.get('/api/minecraft/check-installed', async (req, res) => {
   try {
-    const { minecraftPath, version, loader } = req.query;
+    const { minecraftPath, version, loader, profileId } = req.query;
     if (!minecraftPath || !version) {
       return res.json({ installed: false });
     }
     const mcPath = path.isAbsolute(String(minecraftPath)) ? String(minecraftPath) : path.resolve(process.cwd(), String(minecraftPath));
-    
-    let installed = false;
-    if (loader === 'Fabric') {
-      const installedVersions = getInstalledFabricVersions(mcPath, '', String(version));
-      installed = installedVersions.length > 0;
-    } else {
-      let versionFolder = String(version);
-      const jsonPath = path.join(mcPath, 'versions', versionFolder, `${versionFolder}.json`);
-      installed = fs.existsSync(jsonPath);
+    const gameVersion = String(version);
+    const profile = profiles.find(p => p.id === String(profileId)) || profiles[0];
+    const profileDir = profile 
+      ? normalizeProfilePath(profile.mod_path ? path.dirname(profile.mod_path) : `./profiles/${profile.id}`, profile.id, mcPath)
+      : path.resolve(process.cwd(), './profiles/1');
+
+    const versionDirs = [
+      path.join(mcPath, 'versions'),
+      path.join(profileDir, 'versions'),
+      path.join(profileDir, '.minecraft', 'versions')
+    ];
+
+    // 1. Check Vanilla Minecraft
+    let vanillaInstalled = false;
+    for (const vd of versionDirs) {
+      const vPath = path.join(vd, gameVersion, `${gameVersion}.json`);
+      if (fs.existsSync(vPath) && fs.statSync(vPath).size > 100) {
+        vanillaInstalled = true;
+        break;
+      }
     }
-    
-    res.json({ installed });
+
+    if (!vanillaInstalled) {
+      return res.json({ installed: false, reason: 'vanilla_missing' });
+    }
+
+    // 2. Check Mod Loader
+    if (loader === 'Fabric') {
+      let fabricInstalled = false;
+      const loaderVer = profile?.mod_loader_version;
+      if (loaderVer) {
+        const customName = `fabric-loader-${loaderVer}-${gameVersion}`;
+        for (const vd of versionDirs) {
+          const fabPath = path.join(vd, customName, `${customName}.json`);
+          if (fs.existsSync(fabPath) && fs.statSync(fabPath).size > 100) {
+            fabricInstalled = true;
+            break;
+          }
+        }
+      }
+
+      if (!fabricInstalled) {
+        const installedVersions = getInstalledFabricVersions(mcPath, profileDir, gameVersion);
+        fabricInstalled = installedVersions.length > 0;
+      }
+
+      return res.json({ installed: fabricInstalled, reason: fabricInstalled ? undefined : 'fabric_missing' });
+    } else if (loader === 'Quilt') {
+      let quiltInstalled = false;
+      const loaderVer = profile?.mod_loader_version || '0.24.0';
+      const customName = `quilt-loader-${loaderVer}-${gameVersion}`;
+      for (const vd of versionDirs) {
+        const qPath = path.join(vd, customName, `${customName}.json`);
+        if (fs.existsSync(qPath) && fs.statSync(qPath).size > 100) {
+          quiltInstalled = true;
+          break;
+        }
+      }
+      return res.json({ installed: quiltInstalled, reason: quiltInstalled ? undefined : 'quilt_missing' });
+    }
+
+    res.json({ installed: vanillaInstalled });
   } catch (err) {
     res.json({ installed: false });
   }
@@ -3121,6 +3197,18 @@ app.get('/api/minecraft/launch', async (req, res) => {
     console.error('Failed to pre-configure options.txt language:', e);
   }
 
+  // 1. Ensure base Minecraft and Mod Loader are installed before constructing launch parameters
+  sendEvent('log', { message: `Проверка компонентов Minecraft ${activeProfile.game_version} (${activeProfile.mod_loader})...`, progress: 5 });
+  const preInstall = await ensureMinecraftAndLoaderInstalled(minecraftPathAbsolute, activeProfile, (msg) => {
+    sendEvent('log', { message: msg, progress: 8 });
+  });
+
+  if (!preInstall.success) {
+    sendEvent('error', `MINECRAFT_NOT_INSTALLED: Не удалось установить или подготовить версии игры: ${preInstall.error}`);
+    res.end();
+    return;
+  }
+
   let opts: any = {
     clientPackage: null,
     authorization: authData,
@@ -3143,152 +3231,18 @@ app.get('/api/minecraft/launch', async (req, res) => {
     }
   };
 
-  // Get the latest loader version dynamically
-  let loaderVer = '';
   if (activeProfile.mod_loader === 'Fabric') {
-    const profileDir = normalizeProfilePath(activeProfile.mod_path ? path.dirname(activeProfile.mod_path) : `./profiles/${activeProfile.id}`, activeProfile.id, minecraftPathAbsolute);
-    const modsDir = activeProfile.mod_path ? normalizeProfilePath(activeProfile.mod_path, activeProfile.id, minecraftPathAbsolute) : path.join(profileDir, 'mods');
-
-    // 1. Scan installed Fabric Loader versions on disk
-    const installedVersions = getInstalledFabricVersions(minecraftPathAbsolute, profileDir, activeProfile.game_version);
-
-    // 2. Scan installed mods in profile for fabricloader requirements
-    const modReqs = await scanFabricRequirementsFromMods(modsDir);
-
-    // 3. Fetch latest Fabric Loader from Fabric Meta API
-    let latestMetaVersion = '0.16.10';
-    try {
-      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) latestMetaVersion = data[0].loader.version;
-      }
-    } catch(e) {}
-
-    let chosenLoaderVer = '';
-
-    if (modReqs.maxRequiredVersion) {
-      sendEvent('log', { message: `Моды требуют Fabric Loader >= ${modReqs.maxRequiredVersion}`, progress: 2 });
-      // Find highest installed version that satisfies >= maxRequiredVersion
-      const suitableInstalled = installedVersions.find(v => semverCompare(v, modReqs.maxRequiredVersion!) >= 0);
-      if (suitableInstalled) {
-        chosenLoaderVer = suitableInstalled;
-      } else {
-        // If no installed version satisfies requirement, use latestMetaVersion if >= maxRequiredVersion, else maxRequiredVersion
-        if (semverCompare(latestMetaVersion, modReqs.maxRequiredVersion) >= 0) {
-          chosenLoaderVer = latestMetaVersion;
-        } else {
-          chosenLoaderVer = modReqs.maxRequiredVersion;
-        }
-      }
-    } else {
-      // No explicit mod requirement found:
-      const profileVer = activeProfile.mod_loader_version;
-      if (profileVer && profileVer !== '0.15.7') {
-        chosenLoaderVer = profileVer;
-        if (installedVersions.length > 0 && semverCompare(installedVersions[0], chosenLoaderVer) > 0) {
-          chosenLoaderVer = installedVersions[0];
-        }
-      } else {
-        if (installedVersions.length > 0) {
-          chosenLoaderVer = installedVersions[0];
-        } else {
-          chosenLoaderVer = latestMetaVersion;
-        }
-      }
-    }
-
-    if (!chosenLoaderVer) chosenLoaderVer = '0.16.10';
-    loaderVer = chosenLoaderVer;
-
-    // Save updated loader version to profile
-    if (activeProfile.mod_loader_version !== loaderVer) {
-      activeProfile.mod_loader_version = loaderVer;
-      saveProfiles();
-    }
-
-    sendEvent('log', { message: `Использование Fabric Loader v${loaderVer}`, progress: 4 });
-
+    const loaderVer = activeProfile.mod_loader_version || '0.16.10';
     const customVersionName = `fabric-loader-${loaderVer}-${activeProfile.game_version}`;
     opts.version.custom = customVersionName;
-    
-    // Download profile JSON to all versions directories if missing
-    const targetDirs = [
-      path.join(minecraftPathAbsolute, 'versions', customVersionName),
-      path.join(profileDir, 'versions', customVersionName),
-      path.join(profileDir, '.minecraft', 'versions', customVersionName)
-    ];
-
-    for (const vDir of targetDirs) {
-      if (!fs.existsSync(vDir)) {
-        fs.mkdirSync(vDir, { recursive: true });
-      }
-      const jsonPath = path.join(vDir, `${customVersionName}.json`);
-      if (!fs.existsSync(jsonPath)) {
-        sendEvent('log', { message: `Скачивание профиля Fabric ${loaderVer}...`, progress: 5 });
-        try {
-          const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-          if (res.ok) {
-            const data = await res.text();
-            fs.writeFileSync(jsonPath, data);
-            sendEvent('log', { message: 'Профиль Fabric успешно загружен.', progress: 10 });
-          }
-        } catch (e) {
-          console.error('Failed to download Fabric profile', e);
-        }
-      }
-    }
+    sendEvent('log', { message: `Запуск с Fabric Loader v${loaderVer}`, progress: 10 });
   } else if (activeProfile.mod_loader === 'Quilt') {
-    // Check if we can find an already downloaded version on disk first
-    const versionsDirRoot = path.join(minecraftPathAbsolute, 'versions');
-    if (fs.existsSync(versionsDirRoot)) {
-      try {
-        const dirs = fs.readdirSync(versionsDirRoot);
-        const matchPrefix = 'quilt-loader-';
-        const matchSuffix = `-${activeProfile.game_version}`;
-        const found = dirs.find(d => d.startsWith(matchPrefix) && d.endsWith(matchSuffix));
-        if (found) {
-          loaderVer = found.substring(matchPrefix.length, found.length - matchSuffix.length);
-        }
-      } catch (err) {
-        console.error('Failed to scan versions directory for Quilt:', err);
-      }
-    }
-
-    if (!loaderVer) {
-      try {
-        const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.length > 0) loaderVer = data[0].loader.version;
-        }
-      } catch(e) {}
-      if (!loaderVer) loaderVer = '0.24.0';
-    }
-
+    const loaderVer = activeProfile.mod_loader_version || '0.24.0';
     const customVersionName = `quilt-loader-${loaderVer}-${activeProfile.game_version}`;
     opts.version.custom = customVersionName;
-    
-    const versionsDir = path.join(minecraftPathAbsolute, 'versions', customVersionName);
-    if (!fs.existsSync(versionsDir)) {
-        fs.mkdirSync(versionsDir, { recursive: true });
-    }
-    const jsonPath = path.join(versionsDir, `${customVersionName}.json`);
-    if (!fs.existsSync(jsonPath)) {
-        sendEvent('log', { message: 'Скачивание профиля Quilt...', progress: 5 });
-        try {
-            const res = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${activeProfile.game_version}/${loaderVer}/profile/json`);
-            if (res.ok) {
-                const data = await res.text();
-                fs.writeFileSync(jsonPath, data);
-                sendEvent('log', { message: 'Профиль Quilt успешно загружен.', progress: 10 });
-            }
-        } catch (e) {
-            console.error('Failed to download Quilt profile', e);
-        }
-    }
-
+    sendEvent('log', { message: `Запуск с Quilt Loader v${loaderVer}`, progress: 10 });
   } else if (activeProfile.mod_loader === 'Forge') {
+    let loaderVer = activeProfile.mod_loader_version || '';
     try {
       const res = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
       if (res.ok) {
@@ -3384,18 +3338,7 @@ app.get('/api/minecraft/launch', async (req, res) => {
   });
 
   try {
-    sendEvent('log', { message: `Проверка наличия базового Minecraft ${activeProfile.game_version} и ${activeProfile.mod_loader}...`, progress: 5 });
-    const preInstall = await ensureMinecraftAndLoaderInstalled(minecraftPathAbsolute, activeProfile, (msg) => {
-      sendEvent('log', { message: msg, progress: 8 });
-    });
-
-    if (!preInstall.success) {
-      sendEvent('error', `MINECRAFT_NOT_INSTALLED: Не удалось автоматически установить Minecraft / Loader: ${preInstall.error}`);
-      res.end();
-      return;
-    }
-
-    sendEvent('log', { message: `Начинается установка и запуск ${activeProfile.game_version}...`, progress: 10 });
+    sendEvent('log', { message: `Начинается запуск Minecraft ${activeProfile.game_version}...`, progress: 10 });
     
     // Will throw if errors out, or return ChildProcess when fully started
     const proc = await launcher.launch(opts);

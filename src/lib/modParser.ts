@@ -397,7 +397,7 @@ export async function scanFabricRequirementsFromMods(modsDir: string): Promise<{
           const modId = json.id || file;
 
           if (json.depends && typeof json.depends === 'object') {
-            const depKeys = ['fabricloader', 'fabric-loader', 'fabric', 'loader'];
+            const depKeys = ['fabricloader', 'fabric-loader', 'loader'];
             for (const key of depKeys) {
               const val = json.depends[key];
               if (val && typeof val === 'string' && val !== '*') {

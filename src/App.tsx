@@ -1062,7 +1062,7 @@ export default function App() {
     const prof = profiles.find(p => p.id === activeProfileId) || profiles[0];
     if (prof) {
       setIsCheckingInstall(true);
-      fetch(`/api/minecraft/check-installed?minecraftPath=${encodeURIComponent(minecraftPath)}&version=${prof.game_version}&loader=${prof.mod_loader}`)
+      fetch(`/api/minecraft/check-installed?minecraftPath=${encodeURIComponent(minecraftPath)}&version=${prof.game_version}&loader=${prof.mod_loader}&profileId=${prof.id}`)
         .then(res => res.json())
         .then(data => {
           setIsInstalled(data.installed);
