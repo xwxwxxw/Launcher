@@ -67,7 +67,7 @@ for (const envPath of potentialEnvPaths) {
 }
 
 if (!loadedEnv) {
-  console.log('[ENV] No external .env file found in paths. Relying on default process.env.');
+  console.log('[ENV] No external .env file found in paths. Relying on default process.env[""]');
   dotenv.config();
 }
 
@@ -84,14 +84,14 @@ process.env['GITHUB_REPO'] = process.env['GITHUB_REPO'] || process.env['VITE_GIT
 process.env['VITE_GITHUB_REPO'] = process.env['VITE_GITHUB_REPO'] || process.env['GITHUB_REPO'];
 
 console.log('[Server ENV Init] Resolved environment configuration:', {
-  GDRIVE_API_KEY: process.env.GDRIVE_API_KEY ? `CONFIGURED (${process.env.GDRIVE_API_KEY.substring(0, 8)}...)` : 'MISSING',
-  GDRIVE_FOLDER_ID: process.env.GDRIVE_FOLDER_ID,
-  GITHUB_REPO: process.env.GITHUB_REPO
+  GDRIVE_API_KEY: process.env["GDRIVE_API_KEY"] ? `CONFIGURED (${process.env["GDRIVE_API_KEY"].substring(0, 8)}...)` : 'MISSING',
+  GDRIVE_FOLDER_ID: process.env["GDRIVE_FOLDER_ID"],
+  GITHUB_REPO: process.env["GITHUB_REPO"]
 });
 
 let pendingElyAuth: any = null;
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = process.env["PORT"] ? parseInt(process.env["PORT"], 10) : 3000;
 app.use(express.json());
 
 // Disable caching for all API endpoints to prevent stale authentication or state checks in the browser
@@ -106,11 +106,11 @@ app.use('/api', (req, res, next) => {
 const getStorageDir = () => {
   let baseDir = process.cwd();
   let oldBaseDirs: string[] = [];
-  if (process.env.APPDATA) {
-    baseDir = path.join(process.env.APPDATA, 'layle-launcher');
+  if (process.env["APPDATA"]) {
+    baseDir = path.join(process.env["APPDATA"], 'layle-launcher');
     oldBaseDirs = [
-      path.join(process.env.APPDATA, 'LayleLauncher'),
-      path.join(process.env.APPDATA, 'MinecraftLauncher')
+      path.join(process.env["APPDATA"], 'LayleLauncher'),
+      path.join(process.env["APPDATA"], 'MinecraftLauncher')
     ];
   } else if (process.platform === 'darwin') {
     baseDir = path.join(os.homedir(), 'Library', 'Application Support', 'layle-launcher');
@@ -272,7 +272,7 @@ if (fs.existsSync(PROFILES_FILE)) {
         is_active: profiles[githubSyncIndex].is_active || false,
         ram_mb: profiles[githubSyncIndex].ram_mb || 4096,
         syncSource: 'gdrive',
-        gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+        gdriveFolderId: extractGDriveFolderId(process.env["GDRIVE_FOLDER_ID"] || ''),
         gdriveFolderName: 'Google Drive Folder',
         is_favorite: true
       } as any;
@@ -292,7 +292,7 @@ if (fs.existsSync(PROFILES_FILE)) {
         is_active: false,
         ram_mb: 4096,
         syncSource: 'gdrive',
-        gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+        gdriveFolderId: extractGDriveFolderId(process.env["GDRIVE_FOLDER_ID"] || ''),
         gdriveFolderName: 'Google Drive Folder',
         is_favorite: true
       } as any);
@@ -346,7 +346,7 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       is_active: false,
       ram_mb: 4096,
       syncSource: 'gdrive',
-      gdriveFolderId: extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || ''),
+      gdriveFolderId: extractGDriveFolderId(process.env["GDRIVE_FOLDER_ID"] || ''),
       gdriveFolderName: 'Google Drive Folder',
       is_favorite: true
     } as any
@@ -529,7 +529,7 @@ async function fetchGitHubApi(url: string) {
     'User-Agent': 'Layle-Minecraft-Launcher',
     'Accept': 'application/vnd.github.v3+json'
   };
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const token = process.env["GITHUB_TOKEN"] || process.env["GH_TOKEN"];
   if (token) {
     headers['Authorization'] = `token ${token}`;
   }
@@ -559,8 +559,43 @@ async function fetchGitHubApi(url: string) {
 }
 
 // Update check endpoint available for both Web and Electron
+app.get('/api/updates/download-file', async (req, res) => {
+  const targetUrl = String(req.query.url || '');
+  const fileName = String(req.query.filename || 'layle-launcher-setup.exe');
+  
+  if (!targetUrl || !targetUrl.startsWith('https://')) {
+    return res.status(400).json({ error: 'Invalid URL parameter' });
+  }
+
+  try {
+    const ghRes = await fetch(targetUrl, {
+      headers: { 'User-Agent': 'Layle-Minecraft-Launcher' },
+      redirect: 'follow'
+    });
+
+    if (!ghRes.ok) {
+      return res.status(ghRes.status).send(`GitHub error: HTTP ${ghRes.status}`);
+    }
+
+    res.setHeader('Content-Type', ghRes.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    if (ghRes.headers.get('content-length')) {
+      res.setHeader('Content-Length', ghRes.headers.get('content-length')!);
+    }
+
+    if (ghRes.body) {
+      const { Readable } = await import('stream');
+      Readable.fromWeb(ghRes.body as any).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/updates/check', async (req, res) => {
-  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  const repo = String(req.query.repo || process.env["VITE_GITHUB_REPO"] || 'xwxwxxw/Launcher');
   try {
     const { ok, status, data } = await fetchGitHubApi(`https://api.github.com/repos/${repo}/releases/latest`);
     
@@ -611,8 +646,8 @@ app.get('/api/gdrive/auth-status', (req, res) => {
   const profileId = String(req.query.profileId || '');
   const profile = profiles.find(p => p.id === profileId);
   const hasServerToken = !!(
-    process.env.GDRIVE_ACCESS_TOKEN ||
-    process.env.GDRIVE_API_KEY ||
+    process.env["GDRIVE_ACCESS_TOKEN"] ||
+    process.env["GDRIVE_API_KEY"] ||
     (profile && (profile as any).gdriveToken)
   );
   res.json({ hasServerToken });
@@ -622,7 +657,7 @@ app.get('/api/gdrive/auth-status', (req, res) => {
 app.get('/api/gdrive/check-updates', async (req, res) => {
   let folderId = String(req.query.folderId || '');
   if (!folderId || folderId === 'undefined') {
-    folderId = extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || '');
+    folderId = extractGDriveFolderId(process.env["GDRIVE_FOLDER_ID"] || '');
   } else {
     folderId = extractGDriveFolderId(folderId);
   }
@@ -635,7 +670,7 @@ app.get('/api/gdrive/check-updates', async (req, res) => {
   
   let resolvedToken = token.trim();
   if (!resolvedToken || resolvedToken === 'server_token' || resolvedToken === 'undefined') {
-    resolvedToken = process.env.GDRIVE_ACCESS_TOKEN || process.env.GDRIVE_API_KEY || (profile ? (profile as any).gdriveToken : '') || '';
+    resolvedToken = process.env["GDRIVE_ACCESS_TOKEN"] || process.env["GDRIVE_API_KEY"] || (profile ? (profile as any).gdriveToken : '') || '';
     resolvedToken = resolvedToken.trim();
   }
 
@@ -898,7 +933,7 @@ async function listGDriveFolder(folderId: string, accessToken: string, currentPa
 
 
 app.get('/api/github/check-updates', async (req, res) => {
-  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  const repo = String(req.query.repo || process.env["VITE_GITHUB_REPO"] || 'xwxwxxw/Launcher');
   const profileId = String(req.query.profileId || '');
 
   try {
@@ -951,12 +986,12 @@ app.get('/api/sync-build', async (req, res) => {
   };
 
   const profileId = String(req.query.profileId || '1');
-  const repo = String(req.query.repo || process.env.VITE_GITHUB_REPO || 'xwxwxxw/Launcher');
+  const repo = String(req.query.repo || process.env["VITE_GITHUB_REPO"] || 'xwxwxxw/Launcher');
   const mcPath = String(req.query.minecraftPath || '');
   const syncSource = String(req.query.syncSource || 'github');
   let gdriveFolderId = String(req.query.gdriveFolderId || '');
   if (!gdriveFolderId || gdriveFolderId === 'undefined') {
-    gdriveFolderId = extractGDriveFolderId(process.env.GDRIVE_FOLDER_ID || '');
+    gdriveFolderId = extractGDriveFolderId(process.env["GDRIVE_FOLDER_ID"] || '');
   } else {
     gdriveFolderId = extractGDriveFolderId(gdriveFolderId);
   }
@@ -988,7 +1023,7 @@ app.get('/api/sync-build', async (req, res) => {
     if (syncSource === 'gdrive') {
       let resolvedToken = gdriveToken.trim();
       if (!resolvedToken || resolvedToken === 'server_token' || resolvedToken === 'undefined') {
-        resolvedToken = process.env.GDRIVE_ACCESS_TOKEN || process.env.GDRIVE_API_KEY || (profile ? (profile as any).gdriveToken : '') || '';
+        resolvedToken = process.env["GDRIVE_ACCESS_TOKEN"] || process.env["GDRIVE_API_KEY"] || (profile ? (profile as any).gdriveToken : '') || '';
         resolvedToken = resolvedToken.trim();
       }
 
@@ -1658,8 +1693,8 @@ app.get('/api/auth/ely/url', (req, res) => {
     const customClientSecret = req.query.client_secret;
     const origin = req.query.origin || `${req.protocol}://${req.get('host')}`;
     
-    const clientId = customClientId || process.env.ELY_CLIENT_ID || 'layle-launcher3';
-    const clientSecret = customClientSecret || process.env.ELY_CLIENT_SECRET || '21nUJW32uKxbQrLCx5qTWL3_Fk11ehEBw3S_xnNfuOFRHfygzerpbhp5T7uGLyKc';
+    const clientId = customClientId || process.env["ELY_CLIENT_ID"] || 'layle-launcher3';
+    const clientSecret = customClientSecret || process.env["ELY_CLIENT_SECRET"] || '21nUJW32uKxbQrLCx5qTWL3_Fk11ehEBw3S_xnNfuOFRHfygzerpbhp5T7uGLyKc';
 
     const useOrigin = clientId === 'layle-launcher3' ? 'http://localhost:3000' : origin;
     const redirectUri = `${useOrigin}/api/auth/ely/callback`;
@@ -3247,7 +3282,7 @@ app.post('/api/minecraft/kill', (req, res) => {
 app.get('/api/system/check-update', async (req, res) => {
   try {
     const currentVersion = require('./package.json').version || '1.0.0';
-    let repo = process.env.GITHUB_REPO || '';
+    let repo = process.env["GITHUB_REPO"] || '';
     if (repo) {
       repo = repo.trim().replace(/\\.git$/, '');
       if (repo.includes('github.com/')) {
@@ -3309,7 +3344,7 @@ app.get('/api/system/check-update', async (req, res) => {
 async function startServer() {
   const server = http.createServer(app);
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env["NODE_ENV"] !== "production") {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { 

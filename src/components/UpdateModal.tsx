@@ -51,58 +51,33 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     setDownloadDetails({ downloadedMB: '0.0', totalMB: '0.0', speedMBs: 0 });
 
     const assets = updateInfo.assets || [];
-    const isElectron = typeof window !== 'undefined' && ((window as any).electron || (window as any).ipcRenderer || navigator.userAgent.toLowerCase().includes('electron'));
+    const isElectron = typeof window !== 'undefined' && (
+      Boolean((window as any).electron) || 
+      Boolean((window as any).ipcRenderer) || 
+      navigator.userAgent.toLowerCase().includes('electron')
+    );
 
     if (isElectron) {
       const electronObj = (window as any).electron;
       const ipcRenderer = electronObj?.ipcRenderer || (window as any).ipcRenderer;
-      const shell = electronObj?.shell;
-      const electProcess = electronObj?.process;
-      const platform = electProcess?.platform || 'win32';
-      
-      let targetAsset = null;
-      if (platform === 'win32') {
-        targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe'));
-      } else if (platform === 'darwin') {
-        targetAsset = assets.find(a => a && a.name && (a.name.toLowerCase().endsWith('.dmg') || a.name.toLowerCase().endsWith('.zip')));
-      } else {
-        targetAsset = assets.find(a => a && a.name && (a.name.toLowerCase().endsWith('.appimage') || a.name.toLowerCase().endsWith('.deb') || a.name.toLowerCase().endsWith('.tar.gz')));
-      }
 
-      if (!targetAsset) {
-        targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) || assets[0];
-      }
+      let targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) || assets[0];
 
-      if (!targetAsset) {
-        setErrorMsg('Не найден релизный .exe файл установщика в GitHub Release.');
+      if (!targetAsset || !targetAsset.browser_download_url) {
+        setErrorMsg('Не найден исполняемый файл (.exe) в релизе GitHub.');
         setStatus('error');
         return;
       }
 
-      if (platform !== 'win32' || !ipcRenderer || typeof ipcRenderer.invoke !== 'function') {
-        setStatus('downloading');
-        try {
-          if (shell) {
-            shell.openExternal(targetAsset.browser_download_url);
-            setStatus('idle');
-            onClose();
-          } else {
-            window.open(targetAsset.browser_download_url, '_blank');
-            setStatus('idle');
-            onClose();
-          }
-        } catch (err: any) {
-          setErrorMsg(err.message || 'Ошибка открытия браузера');
-          setStatus('error');
-        }
+      if (!ipcRenderer || typeof ipcRenderer.invoke !== 'function') {
+        setErrorMsg('Ошибка подключения к модулю обновления Electron.');
+        setStatus('error');
         return;
       }
 
-      // Windows fully automated background update flow
       setStatus('downloading');
-      
       const shaAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe.sha256'));
-      
+
       try {
         const result = await ipcRenderer.invoke('download-update', targetAsset.browser_download_url, shaAsset ? shaAsset.browser_download_url : null);
         if (result && result.success) {
@@ -119,29 +94,31 @@ export default function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           setStatus('error');
         }
       } catch (e: any) {
-        setErrorMsg(e.message || 'Произошла непредвиденная ошибка при обновлении');
+        setErrorMsg(e.message || 'Произошла ошибка при автоматическом обновлении');
         setStatus('error');
       }
     } else {
-      // Browser preview fallback
+      // Browser preview mode: trigger direct attachment download via backend proxy
       setStatus('downloading');
       try {
-        const targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) ||
-                            assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.zip')) ||
-                            assets[0];
-        
+        const targetAsset = assets.find(a => a && a.name && a.name.toLowerCase().endsWith('.exe')) || assets[0];
         if (targetAsset && targetAsset.browser_download_url) {
-          window.open(targetAsset.browser_download_url, '_blank');
-          setStatus('idle');
-          onClose();
+          const downloadUrl = `/api/updates/download-file?url=${encodeURIComponent(targetAsset.browser_download_url)}&filename=${encodeURIComponent(targetAsset.name || 'layle-launcher-setup.exe')}`;
+          
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = targetAsset.name || 'layle-launcher-setup.exe';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          setStatus('completed');
         } else {
-          const repo = getEnv('VITE_GITHUB_REPO') || getEnv('GITHUB_REPO') || 'xwxwxxw/Launcher';
-          window.open(`https://github.com/${repo}/releases/latest`, '_blank');
-          setStatus('idle');
-          onClose();
+          setErrorMsg('Файл обновления не найден в списке ресурсов.');
+          setStatus('error');
         }
       } catch (e: any) {
-        setErrorMsg(e.message);
+        setErrorMsg(e.message || 'Ошибка загрузки обновления');
         setStatus('error');
       }
     }

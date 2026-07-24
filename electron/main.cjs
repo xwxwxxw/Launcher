@@ -451,17 +451,14 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
     const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
     const fileStream = fs.createWriteStream(tempPath);
     
-    const reader = response.body.getReader();
     let downloadedBytes = 0;
     const startTime = Date.now();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    const { Readable } = require('stream');
+    const nodeStream = Readable.fromWeb(response.body);
 
-      downloadedBytes += value.length;
-      fileStream.write(Buffer.from(value));
-
+    nodeStream.on('data', (chunk) => {
+      downloadedBytes += chunk.length;
       const elapsedSec = Math.max(0.1, (Date.now() - startTime) / 1000);
       const speedMBs = (downloadedBytes / (1024 * 1024)) / elapsedSec;
       const percent = totalBytes > 0 ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : 0;
@@ -472,11 +469,14 @@ ipcMain.handle('download-update', async (event, assetUrl, sha256AssetUrl) => {
         totalBytes,
         speedMBs: parseFloat(speedMBs.toFixed(2))
       });
-    }
+    });
+
+    nodeStream.pipe(fileStream);
 
     await new Promise((resolve, reject) => {
-      fileStream.end(() => resolve());
+      fileStream.on('finish', () => resolve());
       fileStream.on('error', (err) => reject(err));
+      nodeStream.on('error', (err) => reject(err));
     });
 
     console.log('[Update] Download complete. Temp path:', tempPath, 'Size:', fs.statSync(tempPath).size);
@@ -532,67 +532,32 @@ ipcMain.handle('install-update', async (event, tempPath) => {
 
     if (process.platform === 'win32') {
       const tempDir = app.getPath('temp') || os.tmpdir();
-      const vbsPath = path.join(tempDir, `layle_silent_update_${Date.now()}.vbs`);
-      const errorLogPath = path.join(tempDir, `layle_update_error_${Date.now()}.log`);
+      const cmdPath = path.join(tempDir, `layle_silent_update_${Date.now()}.cmd`);
 
-      const escapeVbsStr = (str) => str.replace(/"/g, '""');
+      const cmdScript = `@echo off
+chcp 65001 > nul
+:wait_proc
+tasklist /fi "PID eq ${currentPid}" 2>NUL | find "${currentPid}" >NUL
+if "%ERRORLEVEL%"=="0" (
+    timeout /t 1 /nobreak >nul
+    goto wait_proc
+)
+timeout /t 1 /nobreak >nul
+start /wait "" "${tempPath}" /S
+timeout /t 2 /nobreak >nul
+if exist "${tempPath}" del /f /q "${tempPath}"
+if exist "${exePath}" start "" "${exePath}"
+(goto) 2>nul & del /f /q "%~f0"
+`;
 
-      const vbsScript = `
-Set WshShell = CreateObject("WScript.Shell")
-Set fso = CreateObject("Scripting.FileSystemObject")
-
-pid = ${currentPid}
-installer = "${escapeVbsStr(tempPath)}"
-exePath = "${escapeVbsStr(exePath)}"
-errorLogPath = "${escapeVbsStr(errorLogPath)}"
-
-On Error Resume Next
-
-' 1. Poll WMI Win32_Process until main launcher process ID completely terminates
-Do
-    Set colProc = GetObject("winmgmts:\\\\.\\root\\cimv2").ExecQuery("Select * from Win32_Process Where ProcessId = " & pid)
-    If colProc.Count = 0 Then Exit Do
-    WScript.Sleep 250
-Loop
-
-WScript.Sleep 500
-
-' 2. Execute NSIS installer silently (/S)
-nResult = WshShell.Run("""" & installer & """ /S", 0, True)
-
-' Log error if installation failed
-If Err.Number <> 0 Or nResult <> 0 Then
-    Set logFile = fso.CreateTextFile(errorLogPath, True)
-    logFile.WriteLine "Silent install failed at " & Now
-    logFile.WriteLine "Exit Code: " & nResult
-    logFile.WriteLine "Error: " & Err.Description
-    logFile.Close
-End If
-
-' 3. Clean up temporary installer executable
-If fso.FileExists(installer) Then
-    fso.DeleteFile installer, True
-End If
-
-' 4. Relaunch updated launcher executable
-If fso.FileExists(exePath) Then
-    WshShell.Run """" & exePath & """", 1, False
-End If
-
-' 5. Clean up VBScript runner itself
-scriptPath = WScript.ScriptFullName
-If fso.FileExists(scriptPath) Then
-    fso.DeleteFile scriptPath, True
-End If
-`.trim();
-
-      fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
+      fs.writeFileSync(cmdPath, cmdScript, 'utf-8');
 
       const { spawn } = require('child_process');
-      const child = spawn('wscript.exe', [vbsPath], {
+      const child = spawn('cmd.exe', ['/c', `"${cmdPath}"`], {
         detached: true,
         windowsHide: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
+        windowsVerbatimArguments: true
       });
       child.unref();
 

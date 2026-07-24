@@ -281,7 +281,7 @@ export default function App() {
         return;
       }
     }
-    showCustomToast("Окно свернуто (эмуляция для браузера)");
+    if (!(typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("electron"))) showCustomToast("Окно свернуто (эмуляция для браузера)");
   };
 
   const handleMaximize = () => {
@@ -340,7 +340,7 @@ export default function App() {
         return;
       }
     }
-    showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
+    if (!(typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("electron"))) showCustomToast("Работа лаунчера завершена (эмуляция для браузера)");
   };
 
   const [updateInfo, setUpdateInfo] = useState<{ version: string; notes: string; assets: any[] } | null>(null);
