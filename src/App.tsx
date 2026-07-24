@@ -728,7 +728,7 @@ export default function App() {
     name: 'Vanilla 1.20.1',
     game_version: '1.20.1',
     mod_loader: 'Vanilla',
-    mod_loader_version: '0.15.7',
+    mod_loader_version: '0.16.10',
     description: 'Чистая сборка без модов.',
     ram_mb: ram,
     mod_path: './profiles/1/.minecraft/mods',

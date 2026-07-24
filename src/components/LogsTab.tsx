@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Terminal, FolderOpen, RefreshCw, AlertTriangle } from 'lucide-react';
-import { openFolderInExplorer } from '../utils/explorer';
+import { Terminal, FolderOpen, RefreshCw, AlertTriangle, Copy, Check } from 'lucide-react';
 
 export default function LogsTab({ activeProfileId, globalGamePath }: { activeProfileId: string, globalGamePath: string }) {
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = async () => {
@@ -34,9 +34,36 @@ export default function LogsTab({ activeProfileId, globalGamePath }: { activePro
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  const handleCopyAll = async () => {
+    if (!logs) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(logs);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = logs;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy logs:', e);
+    }
+  };
+
   const handleOpenFolder = async () => {
     try {
-      await fetch(`/api/minecraft/open-logs-folder?profileId=${activeProfileId}&minecraftPath=${encodeURIComponent(globalGamePath)}`, { method: 'POST' });
+      if (typeof window !== 'undefined' && (window as any).electron) {
+        const { ipcRenderer } = (window as any).electron;
+        await ipcRenderer.invoke('open-path', `./profiles/${activeProfileId}/logs`);
+      } else {
+        await fetch(`/api/minecraft/open-logs-folder?profileId=${activeProfileId}&minecraftPath=${encodeURIComponent(globalGamePath)}`, { method: 'POST' });
+      }
     } catch (e) {
       console.error('Failed to open logs folder:', e);
     }
@@ -56,14 +83,26 @@ export default function LogsTab({ activeProfileId, globalGamePath }: { activePro
         <div className="flex items-center gap-3">
           <button 
             onClick={fetchLogs}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors border border-zinc-700/50"
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors border border-zinc-700/50 cursor-pointer"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             Обновить
           </button>
           <button 
+            onClick={handleCopyAll}
+            disabled={!logs}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border cursor-pointer ${
+              copied 
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border-purple-500/30'
+            }`}
+          >
+            {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+            {copied ? 'Скопировано!' : 'Скопировать всё'}
+          </button>
+          <button 
             onClick={handleOpenFolder}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-xl transition-colors border border-purple-500/20"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-xl transition-colors border border-purple-500/20 cursor-pointer"
           >
             <FolderOpen size={16} />
             Открыть папку
@@ -78,7 +117,10 @@ export default function LogsTab({ activeProfileId, globalGamePath }: { activePro
           <p className="text-red-400/70 text-sm mt-1">Убедитесь, что игра была запущена хотя бы один раз.</p>
         </div>
       ) : (
-        <div className="flex-1 bg-zinc-950 border border-zinc-800/50 rounded-xl p-4 overflow-auto font-mono text-xs whitespace-pre-wrap text-zinc-300 custom-scrollbar relative">
+        <div 
+          className="flex-1 bg-zinc-950 border border-zinc-800/80 rounded-2xl p-5 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-zinc-300 custom-scrollbar relative select-text cursor-text"
+          style={{ fontFamily: 'Consolas, "Courier New", Monaco, Menlo, monospace' }}
+        >
           {logs}
           <div ref={logsEndRef} />
         </div>

@@ -352,3 +352,83 @@ export async function translateText(text: string): Promise<string> {
   }
   return text;
 }
+
+export function semverCompare(a: string, b: string): number {
+  if (!a) return b ? -1 : 0;
+  if (!b) return a ? 1 : 0;
+  const pa = a.replace(/[^0-9.]/g, '').split('.').map(Number);
+  const pb = b.replace(/[^0-9.]/g, '').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = isNaN(pa[i]) ? 0 : pa[i];
+    const nb = isNaN(pb[i]) ? 0 : pb[i];
+    if (na !== nb) return na - nb;
+  }
+  return 0;
+}
+
+export interface ModFabricRequirement {
+  modName: string;
+  modId: string;
+  rawConstraint: string;
+  extractedVersion: string;
+}
+
+export async function scanFabricRequirementsFromMods(modsDir: string): Promise<{
+  maxRequiredVersion: string | null;
+  requirements: ModFabricRequirement[];
+}> {
+  const requirements: ModFabricRequirement[] = [];
+  if (!fs.existsSync(modsDir)) {
+    return { maxRequiredVersion: null, requirements: [] };
+  }
+
+  try {
+    const files = fs.readdirSync(modsDir).filter(f => f.endsWith('.jar'));
+    for (const file of files) {
+      const filePath = path.join(modsDir, file);
+      try {
+        const data = await fs.promises.readFile(filePath);
+        const zip = await JSZip.loadAsync(data);
+        const modJsonFile = zip.file('fabric.mod.json');
+        if (modJsonFile) {
+          const content = await modJsonFile.async('string');
+          const json = JSON.parse(content);
+          const modName = json.name || json.id || file;
+          const modId = json.id || file;
+
+          if (json.depends && typeof json.depends === 'object') {
+            const depKeys = ['fabricloader', 'fabric-loader', 'fabric', 'loader'];
+            for (const key of depKeys) {
+              const val = json.depends[key];
+              if (val && typeof val === 'string' && val !== '*') {
+                const match = val.match(/(\d+\.\d+(?:\.\d+)?)/);
+                if (match) {
+                  const extractedVersion = match[1];
+                  requirements.push({
+                    modName,
+                    modId,
+                    rawConstraint: val,
+                    extractedVersion
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore single mod parse errors
+      }
+    }
+  } catch (err) {
+    console.error('Error scanning mods for fabric requirements:', err);
+  }
+
+  let maxRequiredVersion: string | null = null;
+  for (const req of requirements) {
+    if (!maxRequiredVersion || semverCompare(req.extractedVersion, maxRequiredVersion) > 0) {
+      maxRequiredVersion = req.extractedVersion;
+    }
+  }
+
+  return { maxRequiredVersion, requirements };
+}

@@ -31,6 +31,7 @@ export interface Profile {
   description: string;
   game_version: string;
   mod_loader: 'Vanilla' | 'Fabric' | 'Forge';
+  mod_loader_version?: string;
   mod_path: string;
   created_at: number;
   is_active: boolean;

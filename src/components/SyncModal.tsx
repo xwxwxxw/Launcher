@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
-import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, ExternalLink, HardDrive, Minus, Maximize2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, CheckCircle2, Loader2, RefreshCw, AlertTriangle, Minus, Maximize2 } from 'lucide-react';
 import { Profile } from '../types';
 import { gdsyncState } from '../utils/gdsync';
 import { getEnv } from '../utils/env';
+import LogTerminal from './LogTerminal';
 
 interface SyncModalProps {
   onClose: (didSyncSucceed?: boolean) => void;
@@ -17,12 +18,7 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
   const [errorMsg, setErrorMsg] = useState('');
   const [successSummaryMsg, setSuccessSummaryMsg] = useState('');
   const [tagName, setTagName] = useState('');
-  const logsEndRef = useRef<HTMLDivElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
 
   useEffect(() => {
     const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
@@ -245,24 +241,15 @@ export default function SyncModal({ onClose, profileId, profile }: SyncModalProp
         </div>
 
         {/* Live Terminal Output Console */}
-        <div className="flex-1 bg-zinc-950 p-6 flex flex-col min-h-[160px] max-h-[250px] overflow-hidden border-b border-zinc-900">
-          <div className="flex justify-between items-center mb-2.5">
-            <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-500">Лог операции обновления</span>
-            <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-600 font-mono">UTC Terminal</span>
-          </div>
-          <div className="flex-1 overflow-y-auto scrollbar-none font-mono text-[11px] text-zinc-400 space-y-1.5 p-3 rounded-2xl bg-[#09090b] border border-zinc-900">
-            {logs.length === 0 ? (
-              <div className="text-zinc-600 italic">Инициализация логов обновления...</div>
-            ) : (
-              logs.map((log, i) => (
-                <div key={i} className="flex gap-2.5 leading-relaxed">
-                  <span className="text-zinc-600 flex-shrink-0 select-none">[{log.time}]</span>
-                  <span className="break-all">{log.msg}</span>
-                </div>
-              ))
-            )}
-            <div ref={logsEndRef} />
-          </div>
+        <div className="p-6 border-b border-zinc-900 bg-zinc-950/40">
+          <LogTerminal
+            logs={logs}
+            title="Лог синхронизации GDsync"
+            subtitle="Терминал обновления"
+            profileId={profileId}
+            minecraftPath={localStorage.getItem('launcher_minecraft_path') || './.minecraft'}
+            heightClass="h-64 min-h-[220px]"
+          />
         </div>
 
         {/* Footer actions */}
