@@ -189,10 +189,12 @@ const getStorageDir = () => {
 const DATA_DIR = getStorageDir();
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 const MODS_FILE = path.join(DATA_DIR, 'mods.json');
+const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 
 // Migration of local files to APPDATA folder to prevent development watcher reload
 const localProfilesFile = path.join(process.cwd(), 'profiles.json');
 const localModsFile = path.join(process.cwd(), 'mods.json');
+const localStatsFile = path.join(process.cwd(), 'stats.json');
 
 if (fs.existsSync(localProfilesFile)) {
   try {
@@ -213,6 +215,62 @@ if (fs.existsSync(localModsFile)) {
     console.error('Failed to migrate mods.json:', e);
   }
 }
+
+if (fs.existsSync(localStatsFile)) {
+  try {
+    fs.copyFileSync(localStatsFile, STATS_FILE);
+    fs.unlinkSync(localStatsFile);
+    console.log('Migrated stats.json to APPDATA folder');
+  } catch (e) {
+    console.error('Failed to migrate stats.json:', e);
+  }
+}
+
+// Startup Cleanup for Launcher Temporary Files
+function cleanLauncherTempFiles() {
+  try {
+    const tempDirs = [];
+    if (process.env["APPDATA"]) {
+      tempDirs.push(path.join(process.env["APPDATA"], 'layle-launcher', 'temp'));
+    }
+    // Also use OS temp dir
+    tempDirs.push(os.tmpdir());
+
+    for (const tempDir of tempDirs) {
+      if (fs.existsSync(tempDir)) {
+        const files = fs.readdirSync(tempDir);
+        for (const file of files) {
+          const filePath = path.join(tempDir, file);
+          try {
+            const isTarget = 
+              (file.startsWith('layle-launcher-update-') && file.endsWith('.exe')) ||
+              file.startsWith('layle-update-log-') ||
+              file.startsWith('layle-update-error-') ||
+              file.startsWith('layle-update-install-error-') ||
+              file.startsWith('layle_silent_update_') ||
+              (file.startsWith('forge-') && file.endsWith('-installer.jar')) ||
+              (file.startsWith('layle-sync-') && file.endsWith('.zip'));
+
+            if (isTarget && fs.existsSync(filePath)) {
+              const stats = fs.statSync(filePath);
+              if (stats.isFile()) {
+                fs.unlinkSync(filePath);
+                console.log(`[Startup Cleanup] Cleaned up temporary launcher file: ${file}`);
+              }
+            }
+          } catch (e) {
+            // File might be locked or already removed, ignore
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to run launcher temp files cleanup:', err);
+  }
+}
+
+// Run cleanup immediately on server startup
+cleanLauncherTempFiles();
 
 // Profiles In-Memory DB (or File backed)
 function cleanParam(val: any): string {
@@ -549,14 +607,72 @@ function extractGDriveFolderId(input: string): string {
 }
 
 let profiles: Profile[] = [];
+let statsData: Record<string, any> = {};
+
+function loadStats() {
+  if (fs.existsSync(STATS_FILE)) {
+    try {
+      statsData = JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
+    } catch (e) {
+      console.error('Failed to load stats.json:', e);
+      statsData = {};
+    }
+  } else {
+    statsData = {};
+    // Seed statsData from profiles if they have stats
+    let hasStats = false;
+    profiles.forEach(p => {
+      if (p.stats) {
+        statsData[p.id] = p.stats;
+        hasStats = true;
+      }
+    });
+    if (hasStats) {
+      try {
+        fs.writeFileSync(STATS_FILE, JSON.stringify(statsData, null, 2));
+        console.log('Seeded stats.json from existing profiles');
+      } catch (e) {
+        console.error('Failed to seed stats.json:', e);
+      }
+    }
+  }
+}
+
+function saveStats() {
+  try {
+    fs.writeFileSync(STATS_FILE, JSON.stringify(statsData, null, 2));
+  } catch (e) {
+    console.error('Failed to save stats.json:', e);
+  }
+}
+
+function mergeStatsIntoProfiles() {
+  profiles.forEach(p => {
+    if (statsData[p.id]) {
+      p.stats = statsData[p.id];
+    }
+  });
+}
 
 function saveProfiles() {
+  // Sync the current stats back into statsData before saving
+  profiles.forEach(p => {
+    if (p.stats) {
+      statsData[p.id] = p.stats;
+    }
+  });
+  saveStats();
   fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
 }
 
 if (fs.existsSync(PROFILES_FILE)) {
   try {
     profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf-8'));
+    
+    // Load and merge stats immediately on startup
+    loadStats();
+    mergeStatsIntoProfiles();
+
     // Ensure all existing profiles have separate isolated folders by default
     let migrated = false;
     profiles.forEach(p => {
@@ -662,6 +778,8 @@ if (profiles.length === 0 || (profiles.length === 3 && profiles[0].name === 'Van
       is_favorite: true
     } as any
   ];
+  loadStats();
+  mergeStatsIntoProfiles();
   saveProfiles();
 }
 
@@ -1221,6 +1339,9 @@ async function downloadSingleGDriveFile(
     }
   }
 
+  if (fs.existsSync(tempPath)) {
+    try { fs.unlinkSync(tempPath); } catch (_) {}
+  }
   return { success: false, error: lastError };
 }
 
@@ -1322,6 +1443,8 @@ app.get('/api/sync-build', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+
+  let tempZipPath: string | null = null;
 
   const sendEvent = (type: string, data: any) => {
     res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -1635,7 +1758,7 @@ app.get('/api/sync-build', async (req, res) => {
     const buffer = Buffer.from(arrayBuffer);
     
     sendEvent('status', { message: 'Сохранение архива во временную папку...', progress: 60 });
-    const tempZipPath = path.join(os.tmpdir(), `layle-sync-${Date.now()}.zip`);
+    tempZipPath = path.join(os.tmpdir(), `layle-sync-${Date.now()}.zip`);
     fs.writeFileSync(tempZipPath, buffer);
 
     sendEvent('status', { message: 'Резервное копирование настроек и очистка модов...', progress: 65 });
@@ -1827,6 +1950,9 @@ app.get('/api/sync-build', async (req, res) => {
     res.end();
 
   } catch (err: any) {
+    if (tempZipPath && fs.existsSync(tempZipPath)) {
+      try { fs.unlinkSync(tempZipPath); } catch (_) {}
+    }
     console.error('Error synchronizing build:', err);
     sendEvent('error', { message: `Ошибка синхронизации: ${err.message}` });
     res.end();
@@ -3180,7 +3306,8 @@ app.get('/api/minecraft/launch', async (req, res) => {
     jvmArgs,
     authName,
     authUuid,
-    authAccess
+    authAccess,
+    gpuSelection
   } = req.query;
 
   res.writeHead(200, {
@@ -3344,6 +3471,49 @@ app.get('/api/minecraft/launch', async (req, res) => {
         sendEvent('log', { message: `Автоматически найдена Java: ${found[0]}`, progress: 10 });
       }
     } catch (e) {}
+  }
+
+  // Configure GPU Selection Environment Variables and Windows Registry Preferences
+  const gpuSelectionStr = gpuSelection ? String(gpuSelection) : 'auto';
+  if (gpuSelectionStr === 'discrete') {
+    process.env.DRI_PRIME = '1';
+    process.env.__NV_PRIME_RENDER_OFFLOAD = '1';
+    process.env.__GLX_VENDOR_LIBRARY_NAME = 'nvidia';
+    process.env.__VK_LAYER_NV_optimus = 'NVIDIA_only';
+    sendEvent('log', { message: 'Выбран дискретный GPU (высокая производительность NVIDIA/AMD)', type: 'info', progress: 11 });
+  } else if (gpuSelectionStr === 'integrated') {
+    process.env.DRI_PRIME = '0';
+    process.env.__NV_PRIME_RENDER_OFFLOAD = '0';
+    delete process.env.__GLX_VENDOR_LIBRARY_NAME;
+    delete process.env.__VK_LAYER_NV_optimus;
+    sendEvent('log', { message: 'Выбран интегрированный GPU (энергосбережение Intel/AMD)', type: 'info', progress: 11 });
+  } else {
+    delete process.env.DRI_PRIME;
+    delete process.env.__NV_PRIME_RENDER_OFFLOAD;
+    delete process.env.__GLX_VENDOR_LIBRARY_NAME;
+    delete process.env.__VK_LAYER_NV_optimus;
+    sendEvent('log', { message: 'Выбор графического процессора: Автоматически', type: 'info', progress: 11 });
+  }
+
+  // Windows-specific registry configuration for 100% reliable hybrid graphics selection
+  if (process.platform === 'win32' && opts.javaPath) {
+    try {
+      const javaExecutable = String(opts.javaPath);
+      const prefValue = gpuSelectionStr === 'discrete' ? 'GpuPreference=2;' : (gpuSelectionStr === 'integrated' ? 'GpuPreference=1;' : 'GpuPreference=0;');
+      const regKey = 'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences';
+      
+      // Escape paths for registry command
+      const cmd = `reg add "${regKey}" /v "${javaExecutable}" /t REG_SZ /d "${prefValue}" /f`;
+      exec(cmd, (err) => {
+        if (err) {
+          console.warn('[GPU-REG] Failed to set UserGpuPreferences:', err);
+        } else {
+          console.log(`[GPU-REG] Successfully set UserGpuPreferences for ${javaExecutable} to ${prefValue}`);
+        }
+      });
+    } catch (e) {
+      console.error('[GPU-REG] Registry setup exception:', e);
+    }
   }
 
   const customJvmArgs = [...jvmArguments];

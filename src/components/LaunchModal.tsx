@@ -73,6 +73,7 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
     const resHeight = localStorage.getItem('launcher_res_height') || '720';
     const fullscreen = localStorage.getItem('launcher_fullscreen') || '0';
     const jvmArgs = localStorage.getItem('launcher_jvm_args') || '';
+    const gpuSelection = localStorage.getItem('launcher_gpu_selection') || 'auto';
 
     const query = new URLSearchParams({
       profileId,
@@ -82,7 +83,8 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
       resWidth,
       resHeight,
       fullscreen,
-      jvmArgs
+      jvmArgs,
+      gpuSelection
     });
 
     if (userProfile) {

@@ -160,6 +160,7 @@ export default function SettingsTab({
   const [isFullscreen, setIsFullscreen] = useState(() => localStorage.getItem('launcher_fullscreen') === '1');
   const [launchBehavior, setLaunchBehavior] = useState(() => localStorage.getItem('launcher_behavior') || 'minimize');
   const [showConsole, setShowConsole] = useState(() => localStorage.getItem('launcher_show_console') === '1');
+  const [gpuSelection, setGpuSelection] = useState(() => localStorage.getItem('launcher_gpu_selection') || 'auto');
   const [jvmArgs, setJvmArgs] = useState(() => localStorage.getItem('launcher_jvm_args') || '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions');
   const [cacheCleared, setCacheCleared] = useState(false);
   const [settingsReset, setSettingsReset] = useState(false);
@@ -230,6 +231,10 @@ export default function SettingsTab({
     setShowConsole(val);
     localStorage.setItem('launcher_show_console', val ? '1' : '0');
   };
+  const handleGpuSelectionChange = (val: string) => {
+    setGpuSelection(val);
+    localStorage.setItem('launcher_gpu_selection', val);
+  };
   const handleJvmArgsChange = (val: string) => {
     setJvmArgs(val);
     localStorage.setItem('launcher_jvm_args', val);
@@ -248,6 +253,7 @@ export default function SettingsTab({
     localStorage.removeItem('launcher_fullscreen');
     localStorage.removeItem('launcher_behavior');
     localStorage.removeItem('launcher_show_console');
+    localStorage.removeItem('launcher_gpu_selection');
     localStorage.removeItem('launcher_jvm_args');
     localStorage.removeItem('auto_update_mods');
     
@@ -257,6 +263,7 @@ export default function SettingsTab({
     setIsFullscreen(false);
     setLaunchBehavior('minimize');
     setShowConsole(false);
+    setGpuSelection('auto');
     setJvmArgs('-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions');
     setAutoUpdate(false);
     
@@ -647,7 +654,7 @@ export default function SettingsTab({
         {subTab === 'graphics' && (
           <div className="space-y-6 animate-fade-in">
             {/* Graphics & Resolution */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative z-30">
               <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex items-center gap-4 mb-6 relative z-10">
@@ -695,10 +702,29 @@ export default function SettingsTab({
                   </div>
                 </div>
               </div>
+
+              {/* GPU Selection Row */}
+              <div className="border-t border-zinc-800/40 mt-6 pt-6 relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200">Графический процессор для Minecraft</h4>
+                  <p className="text-[11px] text-zinc-500 mt-0.5 font-sans">Выбор GPU для запуска игры на ноутбуках с гибридной графикой.</p>
+                </div>
+                <CustomSelect 
+                  value={gpuSelection}
+                  onChange={handleGpuSelectionChange}
+                  options={[
+                    { value: 'auto', label: 'Авто (по умолчанию)' },
+                    { value: 'discrete', label: 'Дискретный GPU (NVIDIA/AMD)' },
+                    { value: 'integrated', label: 'Интегрированный GPU (Intel/AMD)' }
+                  ]}
+                  className="w-72 animate-fade-in"
+                />
+              </div>
+
             </div>
 
             {/* Launcher Behavior & Console */}
-            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
+            <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative z-20">
               <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex items-center gap-4 mb-6 relative z-10">

@@ -755,6 +755,36 @@ app.whenReady().then(() => {
     console.error('Failed to clean up old exe backup:', e);
   }
 
+  // General temporary files cleanup on launcher startup
+  try {
+    const tempDir = app.getPath('temp') || os.tmpdir();
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir);
+      for (const file of files) {
+        try {
+          const isTarget = 
+            (file.startsWith('layle-launcher-update-') && file.endsWith('.exe')) ||
+            file.startsWith('layle-update-log-') ||
+            file.startsWith('layle-update-error-') ||
+            file.startsWith('layle-update-install-error-') ||
+            file.startsWith('layle_silent_update_') ||
+            (file.startsWith('forge-') && file.endsWith('-installer.jar')) ||
+            (file.startsWith('layle-sync-') && file.endsWith('.zip'));
+
+          if (isTarget) {
+            const filePath = path.join(tempDir, file);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log('[Startup Cleanup] Cleaned up temporary file:', file);
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.error('Failed to run general temporary files cleanup:', e);
+  }
+
   createWindow();
   
   // 5. Tray
