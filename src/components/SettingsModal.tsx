@@ -10,7 +10,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ onClose, gamePath, setGamePath }: SettingsModalProps) {
   const [autostart, setAutostart] = useState(localStorage.getItem('launcher_autostart') === '1');
-  const [minimizeTray, setMinimizeTray] = useState(localStorage.getItem('launcher_minimize_tray') === '1');
+  const [minimizeTray, setMinimizeTray] = useState(localStorage.getItem('launcher_minimize_tray') !== '0');
   const [language, setLanguage] = useState(localStorage.getItem('launcher_language') || 'ru');
   const [version, setVersion] = useState('');
 

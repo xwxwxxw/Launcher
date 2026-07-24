@@ -297,11 +297,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('game')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'game'
-                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-[0_0_18px_rgba(6,182,212,0.15)]'
-                : 'text-zinc-500 hover:text-cyan-300/80 hover:bg-cyan-500/5 border-transparent'
+                ? 'bg-purple-500/15 text-purple-300 border-purple-500/30 shadow-[0_0_18px_rgba(6,182,212,0.15)]'
+                : 'text-zinc-500 hover:text-purple-300/80 hover:bg-purple-500/5 border-transparent'
             }`}
           >
-            <Cpu size={15} className={subTab === 'game' ? 'text-cyan-400' : ''} />
+            <Cpu size={15} className={subTab === 'game' ? 'text-purple-400' : ''} />
             Память и Пути
           </button>
 
@@ -309,11 +309,11 @@ export default function SettingsTab({
             onClick={() => setSubTab('graphics')}
             className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-300 relative border cursor-pointer ${
               subTab === 'graphics'
-                ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30 shadow-[0_0_18px_rgba(99,102,241,0.15)]'
-                : 'text-zinc-500 hover:text-indigo-300/80 hover:bg-indigo-500/5 border-transparent'
+                ? 'bg-purple-500/15 text-purple-300 border-purple-500/30 shadow-[0_0_18px_rgba(99,102,241,0.15)]'
+                : 'text-zinc-500 hover:text-purple-300/80 hover:bg-purple-500/5 border-transparent'
             }`}
           >
-            <Monitor size={15} className={subTab === 'graphics' ? 'text-indigo-400' : ''} />
+            <Monitor size={15} className={subTab === 'graphics' ? 'text-purple-400' : ''} />
             Экран и Запуск
           </button>
 
@@ -461,14 +461,14 @@ export default function SettingsTab({
             {/* Memory Settings */}
             <div className={`rounded-3xl border p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-1000 relative overflow-hidden ${
               highlightRam 
-                ? 'border-cyan-500 bg-cyan-500/5 shadow-[0_0_30px_rgba(6,182,212,0.15)] ring-2 ring-cyan-500/20' 
+                ? 'border-purple-500 bg-purple-500/5 shadow-[0_0_30px_rgba(6,182,212,0.15)] ring-2 ring-purple-500/20' 
                 : 'border-zinc-800/40 bg-zinc-900/40'
             }`}>
-              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
+                  <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
                     <Cpu size={24} strokeWidth={1.5} />
                   </div>
                   <div>
@@ -486,11 +486,11 @@ export default function SettingsTab({
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border flex items-center gap-2 select-none cursor-pointer ${
                     isAutoRam 
-                      ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]' 
+                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]' 
                       : 'bg-zinc-950/40 text-zinc-500 border-zinc-800/60 hover:text-zinc-300 hover:border-zinc-700/60'
                   }`}
                 >
-                  <Sparkles size={12} className={isAutoRam ? "animate-pulse text-cyan-400" : ""} />
+                  <Sparkles size={12} className={isAutoRam ? "animate-pulse text-purple-400" : ""} />
                   {isAutoRam ? "Авто выбор: Вкл" : "Авто выбор: Выкл"}
                 </button>
               </div>
@@ -508,9 +508,9 @@ export default function SettingsTab({
                       setIsAutoRam(false);
                       localStorage.setItem('launcher_auto_ram', '0');
                     }}
-                    className="flex-1 accent-cyan-400 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                    className="flex-1 accent-purple-400 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
                   />
-                  <div className="bg-zinc-900 border border-cyan-500/30 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-cyan-300 shadow-inner min-w-[110px] text-center">
+                  <div className="bg-zinc-900 border border-purple-500/30 px-5 py-2.5 rounded-lg text-sm font-bold font-mono text-purple-300 shadow-inner min-w-[110px] text-center">
                     {ram} MB
                   </div>
                 </div>
@@ -523,11 +523,11 @@ export default function SettingsTab({
                     </div>
                     <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
                       <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Доступно / Свободно</span>
-                      <span className="font-mono text-cyan-400 font-medium">{(systemRamSpecs.free / 1024).toFixed(1)} GB ({systemRamSpecs.free} MB)</span>
+                      <span className="font-mono text-purple-400 font-medium">{(systemRamSpecs.free / 1024).toFixed(1)} GB ({systemRamSpecs.free} MB)</span>
                     </div>
                     <div className="flex flex-col gap-1 border-t md:border-t-0 md:border-l border-zinc-900 pt-2 md:pt-0 md:pl-4">
                       <span className="text-[9px] uppercase tracking-wider text-zinc-600 font-bold">Оптимально (Выбрано)</span>
-                      <span className="font-mono text-cyan-300 font-medium">{(systemRamSpecs.suggested / 1024).toFixed(1)} GB ({systemRamSpecs.suggested} MB)</span>
+                      <span className="font-mono text-purple-300 font-medium">{(systemRamSpecs.suggested / 1024).toFixed(1)} GB ({systemRamSpecs.suggested} MB)</span>
                     </div>
                   </div>
                 )}
@@ -545,10 +545,10 @@ export default function SettingsTab({
 
             {/* Directory Paths */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
+                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
                   <Folder size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -566,7 +566,7 @@ export default function SettingsTab({
                       value={minecraftPath}
                       onChange={(e) => handleMinecraftPathChange(e.target.value)}
                       placeholder="Например, C:\Users\user\AppData\Roaming\.minecraft"
-                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
+                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                     />
                     <input 
                       type="file"
@@ -601,7 +601,7 @@ export default function SettingsTab({
                       value={javaPath}
                       onChange={(e) => setJavaPath(e.target.value)}
                       placeholder="Автоматический поиск среды выполнения..." 
-                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
+                      className="flex-1 bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-5 py-3 text-sm text-zinc-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 outline-none transition-all placeholder:text-zinc-600 font-mono"
                     />
                     <input 
                       type="file"
@@ -614,7 +614,7 @@ export default function SettingsTab({
                       type="button"
                       onClick={handleFindJava}
                       disabled={isFindingJava}
-                      className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 px-4 py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                       title="Автоматический поиск Java на ПК"
                     >
                       {isFindingJava ? 'Поиск...' : 'Найти Java'}
@@ -648,10 +648,10 @@ export default function SettingsTab({
           <div className="space-y-6 animate-fade-in">
             {/* Graphics & Resolution */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400">
+                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
                   <Monitor size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -667,7 +667,7 @@ export default function SettingsTab({
                       type="checkbox" 
                       checked={isFullscreen}
                       onChange={(e) => handleFullscreenChange(e.target.checked)}
-                      className="rounded bg-zinc-900 border-zinc-700 text-indigo-400 focus:ring-0 cursor-pointer accent-indigo-500"
+                      className="rounded bg-zinc-900 border-zinc-700 text-purple-400 focus:ring-0 cursor-pointer accent-purple-500"
                     />
                     <span className="text-sm font-semibold text-zinc-200">Полноэкранный режим</span>
                   </label>
@@ -682,7 +682,7 @@ export default function SettingsTab({
                       value={resolutionWidth}
                       disabled={isFullscreen}
                       onChange={(e) => handleResWidthChange(Number(e.target.value))}
-                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 outline-none transition-all font-mono disabled:opacity-40"
+                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-purple-500/50 outline-none transition-all font-mono disabled:opacity-40"
                     />
                     <span className="text-zinc-500 font-mono">x</span>
                     <input 
@@ -690,7 +690,7 @@ export default function SettingsTab({
                       value={resolutionHeight}
                       disabled={isFullscreen}
                       onChange={(e) => handleResHeightChange(Number(e.target.value))}
-                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-indigo-500/50 outline-none transition-all font-mono disabled:opacity-40"
+                      className="w-full bg-zinc-950/50 border border-zinc-800/60 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:border-purple-500/50 outline-none transition-all font-mono disabled:opacity-40"
                     />
                   </div>
                 </div>
@@ -699,10 +699,10 @@ export default function SettingsTab({
 
             {/* Launcher Behavior & Console */}
             <div className="rounded-3xl border border-zinc-800/40 bg-zinc-900/40 p-8 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400">
+                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
                   <Terminal size={24} strokeWidth={1.5} />
                 </div>
                 <div>
@@ -741,7 +741,7 @@ export default function SettingsTab({
                       checked={showConsole}
                       onChange={(e) => handleShowConsoleChange(e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
                   </label>
                 </div>
               </div>

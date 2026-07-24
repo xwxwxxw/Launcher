@@ -76,7 +76,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let mainWindow = null;
-global.minimizeToTray = false;
+global.minimizeToTray = true;
 let tray = null;
 
 app.on('second-instance', () => {
@@ -107,8 +107,8 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 try {
   if (fs.existsSync(settingsPath)) {
     const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    if (s.launcher_minimize_tray === '1' || s.launcher_minimize_tray === true) {
-      global.minimizeToTray = true;
+    if (s.launcher_minimize_tray === '0' || s.launcher_minimize_tray === false) {
+      global.minimizeToTray = false;
     }
   }
 } catch (e) {}

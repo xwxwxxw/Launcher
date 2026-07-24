@@ -235,7 +235,9 @@ export default function App() {
               }
 
               if (settings.launcher_minimize_tray !== undefined) {
-                ipcRenderer.invoke('set-minimize-to-tray', settings.launcher_minimize_tray === '1');
+                ipcRenderer.invoke('set-minimize-to-tray', settings.launcher_minimize_tray !== '0');
+              } else {
+                ipcRenderer.invoke('set-minimize-to-tray', true);
               }
               if (settings.launcher_autostart !== undefined) {
                 ipcRenderer.invoke('set-autostart', settings.launcher_autostart === '1');
@@ -1185,9 +1187,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-violet-500/30 relative">
+    <div className="flex h-screen w-full overflow-hidden bg-[#09090b] font-sans text-zinc-100 select-none selection:bg-purple-500/30 relative">
       {/* Subtle ambient glows for glassmorphism backdrop */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-violet-500/5 blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/5 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
       
       {showAuthModal && (
@@ -1251,14 +1253,14 @@ export default function App() {
           />
         </div>
         <div className="mt-auto mb-1 cursor-pointer group flex flex-col items-center" onClick={() => userProfile ? setActiveTab('settings') : setShowAuthModal(true)}>
-          <div className="h-10 w-10 rounded-full border border-zinc-800 bg-zinc-900/80 flex items-center justify-center group-hover:border-violet-500/50 group-hover:bg-violet-500/10 group-hover:shadow-[0_0_15px_rgba(139,92,246,0.2)] overflow-hidden transition-all duration-300 shadow-inner">
+          <div className="h-10 w-10 rounded-full border border-zinc-800 bg-zinc-900/80 flex items-center justify-center group-hover:border-purple-500/50 group-hover:bg-purple-500/10 group-hover:shadow-[0_0_15px_rgba(139,92,246,0.2)] overflow-hidden transition-all duration-300 shadow-inner">
             {userProfile ? (
               <PlayerHead2D username={userProfile.name} uuid={userProfile.id} className="w-full h-full rounded-full" />
             ) : (
-              <User className="h-5 w-5 text-zinc-400 group-hover:text-violet-400 transition-colors duration-300" />
+              <User className="h-5 w-5 text-zinc-400 group-hover:text-purple-400 transition-colors duration-300" />
             )}
           </div>
-          <span className="text-[8px] font-bold text-zinc-500 group-hover:text-violet-400 transition-colors mt-1.5 uppercase tracking-wider">
+          <span className="text-[8px] font-bold text-zinc-500 group-hover:text-purple-400 transition-colors mt-1.5 uppercase tracking-wider">
             {userProfile ? 'Профиль' : 'Войти'}
           </span>
         </div>
@@ -1267,7 +1269,7 @@ export default function App() {
       {/* Main Window */}
       <div className="flex flex-1 flex-col overflow-hidden bg-[#09090b] relative">
         {/* Subtle background glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-violet-500/5 blur-[120px] pointer-events-none rounded-full"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-purple-500/5 blur-[120px] pointer-events-none rounded-full"></div>
 
         {/* Custom Title Bar */}
         <header className="relative flex h-14 items-center justify-between border-b border-zinc-800/60 px-8 flex-shrink-0 z-10 backdrop-blur-md bg-[#09090b]/80 select-none">
@@ -1282,7 +1284,7 @@ export default function App() {
               v{launcherVersion || '0.0.6'}
             </span>
             {envInfo.isAIStudio ? (
-              <span className="text-[10px] font-mono font-bold tracking-wider text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded shadow-sm">
+              <span className="text-[10px] font-mono font-bold tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded shadow-sm">
                 AI STUDIO PREVIEW
               </span>
             ) : (
@@ -1323,11 +1325,11 @@ export default function App() {
 
         {/* Banner Alert for GDrive update */}
         {gdriveUpdateAvailable && activeProfile && activeProfile.syncSource === 'gdrive' && (
-          <div className="bg-gradient-to-r from-violet-950/60 to-purple-950/60 border-b border-violet-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
+          <div className="bg-gradient-to-r from-purple-950/60 to-purple-950/60 border-b border-purple-500/30 px-8 py-3 flex items-center justify-between animate-fade-in relative z-20">
             <div className="flex items-center gap-3">
               <span className="flex h-2.5 w-2.5 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
               </span>
               <div>
                 <p className="text-xs font-bold text-zinc-100">Доступно обновление сборки "{activeProfile.name}" на Google Диске!</p>
@@ -1337,7 +1339,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSyncModal(true)}
-                className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(139,92,246,0.2)]"
+                className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(139,92,246,0.2)]"
               >
                 Обновить сейчас
               </button>
@@ -1448,7 +1450,7 @@ export default function App() {
             <div className="flex items-center space-x-3">
               <span className="text-sm font-semibold text-zinc-100">{userProfile ? userProfile.name : offlineUsername}</span>
               {userProfile ? (
-                <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">Ely.by Account</span>
+                <span className="text-[9px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">Ely.by Account</span>
               ) : (
                 <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest cursor-pointer hover:bg-amber-500/20 transition-colors" onClick={() => { setSettingsSubTab('account'); setActiveTab('settings'); }} title="Нажмите, чтобы изменить локальный никнейм">Автономный режим</span>
               )}
@@ -1465,7 +1467,7 @@ export default function App() {
           <div className="flex items-center space-x-6">
             <div className="text-right flex flex-col justify-center">
               <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Статус запуска</p>
-              <p className={`text-xs font-semibold ${gameStatus === 'running' ? 'text-violet-400' : (gameStatus === 'installing' ? 'text-amber-400' : (isInstalled ? 'text-emerald-400' : 'text-amber-400'))}`}>
+              <p className={`text-xs font-semibold ${gameStatus === 'running' ? 'text-purple-400' : (gameStatus === 'installing' ? 'text-amber-400' : (isInstalled ? 'text-emerald-400' : 'text-amber-400'))}`}>
                 {gameStatus === 'running' ? 'В игре' : (gameStatus === 'installing' ? 'Запуск / Установка...' : (isInstalled ? 'Готов к игре' : 'Требуется установка'))}
               </p>
             </div>
@@ -1479,7 +1481,7 @@ export default function App() {
                 >
                   <span className="truncate pr-1">{activeProfile.name}</span>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                    <ChevronDown size={18} className={`transition-transform duration-200 ${showProfileDropdown ? 'rotate-180 text-violet-400' : ''}`} />
+                    <ChevronDown size={18} className={`transition-transform duration-200 ${showProfileDropdown ? 'rotate-180 text-purple-400' : ''}`} />
                   </div>
                 </button>
                 
@@ -1501,7 +1503,7 @@ export default function App() {
                             }}
                             className={`w-full flex flex-col gap-0.5 px-3 py-2 rounded-xl text-left transition-all ${
                               isSelected 
-                                ? 'bg-violet-500/10 border border-violet-500/20 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]' 
+                                ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]' 
                                 : 'hover:bg-zinc-900 border border-transparent text-zinc-400 hover:text-zinc-100'
                             }`}
                           >
@@ -1511,14 +1513,14 @@ export default function App() {
                                 <span className="truncate">{p.name}</span>
                               </span>
                               {(p.syncSource === 'gdrive' || p.id === 'GDSync') && (
-                                <span className="bg-violet-500/10 text-violet-400 px-1 py-0.2 rounded border border-violet-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">
+                                <span className="bg-purple-500/10 text-purple-400 px-1 py-0.2 rounded border border-purple-500/20 text-[7px] uppercase font-bold tracking-wider font-mono">
                                   GDSync
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-mono">
                               <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40">Ver: {p.game_version}</span>
-                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-violet-500/80">{p.mod_loader}</span>
+                              <span className="bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800/40 text-purple-500/80">{p.mod_loader}</span>
                             </div>
                           </button>
                         );
@@ -1532,7 +1534,7 @@ export default function App() {
                 <button
                   onClick={() => setShowSyncModal(true)}
                   disabled={gameStatus !== 'idle'}
-                  className="flex h-12 px-4 items-center justify-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/80 text-zinc-300 hover:text-violet-400 hover:border-violet-500/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest cursor-pointer"
+                  className="flex h-12 px-4 items-center justify-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/80 text-zinc-300 hover:text-purple-400 hover:border-purple-500/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-widest cursor-pointer"
                   title="Синхронизировать сборку через GDSync (Google Диск)"
                 >
                   <RefreshCw size={14} />
@@ -1621,12 +1623,12 @@ function TabButton({ active, onClick, icon, label, badge }: { active: boolean, o
       onClick={onClick}
       className={`flex flex-col items-center justify-center w-full py-2.5 rounded-xl transition-all duration-300 group relative ${
         active 
-          ? 'text-violet-400 bg-violet-500/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_15px_rgba(139,92,246,0.15)] border border-violet-500/20' 
+          ? 'text-purple-400 bg-purple-500/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_0_15px_rgba(139,92,246,0.15)] border border-purple-500/20' 
           : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 border border-transparent'
       }`}
     >
       {/* Animated Left Accent Indicator */}
-      <div className={`absolute left-0 top-[20%] bottom-[20%] w-[3px] bg-violet-500 rounded-r-md transition-all duration-300 ${
+      <div className={`absolute left-0 top-[20%] bottom-[20%] w-[3px] bg-purple-500 rounded-r-md transition-all duration-300 ${
         active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
       }`} />
 
@@ -1636,13 +1638,13 @@ function TabButton({ active, onClick, icon, label, badge }: { active: boolean, o
         </span>
       )}
       
-      <div className={`transition-all duration-300 ${active ? 'scale-110 text-violet-400' : 'group-hover:scale-110 group-hover:text-zinc-200'}`}>
+      <div className={`transition-all duration-300 ${active ? 'scale-110 text-purple-400' : 'group-hover:scale-110 group-hover:text-zinc-200'}`}>
         {icon}
       </div>
       
       <span className={`mt-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all duration-300 ${
         active 
-          ? 'text-violet-400 opacity-100 font-extrabold' 
+          ? 'text-purple-400 opacity-100 font-extrabold' 
           : 'text-zinc-500 opacity-70 group-hover:opacity-100 group-hover:text-zinc-300'
       }`}>
         {label}

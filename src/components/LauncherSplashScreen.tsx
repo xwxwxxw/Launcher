@@ -89,7 +89,7 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
       {/* Decorative Minecraft-like floating particles */}
       <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
         <div className="absolute top-[20%] left-[15%] w-2 h-2 bg-purple-500/30 animate-pulse rounded-sm"></div>
-        <div className="absolute top-[60%] left-[80%] w-3 h-3 bg-indigo-500/20 animate-bounce rounded-sm" style={{ animationDuration: '4s' }}></div>
+        <div className="absolute top-[60%] left-[80%] w-3 h-3 bg-purple-500/20 animate-bounce rounded-sm" style={{ animationDuration: '4s' }}></div>
         <div className="absolute bottom-[25%] left-[30%] w-1.5 h-1.5 bg-purple-500/40 animate-ping rounded-sm" style={{ animationDuration: '3s' }}></div>
         <div className="absolute top-[15%] left-[70%] w-2 h-2 bg-purple-400/20 animate-pulse rounded-sm" style={{ animationDuration: '2.5s' }}></div>
       </div>
@@ -104,7 +104,7 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
             transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
           ></motion.div>
           <motion.div 
-            className="absolute inset-2 border border-indigo-500/10 rounded-xl"
+            className="absolute inset-2 border border-purple-500/10 rounded-xl"
             animate={{ rotate: -360 }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
           ></motion.div>
@@ -129,12 +129,12 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
               />
               {/* Left face */}
               <div 
-                className="absolute inset-0 bg-indigo-700/90 border border-indigo-400/70 rounded-lg backface-hidden" 
+                className="absolute inset-0 bg-purple-700/90 border border-purple-400/70 rounded-lg backface-hidden" 
                 style={{ transform: 'rotateY(-90deg) translateZ(24px)' }}
               />
               {/* Right face */}
               <div 
-                className="absolute inset-0 bg-indigo-950/90 border border-indigo-600/70 rounded-lg backface-hidden" 
+                className="absolute inset-0 bg-purple-950/90 border border-purple-600/70 rounded-lg backface-hidden" 
                 style={{ transform: 'rotateY(90deg) translateZ(24px)' }}
               />
               {/* Top face */}
@@ -175,7 +175,7 @@ export default function LauncherSplashScreen({ loadingProfiles, loadingMods, onC
 
           <div className="h-1.5 w-full bg-zinc-950/80 rounded-full overflow-hidden border border-zinc-900/50">
             <div 
-              className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+              className="h-full bg-gradient-to-r from-purple-500 to-purple-500 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(168,85,247,0.5)]"
               style={{ width: `${displayProgress}%` }}
             ></div>
           </div>
