@@ -15,8 +15,46 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
   const [status, setStatus] = useState<any>('checking');
   const [fabricWarning, setFabricWarning] = useState<any>(null);
   const [updatingFabric, setUpdatingFabric] = useState(false);
+  const [isInstallingFix, setIsInstallingFix] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const isMissingGameError = logs.some(l => 
+    l.msg.includes('MINECRAFT_NOT_INSTALLED') || 
+    l.msg.includes('ENOENT') || 
+    l.msg.includes('нет файла') || 
+    l.msg.includes('не установлен') ||
+    l.msg.toLowerCase().includes('version.json')
+  );
+
+  const handleEnsureInstalledAndRetry = async () => {
+    setIsInstallingFix(true);
+    const profileId = localStorage.getItem('launcher_active_profile_id') || '1';
+    const minecraftPath = localStorage.getItem('launcher_minecraft_path') || './.minecraft';
+
+    const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLogs(prev => [...prev, { msg: 'Запуск автоматической установки Minecraft и Fabric Loader...', time }]);
+
+    try {
+      const res = await fetch('/api/minecraft/ensure-installed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId, minecraftPath })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLogs(prev => [...prev, { msg: 'Базовые файлы Minecraft и Loader успешно установлены! Повторный запуск...', time }]);
+        setIsInstallingFix(false);
+        startLaunch();
+      } else {
+        setLogs(prev => [...prev, { msg: `Ошибка установки: ${data.error}`, time }]);
+        setIsInstallingFix(false);
+      }
+    } catch (e: any) {
+      setLogs(prev => [...prev, { msg: `Ошибка соединения: ${e.message}`, time }]);
+      setIsInstallingFix(false);
+    }
+  };
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -285,9 +323,40 @@ export default function LaunchModal({ onClose, profileName, userProfile, onGameS
             </div>
 
             {status === 'error' && (
-              <div className="mt-4 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs leading-relaxed">
-                <span className="font-bold uppercase tracking-wider block mb-1">Совет по устранению неполадок:</span>
-                Пожалуйста, убедитесь, что у вас стабильное подключение к интернету, выбран правильный путь к Java и выделено достаточно оперативной памяти (RAM) в настройках профиля.
+              <div className="mt-4 space-y-3">
+                {isMissingGameError ? (
+                  <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-4 rounded-xl text-xs leading-relaxed space-y-3">
+                    <div className="font-bold uppercase tracking-wider flex items-center gap-2 text-amber-400">
+                      <AlertTriangle size={16} />
+                      <span>Minecraft или Fabric Loader не установлен для этой сборки</span>
+                    </div>
+                    <p className="text-zinc-300">
+                      Файлы базовой версии игры отсутствуют в папке <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-purple-300">.minecraft/versions</code>. Нажмите кнопку ниже для автоматического скачивания и установки.
+                    </p>
+                    <button
+                      onClick={handleEnsureInstalledAndRetry}
+                      disabled={isInstallingFix}
+                      className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isInstallingFix ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Установка Minecraft и Loader...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Установить Minecraft и Fabric Loader сейчас</span>
+                          <ArrowUpRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs leading-relaxed">
+                    <span className="font-bold uppercase tracking-wider block mb-1">Совет по устранению неполадок:</span>
+                    Пожалуйста, убедитесь, что у вас стабильное подключение к интернету, выбран правильный путь к Java и выделено достаточно оперативной памяти (RAM) в настройках профиля.
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -30,7 +30,7 @@ export interface Profile {
   name: string;
   description: string;
   game_version: string;
-  mod_loader: 'Vanilla' | 'Fabric' | 'Forge';
+  mod_loader: 'Vanilla' | 'Fabric' | 'Forge' | 'Quilt' | string;
   mod_loader_version?: string;
   mod_path: string;
   created_at: number;

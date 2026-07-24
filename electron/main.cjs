@@ -373,6 +373,14 @@ ipcMain.on('window-close', () => {
   }
 });
 
+ipcMain.on('window-show', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
@@ -549,7 +557,7 @@ Set objShell = WScript.CreateObject("WScript.Shell")
 objShell.Run """${tempPath}"" /S", 0, True
 
 WScript.Sleep 1000
-objShell.Run """${exePath}""", 0, False
+objShell.Run """${exePath}""", 1, False
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 On Error Resume Next

@@ -271,6 +271,184 @@ function isPathSafe(targetPath: string, customMcPath?: string): boolean {
   });
 }
 
+export async function ensureMinecraftAndLoaderInstalled(
+  minecraftPath: string,
+  profile: Profile,
+  onLog?: (msg: string) => void
+): Promise<{ success: boolean; error?: string; logs: string[] }> {
+  const logs: string[] = [];
+  const log = (msg: string) => {
+    logs.push(msg);
+    if (onLog) onLog(msg);
+    console.log(`[MC-Installer] ${msg}`);
+  };
+
+  try {
+    const resolvedMcPath = minecraftPath && path.isAbsolute(minecraftPath)
+      ? minecraftPath
+      : path.resolve(process.cwd(), minecraftPath || './.minecraft');
+
+    const profileDir = normalizeProfilePath(
+      profile.mod_path ? path.dirname(profile.mod_path) : `./profiles/${profile.id}`,
+      profile.id,
+      resolvedMcPath
+    );
+
+    const gameVersion = profile.game_version || '1.20.1';
+
+    // Target directories for versions
+    const versionDirs = [
+      path.join(resolvedMcPath, 'versions'),
+      path.join(profileDir, 'versions'),
+      path.join(profileDir, '.minecraft', 'versions')
+    ];
+
+    for (const vd of versionDirs) {
+      if (!fs.existsSync(vd)) {
+        fs.mkdirSync(vd, { recursive: true });
+      }
+    }
+
+    // ================= 1. VANILLA MINECRAFT =================
+    const vanillaJsonFileName = `${gameVersion}.json`;
+    let vanillaInstalled = false;
+
+    for (const vd of versionDirs) {
+      const vPath = path.join(vd, gameVersion, vanillaJsonFileName);
+      if (fs.existsSync(vPath) && fs.statSync(vPath).size > 100) {
+        vanillaInstalled = true;
+        break;
+      }
+    }
+
+    if (!vanillaInstalled) {
+      log(`Подготовка базовой версии Minecraft ${gameVersion}...`);
+      const manifestRes = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
+      if (!manifestRes.ok) {
+        throw new Error(`Не удалось получить доступ к ресурсам Mojang (HTTP ${manifestRes.status})`);
+      }
+      const manifest: any = await manifestRes.json();
+      const versionEntry = manifest.versions?.find((v: any) => v.id === gameVersion);
+      if (!versionEntry || !versionEntry.url) {
+        throw new Error(`Версия Minecraft ${gameVersion} не найдена в манифесте Mojang`);
+      }
+
+      log(`Загрузка конфигурации версии Minecraft ${gameVersion}...`);
+      const versionJsonRes = await fetch(versionEntry.url);
+      if (!versionJsonRes.ok) {
+        throw new Error(`Ошибка загрузки версии ${gameVersion} (HTTP ${versionJsonRes.status})`);
+      }
+      const versionJsonText = await versionJsonRes.text();
+
+      for (const vd of versionDirs) {
+        const targetDir = path.join(vd, gameVersion);
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, vanillaJsonFileName), versionJsonText, 'utf8');
+      }
+      log(`Vanilla Minecraft ${gameVersion} успешно подготовлен.`);
+    }
+
+    // ================= 2. MOD LOADER =================
+    if (profile.mod_loader === 'Fabric') {
+      let loaderVer = profile.mod_loader_version || '0.16.10';
+
+      const modsDir = profile.mod_path
+        ? normalizeProfilePath(profile.mod_path, profile.id, resolvedMcPath)
+        : path.join(profileDir, 'mods');
+
+      if (fs.existsSync(modsDir)) {
+        try {
+          const modReqs = await scanFabricRequirementsFromMods(modsDir);
+          if (modReqs.maxRequiredVersion && semverCompare(modReqs.maxRequiredVersion, loaderVer) > 0) {
+            loaderVer = modReqs.maxRequiredVersion;
+            log(`Обнаружено требование модов к Fabric Loader >= ${loaderVer}`);
+          }
+        } catch (_) {}
+      }
+
+      let customVersionName = `fabric-loader-${loaderVer}-${gameVersion}`;
+      let loaderInstalled = false;
+
+      for (const vd of versionDirs) {
+        const fabPath = path.join(vd, customVersionName, `${customVersionName}.json`);
+        if (fs.existsSync(fabPath) && fs.statSync(fabPath).size > 100) {
+          loaderInstalled = true;
+          break;
+        }
+      }
+
+      if (!loaderInstalled) {
+        log(`Скачивание профиля Fabric Loader ${loaderVer} для Minecraft ${gameVersion}...`);
+        let fabRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
+
+        if (!fabRes.ok) {
+          log(`Версия Fabric Loader ${loaderVer} недоступна. Поиск актуальной версии...`);
+          const metaRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}`);
+          if (metaRes.ok) {
+            const list: any = await metaRes.json();
+            if (list && list.length > 0) {
+              const latestValid = list[0].loader.version;
+              log(`Выбрана рабочая версия Fabric Loader v${latestValid}`);
+              loaderVer = latestValid;
+              customVersionName = `fabric-loader-${loaderVer}-${gameVersion}`;
+              fabRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
+            }
+          }
+        }
+
+        if (!fabRes.ok) {
+          throw new Error(`Не удалось загрузить профиль Fabric Loader (HTTP ${fabRes.status})`);
+        }
+
+        const fabJsonText = await fabRes.text();
+        for (const vd of versionDirs) {
+          const targetDir = path.join(vd, customVersionName);
+          if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+          fs.writeFileSync(path.join(targetDir, `${customVersionName}.json`), fabJsonText, 'utf8');
+        }
+
+        if (profile.mod_loader_version !== loaderVer) {
+          profile.mod_loader_version = loaderVer;
+          saveProfiles();
+        }
+        log(`Fabric Loader v${loaderVer} успешно установлен.`);
+      }
+    } else if (profile.mod_loader === 'Quilt') {
+      let loaderVer = profile.mod_loader_version || '0.24.0';
+      let customVersionName = `quilt-loader-${loaderVer}-${gameVersion}`;
+      let loaderInstalled = false;
+
+      for (const vd of versionDirs) {
+        const qPath = path.join(vd, customVersionName, `${customVersionName}.json`);
+        if (fs.existsSync(qPath) && fs.statSync(qPath).size > 100) {
+          loaderInstalled = true;
+          break;
+        }
+      }
+
+      if (!loaderInstalled) {
+        log(`Скачивание профиля Quilt Loader ${loaderVer}...`);
+        const qRes = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${gameVersion}/${loaderVer}/profile/json`);
+        if (qRes.ok) {
+          const qJsonText = await qRes.text();
+          for (const vd of versionDirs) {
+            const targetDir = path.join(vd, customVersionName);
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            fs.writeFileSync(path.join(targetDir, `${customVersionName}.json`), qJsonText, 'utf8');
+          }
+          log(`Quilt Loader v${loaderVer} успешно установлен.`);
+        }
+      }
+    }
+
+    return { success: true, logs };
+  } catch (err: any) {
+    const errorMsg = err.message || String(err);
+    log(`Ошибка установки/подготовки версии: ${errorMsg}`);
+    return { success: false, error: errorMsg, logs };
+  }
+}
+
 function extractGDriveFolderId(input: string): string {
   if (!input) return '';
   const match = input.match(/folders\/([a-zA-Z0-9-_]{25,50})/);
@@ -437,7 +615,33 @@ app.post('/api/profiles', (req, res) => {
   };
   profiles.push(newProfile);
   saveProfiles();
+
+  // Auto-ensure base Minecraft and Loader files asynchronously
+  const mcPath = req.body.minecraftPath || './.minecraft';
+  ensureMinecraftAndLoaderInstalled(String(mcPath), newProfile).catch(err => {
+    console.error('Failed to pre-install Minecraft/Loader for new profile:', err);
+  });
+
   res.json(newProfile);
+});
+
+app.post('/api/minecraft/ensure-installed', async (req, res) => {
+  try {
+    const { profileId, minecraftPath } = req.body;
+    const profile = profiles.find(p => p.id === String(profileId)) || profiles[0];
+    if (!profile) return res.status(404).json({ error: 'Профиль не найден' });
+
+    const mcPath = String(minecraftPath || './.minecraft');
+    const result = await ensureMinecraftAndLoaderInstalled(mcPath, profile);
+
+    if (result.success) {
+      res.json({ success: true, details: result });
+    } else {
+      res.status(500).json({ error: result.error || 'Не удалось установить Minecraft или Loader' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -1066,6 +1270,18 @@ app.get('/api/sync-build', async (req, res) => {
 
     if (!fs.existsSync(profileDir)) {
       fs.mkdirSync(profileDir, { recursive: true });
+    }
+
+    // Ensure base Minecraft and Loader are installed before syncing mods
+    sendEvent('status', { message: `Проверка и подготовка базовой версии Minecraft ${profile.game_version} (${profile.mod_loader})...`, progress: 5 });
+    const mcPathResolved = mcPath && path.isAbsolute(mcPath) ? mcPath : path.resolve(process.cwd(), mcPath || './.minecraft');
+    const ensureResult = await ensureMinecraftAndLoaderInstalled(mcPathResolved, profile, (msg) => {
+      sendEvent('status', { message: msg, progress: 8 });
+    });
+
+    if (!ensureResult.success) {
+      sendEvent('error', { message: `ОШИБКА: Не удалось подготовить базовую версию Minecraft/Loader: ${ensureResult.error}` });
+      return res.end();
     }
 
     if (syncSource === 'gdrive') {
@@ -3168,6 +3384,17 @@ app.get('/api/minecraft/launch', async (req, res) => {
   });
 
   try {
+    sendEvent('log', { message: `Проверка наличия базового Minecraft ${activeProfile.game_version} и ${activeProfile.mod_loader}...`, progress: 5 });
+    const preInstall = await ensureMinecraftAndLoaderInstalled(minecraftPathAbsolute, activeProfile, (msg) => {
+      sendEvent('log', { message: msg, progress: 8 });
+    });
+
+    if (!preInstall.success) {
+      sendEvent('error', `MINECRAFT_NOT_INSTALLED: Не удалось автоматически установить Minecraft / Loader: ${preInstall.error}`);
+      res.end();
+      return;
+    }
+
     sendEvent('log', { message: `Начинается установка и запуск ${activeProfile.game_version}...`, progress: 10 });
     
     // Will throw if errors out, or return ChildProcess when fully started
@@ -3242,7 +3469,12 @@ app.get('/api/minecraft/launch', async (req, res) => {
     
   } catch (error: any) {
     console.error('Launch Error:', error);
-    sendEvent('error', error.message || String(error));
+    const errMsg = String(error.message || error);
+    if (errMsg.includes('ENOENT') || errMsg.includes('no such file or directory') || errMsg.includes('versions') || errMsg.includes('version.json')) {
+      sendEvent('error', `MINECRAFT_NOT_INSTALLED: Файл версии Minecraft или Mod Loader не найден. Воспользуйтесь кнопкой ручной авто-установки ниже.`);
+    } else {
+      sendEvent('error', errMsg);
+    }
     res.end();
   }
 

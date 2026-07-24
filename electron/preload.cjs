@@ -36,7 +36,7 @@ console.log('[Electron Preload] Environment variables injected into renderer con
 
 const ipcRendererWrapper = {
   send: (channel, data) => {
-    let validChannels = ['window-minimize', 'window-maximize', 'window-close'];
+    let validChannels = ['window-minimize', 'window-maximize', 'window-close', 'window-show'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('electron', {
     maximize: () => ipcRenderer.send('window-maximize'),
     unmaximize: () => ipcRenderer.send('window-maximize'),
     close: () => ipcRenderer.send('window-close'),
+    show: () => ipcRenderer.send('window-show'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized')
   },
   ipcRenderer: ipcRendererWrapper,
