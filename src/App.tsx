@@ -7,7 +7,6 @@ import ConflictsTab from './components/ConflictsTab';
 import ElyAuthModal from './components/ElyAuthModal';
 import LaunchModal from './components/LaunchModal';
 import UpdateModal from './components/UpdateModal';
-import LauncherSplashScreen from './components/LauncherSplashScreen';
 import SettingsModal from './components/SettingsModal';
 import LogsTab from './components/LogsTab';
 import ScreenshotsTab from './components/ScreenshotsTab';
@@ -22,6 +21,7 @@ import { getEnvironmentInfo, checkGDriveUpdatesWithTimeout, gdsyncState } from '
 import { getEnv } from './utils/env';
 
 export default function App() {
+  console.time("7. React Render Cycle");
   const [activeTab, setActiveTabState] = useState<'home' | 'mods' | 'profiles' | 'settings' | 'conflicts' | 'builder'>(() => {
     return (localStorage.getItem('launcher_active_tab') as any) || 'home';
   });
@@ -94,12 +94,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+
     window.alert = (message: string) => {
       showCustomToast(message);
     };
   }, [showCustomToast]);
 
   useEffect(() => {
+
     // Check backend session endpoint
     fetch('/api/auth/session')
       .then(res => res.json())
@@ -263,7 +265,6 @@ export default function App() {
       }
     };
   }, []);
-  const [showSplashScreen, setShowSplashScreen] = useState(true);
 
   const envInfo = useMemo(() => getEnvironmentInfo(), []);
 
@@ -351,7 +352,7 @@ export default function App() {
   const checkForUpdates = async (silent = true) => {
     try {
       const repo = getEnv('VITE_GITHUB_REPO') || getEnv('GITHUB_REPO') || 'xwxwxxw/Launcher';
-      const res = await fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}`);
+      const res = await fetch(`/api/updates/check?repo=${encodeURIComponent(repo)}&force=true`);
       if (!res.ok) {
         return { success: false, error: `Ошибка сервера обновлений (HTTP ${res.status})` };
       }
@@ -411,8 +412,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Perform update check
-    checkForUpdates(true);
+
+    // Perform update check asynchronously after 2 seconds
+    const timer = setTimeout(() => {
+      console.time('4. GitHub Update Check');
+      checkForUpdates(true).finally(() => console.timeEnd('4. GitHub Update Check'));
+    }, 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>(() => {
@@ -438,6 +444,7 @@ export default function App() {
   const [modsTabProfileId, setModsTabProfileId] = useState<string>('global');
 
   useEffect(() => {
+
     if (activeProfileId) {
       setModsTabProfileId(activeProfileId);
     }
@@ -559,6 +566,7 @@ export default function App() {
   };
 
   const fetchProfiles = async () => {
+    console.time("5. Fetch Profiles");
     setLoadingProfiles(true);
     try {
       const res = await fetch('/api/profiles');
@@ -590,9 +598,11 @@ export default function App() {
       console.error(e);
     }
     setLoadingProfiles(false);
+    console.timeEnd("5. Fetch Profiles");
   };
 
   const fetchMods = async () => {
+    console.time("6. Fetch Mods");
     if (!activeProfileId) return;
     setLoadingMods(true);
     try {
@@ -607,6 +617,7 @@ export default function App() {
       console.error(e);
     }
     setLoadingMods(false);
+    console.timeEnd("6. Fetch Mods");
   };
 
   const handleCreateProfile = async (newProf: any) => {
@@ -729,10 +740,18 @@ export default function App() {
   const isGdriveSync = activeProfile?.syncSource === 'gdrive' || activeProfile?.id === 'GDSync';
   
   useEffect(() => {
+
     if (activeProfile && (activeProfile.syncSource === 'gdrive' || activeProfile.id === 'GDSync')) {
-      checkGDriveUpdates(activeProfile);
-      const interval = setInterval(() => checkGDriveUpdates(activeProfile), 300000);
-      return () => clearInterval(interval);
+      let interval: any;
+      const initialTimer = setTimeout(() => {
+        checkGDriveUpdates(activeProfile);
+        interval = setInterval(() => checkGDriveUpdates(activeProfile), 300000);
+      }, 5000);
+      
+      return () => {
+        clearTimeout(initialTimer);
+        if (interval) clearInterval(interval);
+      };
     } else {
       setGdriveUpdateAvailable(false);
     }
@@ -1027,16 +1046,19 @@ export default function App() {
   };
 
   useEffect(() => {
+
     fetchProfiles();
   }, []);
 
   useEffect(() => {
+
     if (activeProfileId) {
       fetchMods();
     }
   }, [activeProfileId]);
 
   useEffect(() => {
+
     const prof = profiles.find(p => p.id === activeProfileId) || profiles[0];
     if (prof) {
       setIsCheckingInstall(true);
@@ -1055,6 +1077,7 @@ export default function App() {
   }, [activeProfileId, profiles.length, minecraftPath, profiles.find(p => p.id === activeProfileId)?.game_version, profiles.find(p => p.id === activeProfileId)?.mod_loader]);
 
   useEffect(() => {
+
     // 1. Initial load of active session
     const saved = localStorage.getItem('ely_session');
     if (saved) {
@@ -1601,14 +1624,6 @@ export default function App() {
           onClose={() => setShowSettingsModal(false)}
           gamePath={globalGamePath}
           setGamePath={setGlobalGamePath}
-        />
-      )}
-
-      {showSplashScreen && (
-        <LauncherSplashScreen 
-          loadingProfiles={loadingProfiles}
-          loadingMods={loadingMods}
-          onComplete={() => setShowSplashScreen(false)}
         />
       )}
 

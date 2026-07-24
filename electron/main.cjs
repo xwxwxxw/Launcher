@@ -1,3 +1,6 @@
+console.time("1. Main Process Start -> app.whenReady");
+console.time("Total Startup Time (until window shown)");
+console.time('Main Process Start -> App Ready');
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const net = require('net');
@@ -532,32 +535,35 @@ ipcMain.handle('install-update', async (event, tempPath) => {
 
     if (process.platform === 'win32') {
       const tempDir = app.getPath('temp') || os.tmpdir();
-      const cmdPath = path.join(tempDir, `layle_silent_update_${Date.now()}.cmd`);
+      const vbsPath = path.join(tempDir, `layle_silent_update_${Date.now()}.vbs`);
 
-      const cmdScript = `@echo off
-chcp 65001 > nul
-:wait_proc
-tasklist /fi "PID eq ${currentPid}" 2>NUL | find "${currentPid}" >NUL
-if "%ERRORLEVEL%"=="0" (
-    timeout /t 1 /nobreak >nul
-    goto wait_proc
-)
-timeout /t 1 /nobreak >nul
-start /wait "" "${tempPath}" /S
-timeout /t 2 /nobreak >nul
-if exist "${tempPath}" del /f /q "${tempPath}"
-if exist "${exePath}" start "" "${exePath}"
-(goto) 2>nul & del /f /q "%~f0"
+      const vbsScript = `
+Set objWMIService = GetObject("winmgmts:\\\\.\\root\\cimv2")
+Set colProcesses = objWMIService.ExecQuery("Select * from Win32_Process Where ProcessId = ${currentPid}")
+Do While colProcesses.Count > 0
+    WScript.Sleep 500
+    Set colProcesses = objWMIService.ExecQuery("Select * from Win32_Process Where ProcessId = ${currentPid}")
+Loop
+
+Set objShell = WScript.CreateObject("WScript.Shell")
+objShell.Run """${tempPath}"" /S", 0, True
+
+WScript.Sleep 1000
+objShell.Run """${exePath}""", 0, False
+
+Set fso = CreateObject("Scripting.FileSystemObject")
+On Error Resume Next
+fso.DeleteFile "${tempPath}"
+fso.DeleteFile WScript.ScriptFullName
 `;
 
-      fs.writeFileSync(cmdPath, cmdScript, 'utf-8');
+      fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
 
       const { spawn } = require('child_process');
-      const child = spawn('cmd.exe', ['/c', `"${cmdPath}"`], {
+      const child = spawn('wscript.exe', [vbsPath], {
         detached: true,
         windowsHide: true,
-        stdio: 'ignore',
-        windowsVerbatimArguments: true
+        stdio: 'ignore'
       });
       child.unref();
 
@@ -669,7 +675,13 @@ async function createWindow() {
     },
     titleBarStyle: 'hidden',
     backgroundColor: '#09090b',
-    show: true
+    show: false
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    console.timeEnd("2. createWindow -> ready-to-show");
+    console.timeEnd("Total Startup Time (until window shown)");
+    mainWindow.show();
   });
 
 
@@ -726,6 +738,8 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  console.timeEnd("1. Main Process Start -> app.whenReady");
+  console.time("2. createWindow -> ready-to-show");
   // Cleanup old backup exe if it exists from a previous successful update
   try {
     const oldExePath = process.execPath + '.old';

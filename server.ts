@@ -518,10 +518,10 @@ app.post('/api/profiles/import', upload.single('file'), async (req, res) => {
 // GitHub API cache helper
 const githubApiCache = new Map<string, { data: any; timestamp: number; status: number }>();
 
-async function fetchGitHubApi(url: string) {
+async function fetchGitHubApi(url: string, force: boolean = false) {
   const now = Date.now();
   const cached = githubApiCache.get(url);
-  if (cached && (now - cached.timestamp < 10 * 60 * 1000)) { // 10 minutes cache
+  if (!force && cached && (now - cached.timestamp < 10 * 60 * 1000)) { // 10 minutes cache
     return { ok: cached.status === 200, status: cached.status, data: cached.data };
   }
 
@@ -529,6 +529,10 @@ async function fetchGitHubApi(url: string) {
     'User-Agent': 'Layle-Minecraft-Launcher',
     'Accept': 'application/vnd.github.v3+json'
   };
+  if (force) {
+    headers['Cache-Control'] = 'no-cache';
+    headers['Pragma'] = 'no-cache';
+  }
   const token = process.env["GITHUB_TOKEN"] || process.env["GH_TOKEN"];
   if (token) {
     headers['Authorization'] = `token ${token}`;
@@ -596,8 +600,9 @@ app.get('/api/updates/download-file', async (req, res) => {
 
 app.get('/api/updates/check', async (req, res) => {
   const repo = String(req.query.repo || process.env["VITE_GITHUB_REPO"] || 'xwxwxxw/Launcher');
+  const force = req.query.force === 'true';
   try {
-    const { ok, status, data } = await fetchGitHubApi(`https://api.github.com/repos/${repo}/releases/latest`);
+    const { ok, status, data } = await fetchGitHubApi(`https://api.github.com/repos/${repo}/releases/latest`, force);
     
     if (!ok || !data || !data.tag_name) {
       if (status === 403) {

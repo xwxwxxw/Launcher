@@ -1,7 +1,17 @@
-import {StrictMode} from 'react';
+import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+
+console.timeEnd('2. createWindow -> ready-to-show'); // Just in case it's in browser context
+console.time('3. React First Render');
+
+function AppWrapper() {
+  useEffect(() => {
+    console.timeEnd('3. React First Render');
+  }, []);
+  return <App />;
+}
 
 if (typeof window !== 'undefined') {
 
@@ -83,6 +93,6 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AppWrapper />
   </StrictMode>,
 );

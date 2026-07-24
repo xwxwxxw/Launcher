@@ -7,7 +7,38 @@
     <link rel="icon" type="image/png" href="/icon.png" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <style>
+        .initial-loader {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: #09090b;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: #a855f7;
+          font-family: sans-serif;
+          z-index: 99999;
+        }
+        .initial-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid rgba(168, 85, 247, 0.2);
+          border-top-color: #a855f7;
+          border-radius: 50%;
+          animation: initial-spin 1s linear infinite;
+          margin-bottom: 20px;
+        }
+        @keyframes initial-spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+      <div class="initial-loader">
+        <div class="initial-spinner"></div>
+        <div style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-weight: bold;">Инициализация...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
